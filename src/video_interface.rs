@@ -1,4 +1,7 @@
 
+use memory::Ram;
+use minifb::{WindowOptions, Window};
+
 // NTSC  640x480 60Hz
 // PAL   640x574 50Hz
 // MPAL  640x490 60Hz
@@ -64,7 +67,26 @@ const UNKNOWN:                  u32 = 0x70; // Horizontal stepping ??? progressi
 const BORDER_BLANK_END:         u32 = 0x72; // Sets up black border around active pixels in debug mode.
 const BORDER_BLANK_START:       u32 = 0x74;
 
-#[derive(Debug)]
+const WIDTH: usize = 640;
+const HEIGHT: usize = 480;
+
+fn clamp(x: i32) -> i32 {
+    if x < 0 {
+        0
+    } else if x > 255 {
+        255
+    } else {
+        x
+    }
+}
+fn yuv_to_rgb(y: i32, u: i32, v: i32) -> u32 {
+    let r = (clamp((76283*(y - 16) + 104595*(v - 128)) ) as u32) >> 16;
+    let g = (clamp((76283*(y - 16) - 53281 *(v - 128) - 25624*(u - 128))>>16) as u32) << 8;
+    let b = (clamp((76283*(y - 16) + 132252*(u - 128))>>16) as u32) << 16;
+
+    b | g | r
+}
+
 pub struct VideoInterface {
     vertical_timing: VerticalTiming,
     horizontal_timing: HorizontalTiming,
@@ -74,11 +96,23 @@ pub struct VideoInterface {
     vertical_timing_even: VBlankTiming,
 
     clock_select: bool, // 0: 27MHz, 1: 54 MHz (used in progressive)
+
+    top_field_base_l: u32,
+
+    buffer: Vec<u32>,
+    window: Window
 }
 
 impl VideoInterface {
 
     pub fn new() -> VideoInterface {
+        let window = Window::new("Rustcube",
+                                     WIDTH,
+                                     HEIGHT,
+                                     WindowOptions::default()).unwrap_or_else(|e| {
+            panic!("{}", e);
+        });
+
         VideoInterface {
             vertical_timing: VerticalTiming::default(),
             horizontal_timing: HorizontalTiming::default(),
@@ -87,25 +121,45 @@ impl VideoInterface {
             vertical_timing_odd: VBlankTiming::default(),
             vertical_timing_even: VBlankTiming::default(),
 
-            clock_select: false
+            clock_select: false,
+
+            top_field_base_l: 0,
+
+            buffer: vec![0; WIDTH * HEIGHT],
+            window: window
         }
     }
  
-    pub fn update(&mut self) {
+    pub fn update(&mut self, ram: &Ram) {
         if self.display_config.enable {
 
             self.vertical_beam_position += 1;
 
             if self.display_config.format == 0 && self.vertical_beam_position > 525 { // ntsc
                 self.vertical_beam_position = 1;
+
+                let mut i = self.top_field_base_l;
+                let mut j = 0;
+                while i < self.top_field_base_l+320*480*4 {
+                    let y1 = ram.read_u8(i) as i32;
+                    let v  = ram.read_u8(i + 1) as i32;
+                    let y2 = ram.read_u8(i + 2) as i32;
+                    let u  = ram.read_u8(i + 3) as i32;
+
+                    self.buffer[j]     = yuv_to_rgb(y1, u, v);
+                    self.buffer[j + 1] = yuv_to_rgb(y2, u, v);
+
+                    i += 4;
+                    j += 2;
+                }
+
+                self.window.update_with_buffer(&self.buffer);
             }
         }
     }
 
-    pub fn read_u16(&mut self, register: u32) -> u16 {
-        //println!("READ VI reg {:#x}", register);
-
-        self.update();
+    pub fn read_u16(&mut self, register: u32, ram: &Ram) -> u16 {
+        self.update(ram);
 
         match register {
             DISPLAY_CONFIG => self.display_config.as_u16(),
@@ -117,8 +171,6 @@ impl VideoInterface {
     }
 
     pub fn write_u16(&mut self, register: u32, val: u16) {
-        //println!("WRITE VI reg {:#x} {:#x}", register, val);
-
         match register {
             VERTICAL_TIMING => self.vertical_timing = val.into(),
             DISPLAY_CONFIG => self.display_config = val.into(),
@@ -159,6 +211,12 @@ impl VideoInterface {
         }
     }
 
+    pub fn write_u32(&mut self, register: u32, val: u32) {
+        match register {
+            FB_TOP_LEFT_HI => self.top_field_base_l = val & 0xFFFFFF,
+            _ => println!("VI: unhandled register ({:#x})", register)
+        }
+    }
 }
 
 #[derive(Debug, Default)]
