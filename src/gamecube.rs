@@ -72,6 +72,8 @@ impl Gamecube {
         self.interconnect.mmu.write_dbatl(3, 0xfff00001); // Spr::DBAT3L
 
         self.interconnect.write_u32(&self.cpu.msr, 0x80000034, 0x817FE8C0); // ArenaHi
+
+        self.interconnect.write_u16(&self.cpu.msr, 0xCC002002, 0x0001); // VI - Display Config
     }
 }
 

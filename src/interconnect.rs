@@ -131,7 +131,7 @@ impl Interconnect {
 
         match map(addr) {
             Address::Ram => self.ram.read_u16(addr),
-            Address::VideoInterface(offset) => self.vi.read_u16(offset),
+            Address::VideoInterface(offset) => self.vi.read_u16(offset, &self.ram),
             Address::DspInterface(offset) => self.dsp.read_u16(offset),
             Address::Bootrom(offset) => BigEndian::read_u16(&self.bootrom.borrow()[offset as usize ..]),
             Address::PixelEngine(offset) => self.pe.read_u16(offset),
@@ -192,6 +192,7 @@ impl Interconnect {
 
         match map(addr) {
             Address::Ram => self.ram.write_u32(addr, val),
+            Address::VideoInterface(offset) => self.vi.write_u32(offset, val),
             Address::ProcessorInterface(offset) => self.pi.write_u32(offset, val),
             Address::DspInterface(offset) => {
                 self.dsp.write_u16(offset, (val >> 16) as u16);
