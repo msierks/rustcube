@@ -1,0 +1,8 @@
+[package]
+name = "rustcube"
+version = "0.1.0"
+authors = ["Michael Sierks <msierks@117@gmail.com>"]
+
+[dependencies]
+byteorder = "0.4"
+memmap = "0.2.3"
