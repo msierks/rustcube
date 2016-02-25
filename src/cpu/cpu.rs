@@ -65,10 +65,10 @@ impl Cpu {
             18 => self.branch(instr),
             19 => {
                 match instr.subopcode() {
-                    0b00100101100 => { // isync - instruction synchronize
+                    150 => { // isync - instruction synchronize
                         // don't do anything
                     },
-                    _ => panic!("Unrecognized instruction subopcode {:#b} {:#b}", instr.opcode(), instr.subopcode())
+                    _ => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.subopcode())
                 }
             },
             21 => self.rlwinm(instr),
@@ -78,16 +78,18 @@ impl Cpu {
             31 => {
 
                 match instr.subopcode() {
-                    56  => panic!("and"),
-                    57  => panic!("and."),
-                    80  => self.subf(instr),
-                    166 => self.mfmsr(instr),
-                    292 => self.mtmsr(instr),
-                    420 => self.mtsr(instr),
-                    678 => self.mfspr(instr),
-                    742 => self.mftb(instr),
-                    934 => self.mtspr(instr),
-                    _   => panic!("Unrecognized instruction subopcode {:#b} {:#b}", instr.opcode(), instr.subopcode())
+                     28 => {
+                        println!("{:#b}", instr.subopcode());
+                        panic!("and.");
+                    },
+                     40 => self.subf(instr),
+                     83 => self.mfmsr(instr),
+                    146 => self.mtmsr(instr),
+                    210 => self.mtsr(instr),
+                    339 => self.mfspr(instr),
+                    371 => self.mftb(instr),
+                    467 => self.mtspr(instr),
+                    _   => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.subopcode())
                 }
 
             },

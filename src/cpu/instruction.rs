@@ -10,7 +10,7 @@ impl Instruction {
 
     #[inline(always)]
     pub fn subopcode(&self) -> u16 {
-        (self.0 & 0b111_1111_1111) as u16
+        ((self.0 >> 1) & 0b11_1111_1111) as u16
     }
 
     #[inline(always)]
