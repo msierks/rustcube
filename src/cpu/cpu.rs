@@ -246,7 +246,7 @@ impl Cpu {
             self.gpr[instr.a()] + instr.simm()
         };
 
-        let addr = self.mmu.instr_address_translate(&self.msr, ea);
+        let addr = self.mmu.data_address_translate(&self.msr, ea);
 
         self.gpr[instr.d()] = self.memory.read_u32(addr);
     }
@@ -259,7 +259,7 @@ impl Cpu {
             self.gpr[instr.a()] + instr.simm()
         };
 
-        let addr = self.mmu.instr_address_translate(&self.msr, ea);
+        let addr = self.mmu.data_address_translate(&self.msr, ea);
 
         self.memory.write_u32(addr, self.gpr[instr.s()]);
     }
@@ -272,7 +272,7 @@ impl Cpu {
             self.gpr[instr.a()] + instr.simm()
         };
 
-        let addr = self.mmu.instr_address_translate(&self.msr, ea);
+        let addr = self.mmu.data_address_translate(&self.msr, ea);
 
         self.memory.write_u16(ea, self.gpr[instr.s()] as u16);
     }
