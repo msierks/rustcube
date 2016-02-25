@@ -42,40 +42,40 @@ impl Memory {
                 }
             },
             0x08000000 ... 0x0BFFFFFF => { // Embedded Framebuffer (EFB)
-                println!("memory address not implemented");
+                println!("embedded framebuffer not implemented");
             },
             0x0C000000 ... 0x0C000FFF => { // Command Processor (CP)
-                println!("memory address not implemented");
+                println!("command processor not implemented");
             },
             0x0C001000 ... 0x0C001FFF => { // Pixel Engine (PE)
-                println!("memory address not implemented");
+                println!("pixel engine not implemented");
             },
             0x0C002000 ... 0x0C002FFF => { // Video Interface (VI)
-                println!("memory address not implemented");
+                println!("video interface not implemented");
             },
             0x0C003000 ... 0x0C003FFF => { // Peripheral Interface (PI)
-                println!("memory address not implemented");
+                println!("peripheral interface not implemented");
             },
             0x0C004000 ... 0x0C004FFF => { // Memory Interface (MI)
-                println!("memory address not implemented");
+                println!("memory interface not implemented");
             },
             0x0C005000 ... 0x0C005FFF => { // DSP and DMA Audio Interface (AID)
-                println!("memory address not implemented");
+                println!("dsp + dma audio interface not implemented");
             },
             0x0C006000 ... 0x0C0063FF => { // DVD Interface (DI)
-                println!("memory address not implemented");
+                println!("dvd interface not implemented");
             },
             0x0C006400 ... 0x0C0067FF => { // Serial Interface (SI)
-                println!("memory address not implemented");
+                println!("serial interface not implemented");
             },
             0x0C006800 ... 0x0C0068FF => { // External Interface (EXI)
-                println!("memory address not implemented");
+                println!("external interface not implemented");
             },
             0x0C006C00 ... 0x0C006CFF => { // Audio Streaming Interface (AIS)
-                println!("memory address not implemented");
+                println!("audio streaming interface not implemented");
             },
             0x0C008000 ... 0x0C008FFF => { // PI FIFO (GX)
-                println!("memory address not implemented");
+                println!("gx fifo not implemented");
             },
             0xFFF00000 ... 0xFFFFFFFF => { // Bootrom
                 let bootrom = unsafe { self.bootrom.as_slice() };
@@ -108,40 +108,40 @@ impl Memory {
                 }
             },
             0x08000000 ... 0x0BFFFFFF => { // Embedded Framebuffer (EFB)
-                println!("memory address not implemented");
+                println!("embedded framebuffer not implemented");
             },
             0x0C000000 ... 0x0C000FFF => { // Command Processor (CP)
-                println!("memory address not implemented");
+                println!("command processor not implemented");
             },
             0x0C001000 ... 0x0C001FFF => { // Pixel Engine (PE)
-                println!("memory address not implemented");
+                println!("pixel engine not implemented");
             },
             0x0C002000 ... 0x0C002FFF => { // Video Interface (VI)
-                println!("memory address not implemented");
+                println!("video interface not implemented");
             },
             0x0C003000 ... 0x0C003FFF => { // Peripheral Interface (PI)
-                println!("memory address not implemented");
+                println!("peripheral interface not implemented");
             },
             0x0C004000 ... 0x0C004FFF => { // Memory Interface (MI)
-                println!("memory address not implemented");
+                println!("memory interface not implemented");
             },
             0x0C005000 ... 0x0C005FFF => { // DSP and DMA Audio Interface (AID)
-                println!("memory address not implemented");
+                println!("dsp + dma audio interface not implemented");
             },
             0x0C006000 ... 0x0C0063FF => { // DVD Interface (DI)
-                println!("memory address not implemented");
+                println!("dvd interface not implemented");
             },
             0x0C006400 ... 0x0C0067FF => { // Serial Interface (SI)
-                println!("memory address not implemented");
+                println!("serial interface not implemented");
             },
             0x0C006800 ... 0x0C0068FF => { // External Interface (EXI)
-                println!("memory address not implemented");
+                println!("external interface not implemented");
             },
             0x0C006C00 ... 0x0C006CFF => { // Audio Streaming Interface (AIS)
-                println!("memory address not implemented");
+                println!("audio streaming interface not implemented");
             },
             0x0C008000 ... 0x0C008FFF => { // PI FIFO (GX)
-                println!("memory address not implemented");
+                println!("gx fifo not implemented");
             },
             0xFFF00000 ... 0xFFFFFFFF => { // Bootrom
                 let mut bootrom = unsafe { self.bootrom.as_mut_slice() };
