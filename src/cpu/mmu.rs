@@ -150,7 +150,7 @@ impl Mmu {
 
    // instruction address access
    pub fn instr_address_translate(&mut self, msr: &MachineStatus, ea: u32) -> u32 {
-      if msr.instr_address_translation { // bloack address translation mode (BAT)
+      if msr.instr_address_translation { // block address translation mode (BAT)
 
          for x in 0..self.ibat.len() {
             let bat = &self.ibat[x];
