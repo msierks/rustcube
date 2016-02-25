@@ -49,6 +49,31 @@ impl Instruction {
     }
 
     #[inline(always)]
+    pub fn bo(&self) -> u8 {
+        ((self.0 >> 21) & 0b1_1111) as u8
+    }
+
+    #[inline(always)]
+    pub fn bi(&self) -> usize {
+        ((self.0 >> 16) & 0b1_1111) as usize
+    }
+
+    #[inline(always)]
+    pub fn bd(&self) -> u32 {
+        ((self.0 >> 2) & 0b1111_1111_1111_1111_1111_1111)
+    }
+
+    #[inline(always)]
+    pub fn aa(&self) -> u8 {
+        ((self.0 >> 1) & 0b1) as u8
+    }
+
+    #[inline(always)]
+    pub fn lk(&self) -> u8 {
+        (self.0 & 0b1) as u8
+    }
+
+    #[inline(always)]
     pub fn aa_lk(&self) -> u8 {
         (self.0 & 0b11) as u8
     }

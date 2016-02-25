@@ -18,11 +18,13 @@ pub struct Cpu {
     pub memory: memory::Memory,
     pub mmu: mmu::Mmu,
     pub pc: u32,
+    ctr: u32,
     gpr: [u32; NUM_GPR],
     spr: [u32; NUM_SPR],
     pub msr: MachineStatus,
     sr: [u32; NUM_SR],
-    cr: [u8; NUM_CR]
+    cr: [u8; NUM_CR],
+    lr: u32
 }
 
 impl Cpu {
@@ -40,11 +42,13 @@ impl Cpu {
             memory: memory,
             mmu: mmu::Mmu::new(),
             pc: pc,
+            ctr: 0,
             gpr: [0; NUM_GPR],
             spr: [0; NUM_SPR],
             msr: msr,
             sr: [0; NUM_SR],
-            cr: [0; NUM_CR]
+            cr: [0; NUM_CR],
+            lr: 0
         }
     }
 
@@ -57,7 +61,7 @@ impl Cpu {
             10 => self.cmpli(instr),
             14 => self.addi(instr),
             15 => self.addis(instr),
-            16 => panic!("bc"),
+            16 => self.bcx(instr),
             18 => self.branch(instr),
             19 => {
                 match instr.subopcode() {
@@ -143,6 +147,42 @@ impl Cpu {
         } else { // subis
             self.gpr[instr.d()] = self.gpr[instr.a()] + (instr.uimm() << 16);
         }
+    }
+
+    // ToDo: verify this is working
+    fn bcx(&mut self, instr: Instruction) {
+        let bo = instr.bo();
+
+        let ctr_ok = if bon(bo, 2) == 0 {
+            self.ctr.wrapping_sub(1); // FixMe: need wrapping :(
+
+            if bon(bo, 3) != 0 {
+                self.ctr == 0
+            } else {
+                self.ctr != 0
+            }
+        } else {
+            true
+        };
+
+        let cond_ok = if bon(bo, 0) == 0 {
+            (bon(bo, 1) == (self.cr[instr.bi()]))
+        } else {
+            true
+        };
+
+        if ctr_ok && cond_ok {
+            if instr.aa() == 1 {
+                self.pc = instr.bd() << 2;
+            } else {
+                self.pc = self.pc + (instr.bd() << 2);
+            }
+
+            if instr.lk() != 0 {
+                self.lr = self.pc + 4;
+            }
+        }
+
     }
 
     fn branch(&mut self, instr: Instruction) {
@@ -295,6 +335,10 @@ fn mask(x: u8, y: u8) -> u32 {
     } else {
         mask
     }
+}
+
+fn bon(bo: u8, n: u8) -> u8 {
+    (bo >> (4-n)) & 1
 }
 
 impl fmt::Debug for Cpu {
