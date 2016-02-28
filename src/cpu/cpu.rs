@@ -65,6 +65,7 @@ impl Cpu {
             18 => self.bx(instr),
             19 => {
                 match instr.subopcode() {
+                    16 => self.bclrx(instr),
                     150 => { // isync - instruction synchronize
                         // don't do anything
                     },
@@ -153,7 +154,7 @@ impl Cpu {
         let bo = instr.bo();
 
         let ctr_ok = if bon(bo, 2) == 0 {
-            self.ctr.wrapping_sub(1); // FixMe: need wrapping :(
+            self.ctr.wrapping_sub(1);
 
             if bon(bo, 3) != 0 {
                 self.ctr == 0
@@ -177,11 +178,10 @@ impl Cpu {
                 self.pc = self.pc + (instr.bd() << 2);
             }
 
-            if instr.lk() != 0 {
+            if instr.lk() == 1 {
                 self.lr = self.pc + 4;
             }
         }
-
     }
 
     // branch
@@ -197,6 +197,37 @@ impl Cpu {
         }
     }
 
+    // branch conditional to link register
+    fn bclrx(&mut self, instr: Instruction) {
+        let bo = instr.bo();
+
+        let ctr_ok = if bon(bo, 2) == 0 {
+            self.ctr.wrapping_sub(1);
+
+            if bon(bo, 3) != 0 {
+                self.ctr == 0
+            } else {
+                self.ctr != 0
+            }
+        } else {
+            true
+        };
+
+        let cond_ok = if bon(bo, 0) == 0 {
+            (bon(bo, 1) == (self.cr[instr.bi()]))
+        } else {
+            true
+        };
+
+        if ctr_ok && cond_ok {
+            self.pc = self.lr & 0b00;
+
+            if instr.lk() == 1 {
+                self.lr = self.pc + 4;
+            }
+        }
+    }
+
     // rotate word immediate then AND with mask
     fn rlwinm(&mut self, instr: Instruction) {
         let r = self.gpr[instr.s()] << instr.sh();
@@ -204,7 +235,6 @@ impl Cpu {
 
         self.gpr[instr.a()] = r & m;
     }
-
 
     fn andx(&mut self, instr: Instruction) {
         self.gpr[instr.a()] = self.gpr[instr.d()] & self.gpr[instr.b()];
@@ -242,9 +272,16 @@ impl Cpu {
 
     // move from special purpose register
     fn mfspr(&mut self, instr: Instruction) {
-        let n = (instr.spr_upper() << 5) | (instr.spr_lower() & 0b1_1111);
+        let n = ((instr.spr_upper() << 5) | (instr.spr_lower() & 0b1_1111)) as usize;
 
-        self.gpr[instr.s()] = self.spr[n as usize];
+        match n {
+            8 => self.gpr[instr.s()] = self.lr,
+            9 => self.gpr[instr.s()] = self.ctr,
+            _ => {
+                println!("FIXME: spr {} not implemented", n);
+                self.gpr[instr.s()] = self.spr[n];
+            }
+        }
 
         // TODO: check privelege level
     }
@@ -275,7 +312,10 @@ impl Cpu {
                 self.mmu.write_bat_reg(n, self.gpr[instr.s()]);
                 //panic!("FixMe: write to BAT registers");
             },
-            _ => self.spr[n] = self.gpr[instr.s()]
+            _ => {
+                println!("FIXME: mtspr {} not implemented", n);
+                self.spr[n] = self.gpr[instr.s()];
+            }
         }
 
         // TODO: check privelege level
