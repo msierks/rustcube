@@ -74,11 +74,6 @@ impl Instruction {
     }
 
     #[inline(always)]
-    pub fn aa_lk(&self) -> u8 {
-        (self.0 & 0b11) as u8
-    }
-
-    #[inline(always)]
     pub fn s(&self) -> usize {
         ((self.0 >> 21) & 0b1_1111) as usize
     }

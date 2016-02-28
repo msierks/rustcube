@@ -62,7 +62,7 @@ impl Cpu {
             14 => self.addi(instr),
             15 => self.addis(instr),
             16 => self.bcx(instr),
-            18 => self.branch(instr),
+            18 => self.bx(instr),
             19 => {
                 match instr.subopcode() {
                     150 => { // isync - instruction synchronize
@@ -184,21 +184,16 @@ impl Cpu {
 
     }
 
-    fn branch(&mut self, instr: Instruction) {
-        match instr.aa_lk() {
-            0b00 => {
-                let li = instr.li() << 2; // (li || 0b00)
-                let jump_addr = self.pc + li;
+    // branch
+    fn bx(&mut self, instr: Instruction) {
+        if instr.aa() == 1 {
+            self.pc = instr.li() << 2;
+        } else {
+            self.pc = self.pc + (instr.li() << 2);
+        }
 
-                // FixMe: jump to current_address + li
-
-                println!("{:#x}", jump_addr);
-
-                panic!("todo: implement opcode b:18 (branch)");
-            },
-            _ => {
-                panic!("Unrecognized instruction AA + LK {:#b}", instr.aa_lk());
-            }
+        if instr.lk() == 1 {
+            self.lr = self.pc + 4;
         }
     }
 
