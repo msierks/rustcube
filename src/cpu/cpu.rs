@@ -20,7 +20,7 @@ pub struct Cpu {
     pub pc: u32,
     ctr: u32,
     gpr: [u32; NUM_GPR],
-    spr: [u32; NUM_SPR],
+    spr: [u32; NUM_SPR], // ToDo phase out
     pub msr: MachineStatus,
     sr: [u32; NUM_SR],
     cr: [u8; NUM_CR],
@@ -269,6 +269,8 @@ impl Cpu {
         let n = ((instr.spr_upper() << 5) | (instr.spr_lower() & 0b1_1111)) as usize;
 
         match n {
+            8 => self.lr = self.gpr[instr.s()],
+            9 => self.ctr = self.gpr[instr.s()],
             528 ... 543 => { // if IBAT or DBAT, write to MMU register
                 self.mmu.write_bat_reg(n, self.gpr[instr.s()]);
                 //panic!("FixMe: write to BAT registers");
