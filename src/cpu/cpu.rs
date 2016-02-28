@@ -78,10 +78,7 @@ impl Cpu {
             31 => {
 
                 match instr.subopcode() {
-                     28 => {
-                        println!("{:#b}", instr.subopcode());
-                        panic!("and.");
-                    },
+                     28 => self.andx(instr),
                      40 => self.subf(instr),
                      83 => self.mfmsr(instr),
                     146 => self.mtmsr(instr),
@@ -211,6 +208,13 @@ impl Cpu {
         let m = mask(instr.mb(), instr.me());
 
         self.gpr[instr.a()] = r & m;
+    }
+
+
+    fn andx(&mut self, instr: Instruction) {
+        self.gpr[instr.a()] = self.gpr[instr.d()] & self.gpr[instr.b()];
+
+        // TODO: other registers altered
     }
 
     // subtract from
