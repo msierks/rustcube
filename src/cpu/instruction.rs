@@ -60,7 +60,7 @@ impl Instruction {
 
     #[inline(always)]
     pub fn bd(&self) -> u32 {
-        ((self.0 >> 2) & 0b1111_1111_1111_1111_1111_1111)
+        ((self.0 >> 2) & 0b1111_1111_1111_11)
     }
 
     #[inline(always)]
