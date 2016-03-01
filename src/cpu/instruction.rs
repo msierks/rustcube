@@ -59,8 +59,8 @@ impl Instruction {
     }
 
     #[inline(always)]
-    pub fn bd(&self) -> u32 {
-        ((self.0 >> 2) & 0b1111_1111_1111_11)
+    pub fn bd(&self) -> u16 {
+        ((self.0 >> 2) & 0b1111_1111_1111_11) as u16
     }
 
     #[inline(always)]
