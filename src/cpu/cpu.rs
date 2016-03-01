@@ -50,8 +50,6 @@ impl Cpu {
     pub fn run_instruction(&mut self) {
         let instr = self.read_instruction();
 
-        println!("{:#x}:{:?}", instr.opcode(), self.gpr);
-
         match instr.opcode() {
             10 => self.cmpli(instr),
             14 => self.addi(instr),
@@ -61,9 +59,7 @@ impl Cpu {
             19 => {
                 match instr.subopcode() {
                     16 => self.bclrx(instr),
-                    150 => { // isync - instruction synchronize
-                        // don't do anything
-                    },
+                    150 => self.isync(instr),
                     _ => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.subopcode())
                 }
             },
@@ -117,7 +113,7 @@ impl Cpu {
             self.pc = nia
         }
 
-        println!("{:#x} exception occurred, nia {}", nia, self.pc);
+        println!("{:#x} exception occurred, nia {:#x}", nia, self.pc);
     }
 
     // complare logic immediate
@@ -158,12 +154,12 @@ impl Cpu {
         }
     }
 
-    // ToDo: verify this is working
+    // branch conditional
     fn bcx(&mut self, instr: Instruction) {
         let bo = instr.bo();
 
         let ctr_ok = if bon(bo, 2) == 0 {
-            self.ctr.wrapping_sub(1);
+            self.ctr = self.ctr.wrapping_sub(1);
 
             if bon(bo, 3) != 0 {
                 self.ctr == 0
@@ -182,9 +178,9 @@ impl Cpu {
 
         if ctr_ok && cond_ok {
             if instr.aa() == 1 {
-                self.pc = instr.bd() << 2;
+                self.pc = sign_ext_16(instr.bd() << 2) as u32;
             } else {
-                self.pc = self.pc + (instr.bd() << 2);
+                self.pc = self.pc.wrapping_add(sign_ext_16(instr.bd() << 2) as u32);
             }
 
             if instr.lk() == 1 {
@@ -196,9 +192,9 @@ impl Cpu {
     // branch
     fn bx(&mut self, instr: Instruction) {
         if instr.aa() == 1 {
-            self.pc = instr.li() << 2;
+            self.pc = sign_ext_26(instr.li() << 2) as u32;
         } else {
-            self.pc = self.pc + (instr.li() << 2);
+            self.pc = self.pc.wrapping_add(sign_ext_26(instr.li() << 2) as u32);
         }
 
         if instr.lk() == 1 {
@@ -211,7 +207,7 @@ impl Cpu {
         let bo = instr.bo();
 
         let ctr_ok = if bon(bo, 2) == 0 {
-            self.ctr.wrapping_sub(1);
+            self.ctr = self.ctr.wrapping_sub(1);
 
             if bon(bo, 3) != 0 {
                 self.ctr == 0
@@ -235,6 +231,12 @@ impl Cpu {
                 self.lr = self.pc + 4;
             }
         }
+    }
+
+    #[allow(unused_variables)]
+    // isync - instruction synchronize
+    fn isync(&mut self, instr: Instruction) {
+        // don't do anything
     }
 
     // rotate word immediate then AND with mask
@@ -386,6 +388,20 @@ fn mask(x: u8, y: u8) -> u32 {
         !mask
     } else {
         mask
+    }
+}
+
+// Note: A cast from a signed value widens with signed-extension
+//       A cast from an unsigned value widens with zero-extension
+fn sign_ext_16(x: u16) -> i32 {
+    (x as i16) as i32
+}
+
+fn sign_ext_26(x: u32) -> i32 {
+    if x & 0x2000000 != 0 {
+        (x | 0xFC000000) as i32
+    } else {
+        x as i32
     }
 }
 
