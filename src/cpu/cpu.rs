@@ -1,6 +1,7 @@
 use std::fmt;
 
 use byteorder::{ByteOrder, BigEndian};
+use super::exception::Exception;
 use super::instruction::Instruction;
 use super::mmu;
 use super::machine_status::MachineStatus;
@@ -29,27 +30,21 @@ pub struct Cpu {
 
 impl Cpu {
     pub fn new(memory: memory::Memory) -> Cpu {
-        let msr = MachineStatus::default();
-
-        // initial vector is (either 0x0000_0100 or 0xFFF0_0100) depending on MSR[IP]
-        let pc = if msr.exception_prefix {
-            0xFFF00100
-        } else {
-            0x00000100
-        };
-
-        Cpu {
+        let mut cpu = Cpu {
             memory: memory,
             mmu: mmu::Mmu::new(),
-            pc: pc,
+            pc: 0,
             ctr: 0,
             gpr: [0; NUM_GPR],
             spr: [0; NUM_SPR],
-            msr: msr,
+            msr: MachineStatus::default(),
             sr: [0; NUM_SR],
             cr: [0; NUM_CR],
             lr: 0
-        }
+        };
+
+        cpu.exception(Exception::SystemReset); // power on reset
+        cpu
     }
 
     pub fn run_instruction(&mut self) {
@@ -100,7 +95,6 @@ impl Cpu {
         self.pc += 4;
     }
 
-    // FixMe: check if msr.exception_prefix (MSR[IP])
     fn read_instruction(&mut self) -> Instruction {
         let mut data = [0u8; 5];
 
@@ -109,6 +103,21 @@ impl Cpu {
         self.memory.read(addr, &mut data);
 
         Instruction(BigEndian::read_u32(&data[0..]))
+    }
+
+    // FixMe: handle exceptions properly
+    pub fn exception(&mut self, e: Exception) {
+        let nia = match e {
+            Exception::SystemReset => 0x00100
+        };
+
+        if self.msr.exception_prefix {
+            self.pc = nia ^ 0xFFF00000
+        } else {
+            self.pc = nia
+        }
+
+        println!("{:#x} exception occurred, nia {}", nia, self.pc);
     }
 
     // complare logic immediate
