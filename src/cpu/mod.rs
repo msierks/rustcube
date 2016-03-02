@@ -1,4 +1,5 @@
 mod cpu;
+mod condition_register;
 mod exception;
 mod instruction;
 mod mmu;

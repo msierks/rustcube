@@ -1,6 +1,7 @@
 use std::fmt;
 
 use byteorder::{ByteOrder, BigEndian};
+use super::condition_register::ConditionRegister;
 use super::exception::Exception;
 use super::instruction::Instruction;
 use super::mmu;
@@ -10,7 +11,6 @@ use super::super::memory;
 const NUM_GPR: usize = 32;
 const NUM_SPR: usize = 1023;
 const NUM_SR : usize = 16;
-const NUM_CR : usize = 8;
 
 const XER : usize = 1;
 const HID0: usize = 1008;
@@ -18,13 +18,14 @@ const HID0: usize = 1008;
 pub struct Cpu {
     pub memory: memory::Memory,
     pub mmu: mmu::Mmu,
-    pub pc: u32,
+    cia: u32,
+    nia: u32,
     ctr: u32,
     gpr: [u32; NUM_GPR],
     spr: [u32; NUM_SPR], // ToDo phase out
     pub msr: MachineStatus,
     sr: [u32; NUM_SR],
-    cr: [u8; NUM_CR],
+    cr: ConditionRegister,
     lr: u32
 }
 
@@ -33,13 +34,14 @@ impl Cpu {
         let mut cpu = Cpu {
             memory: memory,
             mmu: mmu::Mmu::new(),
-            pc: 0,
+            cia: 0,
+            nia: 0,
             ctr: 0,
             gpr: [0; NUM_GPR],
             spr: [0; NUM_SPR],
             msr: MachineStatus::default(),
             sr: [0; NUM_SR],
-            cr: [0; NUM_CR],
+            cr: ConditionRegister::default(),
             lr: 0
         };
 
@@ -49,6 +51,10 @@ impl Cpu {
 
     pub fn run_instruction(&mut self) {
         let instr = self.read_instruction();
+
+        println!("{:#x}", self.cia);
+
+        self.nia = self.cia + 4;
 
         match instr.opcode() {
             10 => self.cmpli(instr),
@@ -71,7 +77,7 @@ impl Cpu {
 
                 match instr.subopcode() {
                      28 => self.andx(instr),
-                     40 => self.subf(instr),
+                     40 => self.subfx(instr),
                      83 => self.mfmsr(instr),
                     146 => self.mtmsr(instr),
                     210 => self.mtsr(instr),
@@ -88,13 +94,13 @@ impl Cpu {
             _  => panic!("Unrecognized instruction {:#x} {:#b}", instr.0, instr.opcode())
         }
 
-        self.pc += 4;
+        self.cia = self.nia;
     }
 
     fn read_instruction(&mut self) -> Instruction {
         let mut data = [0u8; 5];
 
-        let addr = self.mmu.instr_address_translate(&self.msr, self.pc);
+        let addr = self.mmu.instr_address_translate(&self.msr, self.cia);
 
         self.memory.read(addr, &mut data);
 
@@ -108,12 +114,12 @@ impl Cpu {
         };
 
         if self.msr.exception_prefix {
-            self.pc = nia ^ 0xFFF00000
+            self.cia = nia ^ 0xFFF00000
         } else {
-            self.pc = nia
+            self.cia = nia
         }
 
-        println!("{:#x} exception occurred, nia {:#x}", nia, self.pc);
+        println!("{:#x} exception occurred, nia {:#x}", nia, self.cia);
     }
 
     // complare logic immediate
@@ -132,7 +138,7 @@ impl Cpu {
 
         c |= self.spr[XER] as u8 & 0b1;
 
-        self.cr[instr.crfd()] = c;
+        self.cr.set_field(instr.crfd(), c);
     }
 
     // add immediate
@@ -171,20 +177,19 @@ impl Cpu {
         };
 
         let cond_ok = if bon(bo, 0) == 0 {
-            (bon(bo, 1) == (self.cr[instr.bi()]))
+            (bon(bo, 1) == (self.cr.get_bit(instr.bi())))
         } else {
             true
         };
-
         if ctr_ok && cond_ok {
             if instr.aa() == 1 {
-                self.pc = sign_ext_16(instr.bd() << 2) as u32;
+                self.nia = sign_ext_16(instr.bd() << 2) as u32;
             } else {
-                self.pc = self.pc.wrapping_add(sign_ext_16(instr.bd() << 2) as u32);
+                self.nia = self.cia.wrapping_add(sign_ext_16(instr.bd() << 2) as u32);
             }
 
             if instr.lk() == 1 {
-                self.lr = self.pc + 4;
+                self.lr = self.cia + 4;
             }
         }
     }
@@ -192,13 +197,13 @@ impl Cpu {
     // branch
     fn bx(&mut self, instr: Instruction) {
         if instr.aa() == 1 {
-            self.pc = sign_ext_26(instr.li() << 2) as u32;
+            self.nia = sign_ext_26(instr.li() << 2) as u32;
         } else {
-            self.pc = self.pc.wrapping_add(sign_ext_26(instr.li() << 2) as u32);
+            self.nia = self.cia.wrapping_add(sign_ext_26(instr.li() << 2) as u32);
         }
 
         if instr.lk() == 1 {
-            self.lr = self.pc + 4;
+            self.lr = self.cia + 4;
         }
     }
 
@@ -219,16 +224,16 @@ impl Cpu {
         };
 
         let cond_ok = if bon(bo, 0) == 0 {
-            (bon(bo, 1) == (self.cr[instr.bi()]))
+            (bon(bo, 1) == (self.cr.get_bit(instr.bi())))
         } else {
             true
         };
 
         if ctr_ok && cond_ok {
-            self.pc = self.lr & 0b00;
+            self.nia = self.lr & 0b00;
 
             if instr.lk() == 1 {
-                self.lr = self.pc + 4;
+                self.lr = self.cia + 4;
             }
         }
     }
@@ -254,8 +259,13 @@ impl Cpu {
     }
 
     // subtract from
-    fn subf(&mut self, instr: Instruction) {
-        self.gpr[instr.d()] = self.gpr[instr.a()] + self.gpr[instr.b()] + 1;
+    fn subfx(&mut self, instr: Instruction) {
+        self.gpr[instr.d()] = self.gpr[instr.a()] - self.gpr[instr.b()];
+
+        // FIXME !!!!
+        //if instr.lk() == 1 {
+        //    self.cr2.set_field(0, self.gpr[instr.d()]);
+        //}
 
         // TODO: other registers altered
     }

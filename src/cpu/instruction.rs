@@ -30,7 +30,7 @@ impl Instruction {
 
     #[inline(always)]
     pub fn crfd(&self) -> usize {
-        ((self.0 >> 16) & 0b1_1111) as usize
+        ((self.0 >> 23) & 0b111) as usize
     }
 
     #[inline(always)]
