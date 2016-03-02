@@ -6,6 +6,7 @@ use super::exception::Exception;
 use super::instruction::Instruction;
 use super::mmu;
 use super::machine_status::MachineStatus;
+use super::time_base_register::TimeBaseRegister;
 use super::super::memory;
 
 const NUM_GPR: usize = 32;
@@ -26,7 +27,8 @@ pub struct Cpu {
     pub msr: MachineStatus,
     sr: [u32; NUM_SR],
     cr: ConditionRegister,
-    lr: u32
+    lr: u32,
+    tb: TimeBaseRegister
 }
 
 impl Cpu {
@@ -42,7 +44,8 @@ impl Cpu {
             msr: MachineStatus::default(),
             sr: [0; NUM_SR],
             cr: ConditionRegister::default(),
-            lr: 0
+            lr: 0,
+            tb: TimeBaseRegister::default()
         };
 
         cpu.exception(Exception::SystemReset); // power on reset
@@ -53,6 +56,7 @@ impl Cpu {
         let instr = self.read_instruction();
 
         println!("{:#x}", self.cia);
+        println!("{:?}", self.gpr);
 
         self.nia = self.cia + 4;
 
@@ -95,6 +99,9 @@ impl Cpu {
         }
 
         self.cia = self.nia;
+
+        // tick timer
+        self.tb.advance();
     }
 
     fn read_instruction(&mut self) -> Instruction {
@@ -260,7 +267,7 @@ impl Cpu {
 
     // subtract from
     fn subfx(&mut self, instr: Instruction) {
-        self.gpr[instr.d()] = self.gpr[instr.a()] - self.gpr[instr.b()];
+        self.gpr[instr.d()] = self.gpr[instr.a()].wrapping_sub(self.gpr[instr.b()]);
 
         // FIXME !!!!
         //if instr.lk() == 1 {
@@ -312,12 +319,8 @@ impl Cpu {
         let n = (instr.spr_upper() << 5) | (instr.spr_lower() & 0b1_1111);
 
         match n {
-            268 => { // TBL
-                println!("FIXME: mftb, get time base tbl");
-            },
-            269 => { // TBR
-                println!("FIXME: mftb, get time base tbu");
-            },
+            268 => self.gpr[instr.d()] = self.tb.l(),
+            269 => self.gpr[instr.d()] = self.tb.u(),
             _ => panic!("Unrecognized TBR {}", n) // FixMe: invoke error handler
         }
     }
