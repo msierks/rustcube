@@ -109,9 +109,9 @@ impl Mmu {
 
       // FixMe: validate BAT value
 
-      bat.bepi = (value >> 17 & 0b111_1111_1111_1111) as u16;
-      bat.bl   = (value >> 2 & 0b111_1111_1111) as u16;
-      bat.vs   = (value >> 1 & 0b1) != 0;
+      bat.bepi = ((value >> 17) & 0b111_1111_1111_1111) as u16;
+      bat.bl   = ((value >> 2) & 0b111_1111_1111) as u16;
+      bat.vs   = ((value >> 1) & 0b1) != 0;
       bat.vp   = (value & 0b1) != 0;
    }
 
@@ -146,8 +146,6 @@ impl Mmu {
       bat.pp   = (value & 0b11) as u8;
    }
 
-   // FIXME: the EA ranges are wrong, supposed to be EA[0:19] and EA[20:31]
-
    // instruction address access
    pub fn instr_address_translate(&mut self, msr: &MachineStatus, ea: u32) -> u32 {
       if msr.instr_address_translation { // block address translation mode (BAT)
@@ -155,15 +153,19 @@ impl Mmu {
          for x in 0..self.ibat.len() {
             let bat = &self.ibat[x];
 
-            if ((ea >> 17) as u16) & (!bat.bl) == bat.bepi { // FixMe: this is wrong
+            let ea_15   = (ea >> 17) as u16;
+            let ea_bepi = (ea_15 & 0x7800) ^ ((ea_15 & 0x7FF) & (!bat.bl));
+
+            if ea_bepi == bat.bepi {
 
                if (!msr.privilege_level && bat.vs) || (msr.privilege_level && bat.vp) {
+                  let upper = (bat.brpn ^ ((ea_15 & 0x7FF) & bat.bl)) as u32;
+                  let lower = (ea & 0x1FFFF) as u32;
 
-                  return ((bat.brpn as u32) << 17) ^ (ea & 0b1_1111_1111_1111_1111)
+                  return (upper << 17) ^ lower;
                }
 
             }
-
          }
 
          panic!("FixMe: perform address translation with Segment Register");
@@ -180,11 +182,16 @@ impl Mmu {
          for x in 0..self.dbat.len() {
             let bat = &self.dbat[x];
 
-            if ((ea >> 17) as u16) & (!bat.bl) == bat.bepi { // FixMe: this is wrong
+            let ea_15   = (ea >> 17) as u16;
+            let ea_bepi = (ea_15 & 0x7800) ^ ((ea_15 & 0x7FF) & (!bat.bl));
+
+            if ea_bepi == bat.bepi {
 
                if (!msr.privilege_level && bat.vs) || (msr.privilege_level && bat.vp) {
+                  let upper = (bat.brpn ^ ((ea_15 & 0x7FF) & bat.bl)) as u32;
+                  let lower = (ea & 0x1FFFF) as u32;
 
-                  return ((bat.brpn as u32) << 17) ^ (ea & 0b1_1111_1111_1111_1111)
+                  return (upper << 17) ^ lower;
                }
 
             }
