@@ -107,7 +107,7 @@ impl Cpu {
     fn read_instruction(&mut self) -> Instruction {
         let mut data = [0u8; 5];
 
-        let addr = self.mmu.instr_address_translate(&self.msr, self.cia);
+        let addr = self.mmu.translate_address(mmu::BatType::Instruction, &self.msr, self.cia);
 
         self.memory.read(addr, &mut data);
 
@@ -353,7 +353,7 @@ impl Cpu {
             self.gpr[instr.a()] + instr.simm()
         };
 
-        let addr = self.mmu.data_address_translate(&self.msr, ea);
+        let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);
 
         self.gpr[instr.d()] = self.memory.read_u32(addr);
     }
@@ -366,7 +366,7 @@ impl Cpu {
             self.gpr[instr.a()] + instr.simm()
         };
 
-        let addr = self.mmu.data_address_translate(&self.msr, ea);
+        let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);
 
         self.memory.write_u32(addr, self.gpr[instr.s()]);
     }
@@ -379,7 +379,7 @@ impl Cpu {
             self.gpr[instr.a()] + instr.simm()
         };
 
-        let addr = self.mmu.data_address_translate(&self.msr, ea);
+        let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);
 
         self.memory.write_u16(addr, self.gpr[instr.s()] as u16);
     }

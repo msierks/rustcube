@@ -55,6 +55,11 @@ const DBAT2L: usize = 541;
 const DBAT3U: usize = 542;
 const DBAT3L: usize = 543;
 
+pub enum BatType {
+   Data,
+   Instruction
+}
+
 #[derive(Default, Clone, Copy, Debug)]
 struct Bat {
    bepi: u16,
@@ -81,33 +86,38 @@ impl Mmu {
       }
    }
 
-   // generic write to ibat and dbat registries
+   // generic write to ibat and dbat registers
    pub fn write_bat_reg(&mut self, register: usize, value: u32) {
       match register {
-         IBAT0U => self.write_ibat_upper(0, value),
-         IBAT1U => self.write_ibat_upper(1, value),
-         IBAT2U => self.write_ibat_upper(2, value),
-         IBAT3U => self.write_ibat_upper(3, value),
-         DBAT0U => self.write_dbat_upper(0, value),
-         DBAT1U => self.write_dbat_upper(1, value),
-         DBAT2U => self.write_dbat_upper(2, value),
-         DBAT3U => self.write_dbat_upper(3, value),
-         IBAT0L => self.write_ibat_lower(0, value),
-         IBAT1L => self.write_ibat_lower(1, value),
-         IBAT2L => self.write_ibat_lower(2, value),
-         IBAT3L => self.write_ibat_lower(3, value),
-         DBAT0L => self.write_dbat_lower(0, value),
-         DBAT1L => self.write_dbat_lower(1, value),
-         DBAT2L => self.write_dbat_lower(2, value),
-         DBAT3L => self.write_dbat_lower(3, value),
+         IBAT0U => self.write_bat_upper(BatType::Instruction, 0, value),
+         IBAT1U => self.write_bat_upper(BatType::Instruction, 1, value),
+         IBAT2U => self.write_bat_upper(BatType::Instruction, 2, value),
+         IBAT3U => self.write_bat_upper(BatType::Instruction, 3, value),
+         DBAT0U => self.write_bat_upper(BatType::Data, 0, value),
+         DBAT1U => self.write_bat_upper(BatType::Data, 1, value),
+         DBAT2U => self.write_bat_upper(BatType::Data, 2, value),
+         DBAT3U => self.write_bat_upper(BatType::Data, 3, value),
+         IBAT0L => self.write_bat_lower(BatType::Instruction, 0, value),
+         IBAT1L => self.write_bat_lower(BatType::Instruction, 1, value),
+         IBAT2L => self.write_bat_lower(BatType::Instruction, 2, value),
+         IBAT3L => self.write_bat_lower(BatType::Instruction, 3, value),
+         DBAT0L => self.write_bat_lower(BatType::Data, 0, value),
+         DBAT1L => self.write_bat_lower(BatType::Data, 1, value),
+         DBAT2L => self.write_bat_lower(BatType::Data, 2, value),
+         DBAT3L => self.write_bat_lower(BatType::Data, 3, value),
          _ => panic!("Invalid bat register")
       }
    }
 
-   fn write_ibat_upper(&mut self, index: usize, value: u32) {
-      let bat = &mut self.ibat[index];
+   fn write_bat_upper(&mut self, bat_type: BatType, index: usize, value: u32) {
+      let bat = match bat_type {
+         BatType::Data => &mut self.dbat[index],
+         BatType::Instruction => &mut self.ibat[index]
+      };
 
       // FixMe: validate BAT value
+      // MSRIR | MSRDR = 1
+      // (Vs & ~MSRPR) | (Vp & MSRPR) = 1
 
       bat.bepi = ((value >> 17) & 0b111_1111_1111_1111) as u16;
       bat.bl   = ((value >> 2) & 0b111_1111_1111) as u16;
@@ -115,8 +125,11 @@ impl Mmu {
       bat.vp   = (value & 0b1) != 0;
    }
 
-   fn write_ibat_lower(&mut self, index: usize, value:u32) {
-      let bat = &mut self.ibat[index];
+   fn write_bat_lower(&mut self, bat_type: BatType, index: usize, value:u32) {
+      let bat = match bat_type {
+         BatType::Data => &mut self.dbat[index],
+         BatType::Instruction => &mut self.ibat[index]
+      };
 
       // FixMe: validate BAT value
 
@@ -125,62 +138,16 @@ impl Mmu {
       bat.pp   = (value & 0b11) as u8;
    }
 
-   fn write_dbat_upper(&mut self, index: usize, value: u32) {
-      let bat = &mut self.dbat[index];
-
-      // FixMe: validate BAT value
-
-      bat.bepi = (value >> 17 & 0b111_1111_1111_1111) as u16;
-      bat.bl   = (value >> 2 & 0b111_1111_1111) as u16;
-      bat.vs   = (value >> 1 & 0b1) != 0;
-      bat.vp   = (value & 0b1) != 0;
-   }
-
-   fn write_dbat_lower(&mut self, index: usize, value:u32) {
-      let bat = &mut self.dbat[index];
-
-      // FixMe: validate BAT value
-
-      bat.brpn = (value >> 17 & 0b111_1111_1111_1111) as u16;
-      bat.wimg = (value >> 3 & 0b1_1111) as u8;
-      bat.pp   = (value & 0b11) as u8;
-   }
-
-   // instruction address access
-   pub fn instr_address_translate(&mut self, msr: &MachineStatus, ea: u32) -> u32 {
-      if msr.instr_address_translation { // block address translation mode (BAT)
-
-         for x in 0..self.ibat.len() {
-            let bat = &self.ibat[x];
-
-            let ea_15   = (ea >> 17) as u16;
-            let ea_bepi = (ea_15 & 0x7800) ^ ((ea_15 & 0x7FF) & (!bat.bl));
-
-            if ea_bepi == bat.bepi {
-
-               if (!msr.privilege_level && bat.vs) || (msr.privilege_level && bat.vp) {
-                  let upper = (bat.brpn ^ ((ea_15 & 0x7FF) & bat.bl)) as u32;
-                  let lower = (ea & 0x1FFFF) as u32;
-
-                  return (upper << 17) ^ lower;
-               }
-
-            }
-         }
-
-         panic!("FixMe: perform address translation with Segment Register");
-
-      } else { // read address translation mode
-         ea
-      }
-   }
-
-   // data address access
-   pub fn data_address_translate(&mut self, msr: &MachineStatus, ea: u32) -> u32 {
+   pub fn translate_address(&mut self, bat_type: BatType, msr: &MachineStatus, ea: u32) -> u32 {
       if msr.data_address_translation { // block address translation mode (BAT)
 
-         for x in 0..self.dbat.len() {
-            let bat = &self.dbat[x];
+         let bats = match bat_type {
+            BatType::Data => &self.dbat,
+            BatType::Instruction => &self.ibat
+         };
+
+         for x in 0..bats.len() {
+            let bat = &bats[x];
 
             let ea_15   = (ea >> 17) as u16;
             let ea_bepi = (ea_15 & 0x7800) ^ ((ea_15 & 0x7FF) & (!bat.bl));
