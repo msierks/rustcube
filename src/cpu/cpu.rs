@@ -1,6 +1,5 @@
 use std::fmt;
 
-use byteorder::{ByteOrder, BigEndian};
 use super::condition_register::ConditionRegister;
 use super::exception::Exception;
 use super::instruction::Instruction;
