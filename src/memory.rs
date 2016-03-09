@@ -1,7 +1,7 @@
 use std::fmt;
 use std::io::{Read, Write};
 use memmap::{Mmap, Protection};
-use byteorder::{ByteOrder, LittleEndian};
+use byteorder::{ByteOrder, BigEndian};
 
 const RAM_SIZE: usize     = 0x1800000; // 24 MB
 const BOOTROM_SIZE: usize = 0x0100000; // 1 MB
@@ -94,7 +94,7 @@ impl Memory {
 
         self.read(address, &mut data);
 
-        LittleEndian::read_u32(&data)
+        BigEndian::read_u32(&data)
     }
 
     pub fn write(&mut self, address: u32, data: &[u8]) { // FixMe: probably change to size
@@ -158,7 +158,7 @@ impl Memory {
     pub fn write_u16(&mut self, address: u32, value: u16) {
         let mut data = [0u8; 2];
 
-        LittleEndian::write_u16(&mut data, value);
+        BigEndian::write_u16(&mut data, value);
 
         self.write(address, &data);
     }
@@ -166,7 +166,7 @@ impl Memory {
     pub fn write_u32(&mut self, address: u32, value: u32) {
         let mut data = [0u8; 4];
 
-        LittleEndian::write_u32(&mut data, value);
+        BigEndian::write_u32(&mut data, value);
 
         self.write(address, &data);
     }

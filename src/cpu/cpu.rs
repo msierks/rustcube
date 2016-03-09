@@ -105,13 +105,14 @@ impl Cpu {
     }
 
     fn read_instruction(&mut self) -> Instruction {
-        let mut data = [0u8; 5];
+        //let mut data = [0u8; 5];
 
         let addr = self.mmu.translate_address(mmu::BatType::Instruction, &self.msr, self.cia);
 
-        self.memory.read(addr, &mut data);
+        //self.memory.read(addr, &mut data);
 
-        Instruction(BigEndian::read_u32(&data[0..]))
+        //Instruction(BigEndian::read_u32(&data[0..]))
+        Instruction(self.memory.read_u32(addr))
     }
 
     // FixMe: handle exceptions properly
