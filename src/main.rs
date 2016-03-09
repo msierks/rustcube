@@ -11,7 +11,7 @@ fn main() {
     let ipl_file_name = match env::args().nth(1) {
         Some(v) => v,
         None => {
-            println!("missing bs2(ipl.bin) file name argument");
+            println!("missing ipl.bin file name argument");
             std::process::exit(1)
         }
     };
