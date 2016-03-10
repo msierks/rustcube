@@ -3,7 +3,7 @@ use std::io::Read;
 use std::path::Path;
 
 use super::cpu;
-use super::memory;
+use super::interconnect;
 
 #[derive(Debug)]
 pub struct Gamecube {
@@ -12,8 +12,8 @@ pub struct Gamecube {
 
 impl Gamecube {
     pub fn new() -> Gamecube {
-        let memory = memory::Memory::new();
-        let cpu = cpu::Cpu::new(memory);
+        let interconnect = interconnect::Interconnect::new();
+        let cpu = cpu::Cpu::new(interconnect);
 
         Gamecube {
             cpu: cpu
@@ -26,7 +26,7 @@ impl Gamecube {
         descrambler(&mut data[0x100..0x15ee30]);
 
         // copy ipl into bootrom
-        self.cpu.memory.write(0xFFF00000, &data);
+        self.cpu.interconnect.write(0xFFF00000, &data);
     }
 
     pub fn run_instruction(&mut self) {

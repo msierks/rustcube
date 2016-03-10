@@ -6,7 +6,7 @@ use super::instruction::Instruction;
 use super::mmu;
 use super::machine_status::MachineStatus;
 use super::time_base_register::TimeBaseRegister;
-use super::super::memory;
+use super::super::interconnect::Interconnect;
 
 const NUM_GPR: usize = 32;
 const NUM_SPR: usize = 1023;
@@ -16,7 +16,7 @@ const XER : usize = 1;
 const HID0: usize = 1008;
 
 pub struct Cpu {
-    pub memory: memory::Memory,
+    pub interconnect: Interconnect,
     pub mmu: mmu::Mmu,
     cia: u32,
     nia: u32,
@@ -31,9 +31,9 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    pub fn new(memory: memory::Memory) -> Cpu {
+    pub fn new(interconnect: Interconnect) -> Cpu {
         let mut cpu = Cpu {
-            memory: memory,
+            interconnect: interconnect,
             mmu: mmu::Mmu::new(),
             cia: 0,
             nia: 0,
@@ -104,14 +104,9 @@ impl Cpu {
     }
 
     fn read_instruction(&mut self) -> Instruction {
-        //let mut data = [0u8; 5];
-
         let addr = self.mmu.translate_address(mmu::BatType::Instruction, &self.msr, self.cia);
 
-        //self.memory.read(addr, &mut data);
-
-        //Instruction(BigEndian::read_u32(&data[0..]))
-        Instruction(self.memory.read_u32(addr))
+        Instruction(self.interconnect.read_word(addr))
     }
 
     // FixMe: handle exceptions properly
@@ -355,7 +350,7 @@ impl Cpu {
 
         let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);
 
-        self.gpr[instr.d()] = self.memory.read_u32(addr);
+        self.gpr[instr.d()] = self.interconnect.read_word(addr);
     }
 
     // store word
@@ -368,7 +363,7 @@ impl Cpu {
 
         let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);
 
-        self.memory.write_u32(addr, self.gpr[instr.s()]);
+        self.interconnect.write_word(addr, self.gpr[instr.s()]);
     }
 
     // store half word
@@ -381,7 +376,7 @@ impl Cpu {
 
         let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);
 
-        self.memory.write_u16(addr, self.gpr[instr.s()] as u16);
+        self.interconnect.write_halfword(addr, self.gpr[instr.s()] as u16);
     }
 }
 

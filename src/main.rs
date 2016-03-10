@@ -4,8 +4,9 @@ extern crate memmap;
 use std::env;
 
 mod cpu;
+mod exi;
 mod gamecube;
-mod memory;
+mod interconnect;
 
 fn main() {
     let ipl_file_name = match env::args().nth(1) {
