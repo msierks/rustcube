@@ -73,6 +73,7 @@ impl Cpu {
             },
             21 => self.rlwinmx(instr),
             24 => self.ori(instr),
+            25 => self.oris(instr),
             31 => {
 
                 match instr.subopcode() {
@@ -80,6 +81,7 @@ impl Cpu {
                      32 => self.cmpl(instr),
                      40 => self.subfx(instr),
                      83 => self.mfmsr(instr),
+                    124 => self.norx(instr),
                     146 => self.mtmsr(instr),
                     210 => self.mtsr(instr),
                     339 => self.mfspr(instr),
@@ -93,7 +95,7 @@ impl Cpu {
             32 => self.lwz(instr),
             36 => self.stw(instr),
             44 => self.sth(instr),
-            _  => panic!("Unrecognized instruction {:#x} {:#b}", instr.0, instr.opcode())
+            _  => panic!("Unrecognized instruction {} {}", instr.0, instr.opcode())
         }
 
         self.cia = self.nia;
@@ -261,6 +263,11 @@ impl Cpu {
         self.gpr[instr.a()] = self.gpr[instr.s()] | instr.uimm();
     }
 
+    // OR immediate shifted
+    fn oris(&mut self, instr: Instruction) {
+        self.gpr[instr.a()] = self.gpr[instr.s()] | (instr.uimm() << 16);
+    }
+
     fn andx(&mut self, instr: Instruction) {
         self.gpr[instr.a()] = self.gpr[instr.d()] & self.gpr[instr.b()];
 
@@ -348,6 +355,14 @@ impl Cpu {
 
     fn orx(&mut self, instr: Instruction) {
         self.gpr[instr.a()] = self.gpr[instr.s()] | self.gpr[instr.b()];
+
+        if instr.rc() {
+            self.cr.set_field(0, self.gpr[instr.a()] as u8);
+        }
+    }
+
+    fn norx(&mut self, instr: Instruction) {
+        self.gpr[instr.a()] = !(self.gpr[instr.s()] | self.gpr[instr.b()]);
 
         if instr.rc() {
             self.cr.set_field(0, self.gpr[instr.a()] as u8);
