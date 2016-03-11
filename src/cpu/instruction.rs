@@ -29,6 +29,11 @@ impl Instruction {
     }
 
     #[inline(always)]
+    pub fn rc(&self) -> bool {
+        self.0 & 1 == 1
+    }
+
+    #[inline(always)]
     pub fn crfd(&self) -> usize {
         ((self.0 >> 23) & 0b111) as usize
     }
@@ -70,7 +75,7 @@ impl Instruction {
 
     #[inline(always)]
     pub fn lk(&self) -> u8 {
-        (self.0 & 0b1) as u8
+        (self.0 & 1) as u8
     }
 
     #[inline(always)]

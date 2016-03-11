@@ -56,8 +56,8 @@ impl Exi {
             //0x08 => // DMA Length
             0x0C => {
                 channel.control = value.into();
-                channel.control.transfer_length = 0; // finish transfer immediately
-                channel.control.enabled = false; // finish transfer immediately
+                //channel.control.transfer_length = 0;
+                //channel.control.enabled = false; // finish transfer immediately
             }, // DMA Control
             0x10 => channel.get_device(channel.status.exi_device).write_imm(value), // IMM Data
             _ => panic!("exi register out of range {:#x}", register)

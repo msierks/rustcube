@@ -54,8 +54,7 @@ impl Cpu {
     pub fn run_instruction(&mut self) {
         let instr = self.read_instruction();
 
-        println!("{:#x}", self.cia);
-        println!("{:?}", self.gpr);
+        println!("{:#x} {}", self.cia, instr.opcode());
 
         self.nia = self.cia + 4;
 
@@ -183,6 +182,9 @@ impl Cpu {
         } else {
             true
         };
+
+        println!("bc: {:#?}", self.cr);
+
         if ctr_ok && cond_ok {
             if instr.aa() == 1 {
                 self.nia = sign_ext_16(instr.bd() << 2) as u32;
@@ -257,19 +259,20 @@ impl Cpu {
     fn andx(&mut self, instr: Instruction) {
         self.gpr[instr.a()] = self.gpr[instr.d()] & self.gpr[instr.b()];
 
-        // TODO: other registers altered
+        if instr.rc() {
+            self.cr.set_field(0, self.gpr[instr.a()] as u8);
+        }
     }
 
     // subtract from
     fn subfx(&mut self, instr: Instruction) {
         self.gpr[instr.d()] = self.gpr[instr.a()].wrapping_sub(self.gpr[instr.b()]);
 
-        // FIXME !!!!
-        //if instr.lk() == 1 {
-        //    self.cr2.set_field(0, self.gpr[instr.d()]);
-        //}
+        if instr.rc() {
+            self.cr.set_field(0, self.gpr[instr.d()] as u8);
+        }
 
-        // TODO: other registers altered
+        // TODO: update XER if OE = 1
     }
 
     // move from machine state register
