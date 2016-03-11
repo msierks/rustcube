@@ -232,7 +232,7 @@ impl Cpu {
         };
 
         if ctr_ok && cond_ok {
-            self.nia = self.lr & 0b00;
+            self.nia = self.lr & 0xFFFFFFFC;
 
             if instr.lk() == 1 {
                 self.lr = self.cia + 4;
