@@ -79,6 +79,7 @@ impl Cpu {
 
                 match instr.subopcode() {
                      28 => self.andx(instr),
+                     32 => self.cmpl(instr),
                      40 => self.subfx(instr),
                      83 => self.mfmsr(instr),
                     146 => self.mtmsr(instr),
@@ -127,15 +128,14 @@ impl Cpu {
     fn cmpli(&mut self, instr: Instruction) {
         let a = self.gpr[instr.a()];
         let b = instr.uimm();
-        let mut c:u8;
 
-        if a < b {
-            c = 0b1000;
+        let mut c:u8 = if a < b {
+            0b1000
         } else if a > b {
-            c = 0b0100;
+            0b0100
         } else {
-            c = 0b0010;
-        }
+            0b0010
+        };
 
         c |= self.spr[XER] as u8 & 0b1;
 
@@ -182,8 +182,6 @@ impl Cpu {
         } else {
             true
         };
-
-        println!("bc: {:#?}", self.cr);
 
         if ctr_ok && cond_ok {
             if instr.aa() == 1 {
@@ -262,6 +260,24 @@ impl Cpu {
         if instr.rc() {
             self.cr.set_field(0, self.gpr[instr.a()] as u8);
         }
+    }
+
+    // ToDo: if L = 1, instruction form is invalid
+    fn cmpl(&mut self, instr: Instruction) {
+        let a = self.gpr[instr.a()];
+        let b = self.gpr[instr.b()];
+
+        let mut c:u8 = if a < b {
+            0b1000
+        } else if a > b {
+            0b0100
+        } else {
+            0b0010
+        };
+
+        c |= self.spr[XER] as u8 & 0b1;
+
+        self.cr.set_field(instr.crfd(), c);
     }
 
     // subtract from
