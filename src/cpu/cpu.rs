@@ -86,6 +86,7 @@ impl Cpu {
                     210 => self.mtsr(instr),
                     339 => self.mfspr(instr),
                     371 => self.mftb(instr),
+                    444 => self.orx(instr),
                     467 => self.mtspr(instr),
                     _   => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.subopcode())
                 }
@@ -336,6 +337,14 @@ impl Cpu {
             268 => self.gpr[instr.d()] = self.tb.l(),
             269 => self.gpr[instr.d()] = self.tb.u(),
             _ => panic!("Unrecognized TBR {}", n) // FixMe: invoke error handler
+        }
+    }
+
+    fn orx(&mut self, instr: Instruction) {
+        self.gpr[instr.a()] = self.gpr[instr.s()] | self.gpr[instr.b()];
+
+        if instr.rc() {
+            self.cr.set_field(0, self.gpr[instr.a()] as u8);
         }
     }
 
