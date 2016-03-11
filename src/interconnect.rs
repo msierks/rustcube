@@ -26,7 +26,7 @@ pub enum Address {
 
 fn map_address(address: u32) -> Address {
     match address {
-        0x00000000 ... 0x07FFFFFF => Address::Ram,
+        0x00000000 ... 0x017FFFFF => Address::Ram,
         0x08000000 ... 0x0BFFFFFF => Address::EmbeddedFramebuffer,
         0x0C000000 ... 0x0C000FFF => Address::CommandProcessor,
         0x0C001000 ... 0x0C001FFF => Address::PixelEngine,
@@ -122,6 +122,18 @@ impl Interconnect {
 
     pub fn write_word(&mut self, address: u32, value: u32) {
         match map_address(address) {
+            Address::Ram => {
+               // println!("---- ADDRESS {:#x}", address);
+                let mut data = [0u8; 4];
+                let mut mmap = unsafe { self.mmap.as_mut_slice() };
+
+                BigEndian::write_u32(&mut data, value);
+
+                match {&mut mmap[address as usize ..]}.write(&data) {
+                    Ok(_) => {}
+                    Err(e) => panic!("{}", e)
+                }
+            },
             Address::ExpansionInterface(channel, register) => {
                 self.exi.write(channel, register, value);
             },

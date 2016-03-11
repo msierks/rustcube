@@ -54,7 +54,7 @@ impl Cpu {
     pub fn run_instruction(&mut self) {
         let instr = self.read_instruction();
 
-        println!("{:#x} {}", self.cia, instr.opcode());
+        //println!("{:#x} {}", self.cia, instr.opcode());
 
         self.nia = self.cia + 4;
 
@@ -71,10 +71,8 @@ impl Cpu {
                     _ => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.subopcode())
                 }
             },
-            21 => self.rlwinm(instr),
-            24 => { // ori - OR immediate
-                self.gpr[instr.a()] = self.gpr[instr.s()] | instr.uimm();
-            },
+            21 => self.rlwinmx(instr),
+            24 => self.ori(instr),
             31 => {
 
                 match instr.subopcode() {
@@ -248,11 +246,19 @@ impl Cpu {
     }
 
     // rotate word immediate then AND with mask
-    fn rlwinm(&mut self, instr: Instruction) {
-        let r = self.gpr[instr.s()] << instr.sh();
-        let m = mask(instr.mb(), instr.me());
+    fn rlwinmx(&mut self, instr: Instruction) {
+        let mask = mask(instr.mb(), instr.me());
 
-        self.gpr[instr.a()] = r & m;
+        self.gpr[instr.a()] = rotl(self.gpr[instr.s()], instr.sh()) & mask;
+
+        if instr.rc() {
+            self.cr.set_field(0, self.gpr[instr.a()] as u8);
+        }
+    }
+
+    // OR immediate
+    fn ori(&mut self, instr: Instruction) {
+        self.gpr[instr.a()] = self.gpr[instr.s()] | instr.uimm();
     }
 
     fn andx(&mut self, instr: Instruction) {
@@ -408,19 +414,24 @@ impl Cpu {
     }
 }
 
-//((1 << (x - y +1)) - 1) << y
-// FixMe: not sure if this is correct
-// actually I think this might be backwards
-fn mask(x: u8, y: u8) -> u32 {
-    let mut mask:u32 = 0xFFFFFFFF >> y;
+fn rotl(x: u32, shift: u8) -> u32 {
+    if shift == 0 {
+        x
+    } else {
+        (x << shift) | (x >> (32 - shift))
+    }
+}
 
-    if x >= 31 {
+fn mask(x: u8, y: u8) -> u32 {
+    let mut mask:u32 = 0xFFFFFFFF >> x;
+
+    if y >= 31 {
         mask ^= 0;
     } else {
-        mask ^= 0xFFFFFFFF >> (x + 1);
-    }
+        mask ^= 0xFFFFFFFF >> (y + 1)
+    };
 
-    if y > x {
+    if y < x {
         !mask
     } else {
         mask
@@ -442,7 +453,7 @@ fn sign_ext_26(x: u32) -> i32 {
 }
 
 fn bon(bo: u8, n: u8) -> u8 {
-    (bo >> (4-n)) & 1
+    (bo >> (4 - n)) & 1
 }
 
 impl fmt::Debug for Cpu {
