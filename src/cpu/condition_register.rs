@@ -24,4 +24,16 @@ impl ConditionRegister {
 
     }
 
+    pub fn update_cr0(&mut self, r: u32) {
+        if r == 0 {
+            self.value[0] = 2; // EQ
+        } else if (r & 0x80000000) != 0 {
+            self.value[0] = 8; // LT
+        } else {
+            self.value[0] = 4; // GT
+        }
+
+        // FixMe: copy XER[SO] to forth bit
+    }
+
 }

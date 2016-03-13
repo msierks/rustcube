@@ -29,6 +29,11 @@ impl Instruction {
     }
 
     #[inline(always)]
+    pub fn oe(&self) -> bool {
+        ((self.0 >> 10) & 1) == 1
+    }
+
+    #[inline(always)]
     pub fn rc(&self) -> bool {
         self.0 & 1 == 1
     }
@@ -70,7 +75,7 @@ impl Instruction {
 
     #[inline(always)]
     pub fn aa(&self) -> u8 {
-        ((self.0 >> 1) & 0b1) as u8
+        ((self.0 >> 1) & 1) as u8
     }
 
     #[inline(always)]

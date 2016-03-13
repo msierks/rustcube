@@ -1,4 +1,5 @@
 use std::fmt;
+use std::io;
 
 use super::condition_register::ConditionRegister;
 use super::exception::Exception;
@@ -54,12 +55,11 @@ impl Cpu {
     pub fn run_instruction(&mut self) {
         let instr = self.read_instruction();
 
-        //println!("{:#x} {}", self.cia, instr.opcode());
-
         self.nia = self.cia + 4;
 
         match instr.opcode() {
             10 => self.cmpli(instr),
+            11 => self.cmpi(instr),
             14 => self.addi(instr),
             15 => self.addis(instr),
             16 => self.bcx(instr),
@@ -117,7 +117,7 @@ impl Cpu {
         };
 
         if self.msr.exception_prefix {
-            self.cia = nia ^ 0xFFF00000
+            self.cia = nia | 0xFFF00000
         } else {
             self.cia = nia
         }
@@ -138,27 +138,30 @@ impl Cpu {
             0b0010
         };
 
-        c |= self.spr[XER] as u8 & 0b1;
+        c |= self.spr[XER] as u8 & 0b1; // FIXME: this is wrong
 
         self.cr.set_field(instr.crfd(), c);
     }
 
+    fn cmpi(&mut self, instr: Instruction) {
+        panic!("unhandled instruction cmpi");
+    }
+
     // add immediate
     fn addi(&mut self, instr: Instruction) {
-        let a = instr.a();
-        if a == 0 {
-            self.gpr[instr.d()] = instr.uimm();
+        if instr.a() != 0 {
+            self.gpr[instr.d()] = self.gpr[instr.a()] + instr.uimm();
         } else {
-            self.gpr[instr.d()] = self.gpr[a] + instr.uimm();
+            self.gpr[instr.d()] = instr.uimm();
         }
     }
 
     // add immediate shifted
     fn addis(&mut self, instr: Instruction) {
-        if instr.a() == 0 { // lis
-            self.gpr[instr.d()] = instr.uimm() << 16;
-        } else { // subis
+        if instr.a() != 0 {
             self.gpr[instr.d()] = self.gpr[instr.a()] + (instr.uimm() << 16);
+        } else {
+            self.gpr[instr.d()] = instr.uimm() << 16;
         }
     }
 
@@ -179,7 +182,7 @@ impl Cpu {
         };
 
         let cond_ok = if bon(bo, 0) == 0 {
-            (bon(bo, 1) == (self.cr.get_bit(instr.bi())))
+            bon(bo, 1) == self.cr.get_bit(instr.bi())
         } else {
             true
         };
@@ -227,7 +230,7 @@ impl Cpu {
         };
 
         let cond_ok = if bon(bo, 0) == 0 {
-            (bon(bo, 1) == (self.cr.get_bit(instr.bi())))
+            bon(bo, 1) == self.cr.get_bit(instr.bi())
         } else {
             true
         };
@@ -254,7 +257,7 @@ impl Cpu {
         self.gpr[instr.a()] = rotl(self.gpr[instr.s()], instr.sh()) & mask;
 
         if instr.rc() {
-            self.cr.set_field(0, self.gpr[instr.a()] as u8);
+            self.cr.update_cr0(self.gpr[instr.a()]);
         }
     }
 
@@ -269,10 +272,10 @@ impl Cpu {
     }
 
     fn andx(&mut self, instr: Instruction) {
-        self.gpr[instr.a()] = self.gpr[instr.d()] & self.gpr[instr.b()];
+        self.gpr[instr.a()] = self.gpr[instr.s()] & self.gpr[instr.b()];
 
         if instr.rc() {
-            self.cr.set_field(0, self.gpr[instr.a()] as u8);
+            self.cr.update_cr0(self.gpr[instr.a()]);
         }
     }
 
@@ -289,20 +292,22 @@ impl Cpu {
             0b0010
         };
 
-        c |= self.spr[XER] as u8 & 0b1;
+        c |= self.spr[XER] as u8 & 0b1; // FIXME: this is wrong
 
         self.cr.set_field(instr.crfd(), c);
     }
 
     // subtract from
     fn subfx(&mut self, instr: Instruction) {
-        self.gpr[instr.d()] = self.gpr[instr.a()].wrapping_sub(self.gpr[instr.b()]);
+        self.gpr[instr.d()] = self.gpr[instr.b()].wrapping_sub(self.gpr[instr.a()]);
 
         if instr.rc() {
-            self.cr.set_field(0, self.gpr[instr.d()] as u8);
+            self.cr.update_cr0(self.gpr[instr.d()]);
         }
 
-        // TODO: update XER if OE = 1
+        if instr.oe() {
+            panic!("OE: subfx");
+        }
     }
 
     // move from machine state register
@@ -357,7 +362,7 @@ impl Cpu {
         self.gpr[instr.a()] = self.gpr[instr.s()] | self.gpr[instr.b()];
 
         if instr.rc() {
-            self.cr.set_field(0, self.gpr[instr.a()] as u8);
+            self.cr.update_cr0(self.gpr[instr.a()]);
         }
     }
 
@@ -365,7 +370,7 @@ impl Cpu {
         self.gpr[instr.a()] = !(self.gpr[instr.s()] | self.gpr[instr.b()]);
 
         if instr.rc() {
-            self.cr.set_field(0, self.gpr[instr.a()] as u8);
+            self.cr.update_cr0(self.gpr[instr.a()]);
         }
     }
 
@@ -376,10 +381,7 @@ impl Cpu {
         match n {
             8 => self.lr = self.gpr[instr.s()],
             9 => self.ctr = self.gpr[instr.s()],
-            528 ... 543 => { // if IBAT or DBAT, write to MMU register
-                self.mmu.write_bat_reg(n, self.gpr[instr.s()]);
-                //panic!("FixMe: write to BAT registers");
-            },
+            528 ... 543 => self.mmu.write_bat_reg(n, self.gpr[instr.s()]),
             _ => {
                 println!("FIXME: mtspr {} not implemented", n);
                 self.spr[n] = self.gpr[instr.s()];

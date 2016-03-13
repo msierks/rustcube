@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 
 const NUM_CHANNELS: usize = 3;
-const NUM_DEVICES : usize = 3;
-const BASE_ADDRESS: u32 = 0x0C006800;
 
 pub struct Exi {
     channels: [ExiChannel; NUM_CHANNELS]
@@ -20,7 +18,8 @@ impl Exi {
     }
 
     pub fn read(&self, channel: u32, register: u32) -> u32 {
-        println!("Read Channel: {} Register: {:#x}", channel, register);
+        //println!("Read Channel: {} Register: {:#x}", channel, register);
+        //println!("AD16 READ {:#x}", register);
 
         let channel = match self.channels.get(channel as usize) {
             Some(channel) => channel,
@@ -31,17 +30,14 @@ impl Exi {
             0x00 => channel.status.as_u32(), // STATUS
             //0x04 => // DMA Addr
             //0x08 => // DMA Length
-            0x0C => {
-                println!("CONTROL REG: {:#?}", channel.control);
-                channel.control.as_u32()
-            }, // DMA Control
+            0x0C => channel.control.as_u32(), // DMA Control
             0x10 => channel.get_device(channel.status.exi_device).read_imm(), // IMM Data
             _ => panic!("exi register out of range {:#x}", register)
         }
     }
 
     pub fn write(&mut self, channel: u32, register: u32, value: u32) {
-        println!("Write Channel: {} Register: {:#x} value: {}", channel, register, value);
+        //println!("Write Channel: {} Register: {:#x} value: {} {:#x}", channel, register, value, value);
 
         let channel = match self.channels.get_mut(channel as usize) {
             Some(channel) => channel,
@@ -49,15 +45,13 @@ impl Exi {
         };
 
         match register {
-            0x00 => {
-                channel.status = value.into()
-            }, // STATUS
+            0x00 => channel.status = value.into(), // STATUS
             //0x04 => // DMA Addr
             //0x08 => // DMA Length
             0x0C => {
                 channel.control = value.into();
                 //channel.control.transfer_length = 0;
-                //channel.control.enabled = false; // finish transfer immediately
+                channel.control.enabled = false; // finish transfer immediately
             }, // DMA Control
             0x10 => channel.get_device(channel.status.exi_device).write_imm(value), // IMM Data
             _ => panic!("exi register out of range {:#x}", register)
@@ -178,14 +172,27 @@ struct ExiAd16;
 
 impl ExiDevice for ExiAd16 {
     fn read_imm(&self) -> u32 {
-        0x04120000
+        0x04120000 // FixMe: always returns AD16 EXI ID
     }
+
     fn write_imm(&self, value: u32) {
-        println!("AD16 Command: {}", value);
+        match value {
+            0x00000000 => println!("AD16: get ID command"),
+            0x01000000 => println!("AD16: init"),
+            0x02000000 => println!("AD16: ???"),
+            0x03000000 => println!("AD16: ???"),
+            0x04000000 => println!("AD16: memory test passed"),
+            0x05000000 => panic!("AD16: memory test failed {:#x}", value),
+            0x06000000 => panic!("AD16: memory test failed {:#x}", value),
+            0x07000000 => panic!("AD16: memory test failed {:#x}", value),
+            _ => println!("AD16: unhandled value {:#x}", value)
+        }
     }
+
     fn read_dma(&self) {
 
     }
+
     fn write_dma(&self) {
 
     }
