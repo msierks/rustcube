@@ -77,7 +77,7 @@ impl Interconnect {
 
     pub fn read_word(&mut self, address: u32) -> u32 {
         match map_address(address) {
-            Address::Ram => { 
+            Address::Ram => {
                 let mut data = [0u8; 4];
                 let mmap     = unsafe { self.mmap.as_slice() };
 
@@ -123,7 +123,6 @@ impl Interconnect {
     pub fn write_word(&mut self, address: u32, value: u32) {
         match map_address(address) {
             Address::Ram => {
-               // println!("---- ADDRESS {:#x}", address);
                 let mut data = [0u8; 4];
                 let mut mmap = unsafe { self.mmap.as_mut_slice() };
 

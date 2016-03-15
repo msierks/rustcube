@@ -84,6 +84,7 @@ impl Cpu {
                     124 => self.norx(instr),
                     146 => self.mtmsr(instr),
                     210 => self.mtsr(instr),
+                    266 => self.addx(instr),
                     339 => self.mfspr(instr),
                     371 => self.mftb(instr),
                     444 => self.orx(instr),
@@ -144,7 +145,20 @@ impl Cpu {
     }
 
     fn cmpi(&mut self, instr: Instruction) {
-        panic!("unhandled instruction cmpi");
+        let a = self.gpr[instr.a()];
+        let b = instr.uimm();
+
+        let mut c:u8 = if a < b {
+            0b1000
+        } else if a > b {
+            0b0100
+        } else {
+            0b0010
+        };
+
+        c |= self.spr[XER] as u8 & 0b1; // FIXME: this is wrong
+
+        self.cr.set_field(instr.crfd(), c);
     }
 
     // add immediate
@@ -329,6 +343,18 @@ impl Cpu {
         self.sr[instr.sr()] = self.gpr[instr.s()];
 
         // TODO: check privelege level -> supervisor level instruction
+    }
+
+    fn addx(&mut self, instr: Instruction) {
+        self.gpr[instr.d()] = self.gpr[instr.a()].wrapping_add(self.gpr[instr.b()]);
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.d()]);
+        }
+
+        if instr.oe() {
+            panic!("OE: subfx");
+        }
     }
 
     // move from special purpose register

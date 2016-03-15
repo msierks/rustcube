@@ -8,28 +8,28 @@ pub struct Exi {
 
 impl Exi {
     pub fn new() -> Exi {
-        let mut channel = ExiChannel::new();
+        let mut channel0 = ExiChannel::new();
+        let mut channel1 = ExiChannel::new();
+        let mut channel2 = ExiChannel::new();
 
-        channel.add_device(0, Box::new(ExiAd16::new()));
+        channel0.add_device(1, Box::new(ExiDummy::new()));
+        channel2.add_device(0, Box::new(ExiAd16::new()));
 
         Exi {
-            channels: [ExiChannel::new(), ExiChannel::new(), channel]
+            channels: [channel0, channel1, channel2]
         }
     }
 
     pub fn read(&self, channel: u32, register: u32) -> u32 {
-        //println!("Read Channel: {} Register: {:#x}", channel, register);
-        //println!("AD16 READ {:#x}", register);
-
         let channel = match self.channels.get(channel as usize) {
             Some(channel) => channel,
             None => panic!("exi channel out of range: {}", channel)
         };
 
         match register {
-            0x00 => channel.status.as_u32(), // STATUS
-            //0x04 => // DMA Addr
-            //0x08 => // DMA Length
+            0x00 => channel.status.as_u32(),  // Status
+            0x04 => channel.dma_address,      // DMA Addr
+            0x08 => channel.dma_length,       // DMA Length
             0x0C => channel.control.as_u32(), // DMA Control
             0x10 => channel.get_device(channel.status.exi_device).read_imm(), // IMM Data
             _ => panic!("exi register out of range {:#x}", register)
@@ -37,17 +37,15 @@ impl Exi {
     }
 
     pub fn write(&mut self, channel: u32, register: u32, value: u32) {
-        //println!("Write Channel: {} Register: {:#x} value: {} {:#x}", channel, register, value, value);
-
         let channel = match self.channels.get_mut(channel as usize) {
             Some(channel) => channel,
             None => panic!("exi channel out of range: {}", channel)
         };
 
         match register {
-            0x00 => channel.status = value.into(), // STATUS
-            //0x04 => // DMA Addr
-            //0x08 => // DMA Length
+            0x00 => channel.status = value.into(), // Status
+            0x04 => channel.dma_address = value,   // DMA Addr
+            0x08 => channel.dma_length = value,    // DMA Length
             0x0C => {
                 channel.control = value.into();
                 //channel.control.transfer_length = 0;
@@ -66,6 +64,10 @@ struct ExiChannel {
     // control register
     control: ExiControl,
 
+    dma_address: u32,
+
+    dma_length: u32,
+
     // channel devices
     devices: HashMap<u8, Box<ExiDevice>>
 }
@@ -75,6 +77,8 @@ impl ExiChannel {
         ExiChannel {
             status: ExiStatus::default(),
             control: ExiControl::default(),
+            dma_address: 0,
+            dma_length: 0,
             devices: HashMap::new()
         }
     }
@@ -84,8 +88,10 @@ impl ExiChannel {
     }
 
     pub fn get_device(&self, num: u8) -> &Box<ExiDevice> {
-        // FixMe: use status register to select device
-        self.devices.get(&num).unwrap()
+        match self.devices.get(&num) {
+            Some(device) => device,
+            None => panic!("exi device not found: {}", num)  
+        }
     }
 }
 
@@ -94,7 +100,7 @@ struct ExiStatus {
     connected: bool,
     ext_interrupt: bool,
     exi_device: u8,
-    exi_channel: u8,
+    exi_frequency: u8,
     tc_interupt: bool,
     exi_interrupt: bool
 }
@@ -103,10 +109,17 @@ impl ExiStatus {
     pub fn as_u32(&self) -> u32 {
         let mut value = 0;
 
+        let device:u8 = match (value >> 7) & 7 {
+            0 => 1,
+            1 => 2,
+            2 => 4,
+            _ => 1
+        };
+
         value = value ^ ((self.connected as u32)  << 13);
         value = value ^ ((self.ext_interrupt as u32)  << 12);
-        value = value ^ ((self.exi_device as u32)  << 7);
-        value = value ^ ((self.exi_channel as u32)  << 4);
+        value = value ^ ((device as u32)  << 7);
+        value = value ^ ((self.exi_frequency as u32)  << 4);
         value = value ^ ((self.tc_interupt as u32)  << 3);
         value = value ^ ((self.exi_interrupt as u32)  << 1);
 
@@ -116,11 +129,18 @@ impl ExiStatus {
 
 impl From<u32> for ExiStatus {
     fn from(value: u32) -> Self {
+        let device:u8 = match (value >> 7) & 7 {
+            1 => 0,
+            2 => 1,
+            4 => 2,
+            _ => 0
+        };
+
         ExiStatus {
             connected:     (value & (1 << 13)) != 0,
             ext_interrupt: (value & (1 << 12)) != 0,
-            exi_device:    ((value << 7) & 7) as u8,
-            exi_channel:   ((value << 4) & 7) as u8,
+            exi_device:     device,
+            exi_frequency: ((value >> 4) & 7) as u8,
             tc_interupt:   (value & (1 <<  3)) != 0,
             exi_interrupt: (value & (1 <<  1)) != 0
         }
@@ -164,6 +184,34 @@ trait ExiDevice {
     fn write_imm(&self, value: u32);
     fn read_dma(&self);
     fn write_dma(&self);
+}
+
+// Dummy
+struct ExiDummy;
+
+impl ExiDevice for ExiDummy {
+    fn read_imm(&self) -> u32 {
+        println!("EXIDUMMY: read_imm");
+        0
+    }
+
+    fn write_imm(&self, value: u32) {
+        println!("EXIDUMMY: write_imm {:#x}", value);
+    }
+
+    fn read_dma(&self) {
+        println!("EXIDUMMY: read_dma");
+    }
+
+    fn write_dma(&self) {
+        println!("EXIDUMMY: write_dma");
+    }
+}
+
+impl ExiDummy {
+    pub fn new() -> ExiDummy {
+        ExiDummy
+    }
 }
 
 // AD16
