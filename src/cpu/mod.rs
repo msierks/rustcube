@@ -1,7 +1,7 @@
 mod cpu;
 mod condition_register;
-mod exception;
 mod instruction;
+mod interrupt;
 mod mmu;
 mod machine_status;
 mod time_base_register;
