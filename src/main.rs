@@ -19,7 +19,7 @@ fn main() {
 
     let mut gamecube = gamecube::Gamecube::new();
 
-    gamecube.bootstrap(ipl_file_name);
+    gamecube.load_ipl(ipl_file_name);
 
     loop {
         //println!("{:?}", gamecube);

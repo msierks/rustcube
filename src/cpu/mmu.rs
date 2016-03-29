@@ -1,7 +1,6 @@
 
 /*
 Effective Address (Dolphin OS)
-
    80000000  24MB  Main Memory (RAM), write-back cached
    C0000000  24MB  Main Memory (RAM), write-through cached
    C8000000   2MB  Embedded Framebuffer (EFB)

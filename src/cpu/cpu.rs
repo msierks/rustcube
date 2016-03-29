@@ -1,5 +1,4 @@
 use std::fmt;
-use std::io;
 
 use super::condition_register::ConditionRegister;
 use super::exception::Exception;
@@ -96,7 +95,7 @@ impl Cpu {
             32 => self.lwz(instr),
             36 => self.stw(instr),
             44 => self.sth(instr),
-            _  => panic!("Unrecognized instruction {} {}", instr.0, instr.opcode())
+            _  => panic!("Unrecognized instruction {} {}, cia {:#x}", instr.0, instr.opcode(), self.cia)
         }
 
         self.cia = self.nia;

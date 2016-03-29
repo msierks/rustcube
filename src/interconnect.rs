@@ -4,8 +4,14 @@ use memmap::{Mmap, Protection};
 use byteorder::{ByteOrder, BigEndian};
 use super::exi::Exi;
 
-const RAM_SIZE: usize     = 0x1800000; // 24 MB
-const BOOTROM_SIZE: usize = 0x0100000; // 1 MB
+use std::rc::Rc;
+use std::cell::RefCell;
+
+use std::fs;
+use std::path::Path;
+
+const RAM_SIZE:     usize = 0x1800000; // 24 MB
+const BOOTROM_SIZE: usize = 0x0200000; // 2 MB
 
 pub enum Address {
     Ram,                          // Main Memory (RAM),
@@ -53,7 +59,7 @@ fn map_address(address: u32) -> Address {
 pub struct Interconnect {
     exi: Exi,
     mmap: Mmap,
-    bootrom: Mmap
+    bootrom: Rc<RefCell<Box<[u8; BOOTROM_SIZE]>>>
 }
 
 impl Interconnect {
@@ -63,13 +69,10 @@ impl Interconnect {
             Err(e) => panic!("{}", e)
         };
 
-        let bootrom = match Mmap::anonymous(BOOTROM_SIZE, Protection::ReadWrite) {
-            Ok(v) => v,
-            Err(e) => panic!("{}", e)
-        };
+        let bootrom = Rc::new(RefCell::new(Box::new([0; BOOTROM_SIZE])));
 
         Interconnect {
-            exi: Exi::new(),
+            exi: Exi::new(bootrom.clone()),
             mmap: mmap,
             bootrom: bootrom
         }
@@ -87,36 +90,15 @@ impl Interconnect {
                 }
             },
             Address::ExpansionInterface(channel, register) => {
-                self.exi.read(channel, register)    
+                self.exi.read(channel, register)
             },
             Address::Bootrom(offset) => {
-                let mut data = [0u8; 4];
-                let bootrom  = unsafe { self.bootrom.as_slice() };
-
-                match {&bootrom[offset as usize ..]}.read(&mut data) {
-                    Ok(_) => BigEndian::read_u32(&data),
-                    Err(e) => panic!("{}", e)
-                }
+                BigEndian::read_u32(&self.bootrom.borrow()[offset as usize ..])
             },
             _ => {
                 println!("interconnect read_word not implemented for address {:#x}", address);
                 0 // FIXME: this is bad and I should feel bad too ;)
             }
-        }
-    }
-
-    // FixMe: could remove, used for populating bootrom only
-    pub fn write(&mut self, address: u32, data: &[u8]) {
-        match map_address(address) {
-            Address::Bootrom(offset) => {
-                let mut bootrom = unsafe { self.bootrom.as_mut_slice() };
-
-                match {&mut bootrom[offset as usize ..]}.write(data) {
-                    Ok(_) => {}
-                    Err(e) => panic!("{}", e)
-                }
-            },
-            _ => println!("interconnect write not implemented for address {:#x}", address)
         }
     }
 
@@ -134,7 +116,7 @@ impl Interconnect {
                 }
             },
             Address::ExpansionInterface(channel, register) => {
-                self.exi.write(channel, register, value);
+                self.exi.write(channel, register, value, &mut self.mmap);
             },
             _ => println!("interconnect write_word not implemented for address {:#x}", address)
         }
@@ -156,10 +138,86 @@ impl Interconnect {
             _ => println!("interconnect write_halfword not implemented for address {:#x}", address)
         }
     }
+
+    // load ipl into bootrom and decrypt
+    pub fn load_ipl<P: AsRef<Path>>(&mut self, path: P) {
+        let mut file = match fs::File::open(path) {
+            Ok(v) => v,
+            Err(e) => {
+                panic!("{}", e);
+            }
+        };
+
+        let mut bootrom = self.bootrom.borrow_mut();
+
+        match file.read_exact(&mut **bootrom) {
+            Ok(_) => {},
+            Err(e) => {
+                panic!("{}", e);
+            }
+        };
+
+        descrambler(&mut bootrom[0x100..0x15ee30]);
+    }
 }
 
 impl fmt::Debug for Interconnect {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "fixme")
+    }
+}
+
+// bootrom descrambler reversed by segher
+// Copyright 2008 Segher Boessenkool <segher@kernel.crashing.org>
+fn descrambler(data: &mut[u8]) {
+    let size = data.len();
+    let mut acc :u8 = 0;
+    let mut nacc:u8 = 0;
+
+    let mut t:u16 = 0x2953;
+    let mut u:u16 = 0xd9c2;
+    let mut v:u16 = 0x3ff1;
+
+    let mut x:u8 = 1;
+
+    let mut it = 0;
+
+    while it < size {
+        let t0 = t & 1;
+        let t1 = (t >> 1) & 1;
+        let u0 = u & 1;
+        let u1 = (u >> 1) & 1;
+        let v0 = v & 1;
+
+        x ^= (t1 ^ v0) as u8;
+        x ^= ((u0 | u1)) as u8;
+        x ^= ((t0 ^ u1 ^ v0) & (t0 ^ u0)) as u8;
+
+        if t0 == u0 {
+            v >>= 1;
+            if v0 != 0 {
+                v ^= 0xb3d0;
+            }
+        }
+
+        if t0 == 0 {
+            u >>= 1;
+            if u0 != 0 {
+                u ^= 0xfb10;
+            }
+        }
+
+        t >>= 1;
+        if t0 != 0 {
+            t ^= 0xa740;
+        }
+
+        nacc+=1;
+        acc = (2*acc as u16 + x as u16) as u8;
+        if nacc == 8 {
+            data[it as usize] ^= acc;
+            it+=1;
+            nacc = 0;
+        }
     }
 }
