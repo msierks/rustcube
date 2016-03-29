@@ -162,19 +162,19 @@ impl Cpu {
 
     // add immediate
     fn addi(&mut self, instr: Instruction) {
-        if instr.a() != 0 {
-            self.gpr[instr.d()] = self.gpr[instr.a()] + instr.uimm();
-        } else {
+        if instr.a() == 0 {
             self.gpr[instr.d()] = instr.uimm();
+        } else {
+            self.gpr[instr.d()] = self.gpr[instr.a()] + instr.uimm();
         }
     }
 
     // add immediate shifted
     fn addis(&mut self, instr: Instruction) {
-        if instr.a() != 0 {
-            self.gpr[instr.d()] = self.gpr[instr.a()] + (instr.uimm() << 16);
-        } else {
+        if instr.a() == 0 {
             self.gpr[instr.d()] = instr.uimm() << 16;
+        } else {
+            self.gpr[instr.d()] = self.gpr[instr.a()] + (instr.uimm() << 16);
         }
     }
 
@@ -446,6 +446,8 @@ impl Cpu {
         let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);
 
         self.interconnect.write_word(addr, self.gpr[instr.s()]);
+
+        self.gpr[instr.a()] = ea;
     }
 
     // store word
