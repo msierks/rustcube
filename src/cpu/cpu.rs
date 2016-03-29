@@ -88,11 +88,13 @@ impl Cpu {
                     371 => self.mftb(instr),
                     444 => self.orx(instr),
                     467 => self.mtspr(instr),
+                    598 => self.sync(instr),
                     _   => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.subopcode())
                 }
 
             },
             32 => self.lwz(instr),
+            37 => self.stwu(instr),
             36 => self.stw(instr),
             44 => self.sth(instr),
             _  => panic!("Unrecognized instruction {} {}, cia {:#x}", instr.0, instr.opcode(), self.cia)
@@ -112,6 +114,8 @@ impl Cpu {
 
     // FixMe: handle exceptions properly
     pub fn exception(&mut self, interrupt: Interrupt) {
+        println!("{:?} exception occurred", interrupt);
+
         let nia = interrupt as u32;
 
         if self.msr.exception_prefix {
@@ -119,8 +123,6 @@ impl Cpu {
         } else {
             self.cia = nia
         }
-
-        println!("{:#x} exception occurred, nia {:#x}", nia, self.cia);
     }
 
     // complare logic immediate
@@ -258,6 +260,12 @@ impl Cpu {
     #[allow(unused_variables)]
     // isync - instruction synchronize
     fn isync(&mut self, instr: Instruction) {
+        // don't do anything
+    }
+
+    #[allow(unused_variables)]
+    // synchronize
+    fn sync(&mut self, instr: Instruction) {
         // don't do anything
     }
 
@@ -425,6 +433,19 @@ impl Cpu {
         let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);
 
         self.gpr[instr.d()] = self.interconnect.read_word(addr);
+    }
+
+    // store word with update
+    fn stwu(&mut self, instr: Instruction) {
+        if instr.a() == 0 { // ???
+            // instruction for is invalid
+        }
+
+        let ea = self.gpr[instr.a()] + instr.simm();
+
+        let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);
+
+        self.interconnect.write_word(addr, self.gpr[instr.s()]);
     }
 
     // store word
