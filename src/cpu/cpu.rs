@@ -1,7 +1,7 @@
 use std::fmt;
 
 use super::condition_register::ConditionRegister;
-use super::exception::Exception;
+use super::interrupt::Interrupt;
 use super::instruction::Instruction;
 use super::mmu;
 use super::machine_status::MachineStatus;
@@ -47,7 +47,7 @@ impl Cpu {
             tb: TimeBaseRegister::default()
         };
 
-        cpu.exception(Exception::SystemReset); // power on reset
+        cpu.exception(Interrupt::SystemReset); // power on reset
         cpu
     }
 
@@ -111,10 +111,8 @@ impl Cpu {
     }
 
     // FixMe: handle exceptions properly
-    pub fn exception(&mut self, e: Exception) {
-        let nia = match e {
-            Exception::SystemReset => 0x00100
-        };
+    pub fn exception(&mut self, interrupt: Interrupt) {
+        let nia = interrupt as u32;
 
         if self.msr.exception_prefix {
             self.cia = nia | 0xFFF00000
