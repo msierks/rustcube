@@ -71,6 +71,7 @@ impl Cpu {
                 match instr.subopcode() {
                     16 => self.bclrx(instr),
                     150 => self.isync(instr),
+                    193 => self.crxor(instr),
                     _ => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.subopcode())
                 }
             },
@@ -169,7 +170,7 @@ impl Cpu {
         if instr.a() == 0 {
             self.gpr[instr.d()] = instr.simm() as u32;
         } else {
-            self.gpr[instr.d()] = self.gpr[instr.a()] + (instr.simm() as u32);
+            self.gpr[instr.d()] = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
         }
     }
 
@@ -178,7 +179,7 @@ impl Cpu {
         if instr.a() == 0 {
             self.gpr[instr.d()] = instr.uimm() << 16;
         } else {
-            self.gpr[instr.d()] = self.gpr[instr.a()] + (instr.uimm() << 16);
+            self.gpr[instr.d()] = self.gpr[instr.a()].wrapping_add(instr.uimm() << 16);
         }
     }
 
@@ -271,6 +272,13 @@ impl Cpu {
     // synchronize
     fn sync(&mut self, instr: Instruction) {
         // don't do anything
+    }
+
+    // condition register XOR
+    fn crxor(&mut self, instr: Instruction) {
+        let d = self.cr.get_bit(instr.a()) ^ self.cr.get_bit(instr.b());
+
+        self.cr.set_bit(instr.d(), d);
     }
 
     // rotate word immediate then AND with mask
@@ -431,7 +439,7 @@ impl Cpu {
         let ea = if instr.a() == 0 {
             instr.simm() as u32
         } else {
-            self.gpr[instr.a()] + (instr.simm() as u32)
+            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
 
         let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);
@@ -459,7 +467,7 @@ impl Cpu {
         let ea = if instr.a() == 0 {
             instr.simm() as u32
         } else {
-            self.gpr[instr.a()] + (instr.simm() as u32)
+            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
 
         let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);
@@ -472,7 +480,7 @@ impl Cpu {
         let ea = if instr.a() == 0 {
             instr.simm() as u32
         } else {
-            self.gpr[instr.a()] + (instr.simm() as u32)
+            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
 
         let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);

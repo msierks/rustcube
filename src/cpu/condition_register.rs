@@ -13,7 +13,15 @@ impl ConditionRegister {
     }
 
     pub fn get_bit(&self, index: usize) -> u8 {
-        (self.value[index / 4] >> (3 - (index % 4))) & 1 
+        (self.value[index / 4] >> (3 - (index % 4))) & 1
+    }
+
+    pub fn set_bit(&mut self, index: usize, value: u8) {
+        let n     = index / 4;
+        let value = value << (3 - (index % 4));
+
+        self.value[n] |= !value;
+        self.value[n] &= value;
     }
 
     pub fn update_cr0(&mut self, r: u32) {
