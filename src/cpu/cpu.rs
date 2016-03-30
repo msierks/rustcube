@@ -54,6 +54,10 @@ impl Cpu {
     pub fn run_instruction(&mut self) {
         let instr = self.read_instruction();
 
+        if self.cia >= 0x81300000 && self.cia < 0xFFF00000 {
+            println!("{:#x}: OP: {}", self.cia, instr.opcode());
+        }
+
         self.nia = self.cia + 4;
 
         match instr.opcode() {
@@ -163,9 +167,9 @@ impl Cpu {
     // add immediate
     fn addi(&mut self, instr: Instruction) {
         if instr.a() == 0 {
-            self.gpr[instr.d()] = instr.uimm();
+            self.gpr[instr.d()] = instr.simm() as u32;
         } else {
-            self.gpr[instr.d()] = self.gpr[instr.a()] + instr.uimm();
+            self.gpr[instr.d()] = self.gpr[instr.a()] + (instr.simm() as u32);
         }
     }
 
@@ -425,9 +429,9 @@ impl Cpu {
     // load word and zero
     fn lwz(&mut self, instr: Instruction) {
         let ea = if instr.a() == 0 {
-            instr.simm()
+            instr.simm() as u32
         } else {
-            self.gpr[instr.a()] + instr.simm()
+            self.gpr[instr.a()] + (instr.simm() as u32)
         };
 
         let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);
@@ -437,25 +441,25 @@ impl Cpu {
 
     // store word with update
     fn stwu(&mut self, instr: Instruction) {
-        if instr.a() == 0 { // ???
-            // instruction for is invalid
+        if instr.a() == 0 {
+            panic!("stwu: invalid instruction");
         }
 
-        let ea = self.gpr[instr.a()] + instr.simm();
+        let ea = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
 
         let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);
 
         self.interconnect.write_word(addr, self.gpr[instr.s()]);
 
-        self.gpr[instr.a()] = ea;
+        self.gpr[instr.a()] = ea; // is this conditional ???
     }
 
     // store word
     fn stw(&mut self, instr: Instruction) {
         let ea = if instr.a() == 0 {
-            instr.simm()
+            instr.simm() as u32
         } else {
-            self.gpr[instr.a()] + instr.simm()
+            self.gpr[instr.a()] + (instr.simm() as u32)
         };
 
         let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);
@@ -466,9 +470,9 @@ impl Cpu {
     // store half word
     fn sth(&mut self, instr: Instruction) {
         let ea = if instr.a() == 0 {
-            instr.simm()
+            instr.simm() as u32
         } else {
-            self.gpr[instr.a()] + instr.simm()
+            self.gpr[instr.a()] + (instr.simm() as u32)
         };
 
         let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);

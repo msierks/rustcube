@@ -44,8 +44,8 @@ impl Instruction {
     }
 
     #[inline(always)]
-    pub fn simm(&self) -> u32 { // FIXME: should probably be signed
-        (self.0 & 0b1111_1111_1111_1111) as u32
+    pub fn simm(&self) -> i16 {
+        (self.0 & 0b1111_1111_1111_1111) as i16
     }
 
     #[inline(always)]
