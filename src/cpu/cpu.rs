@@ -64,6 +64,7 @@ impl Cpu {
             10 => self.cmpli(instr),
             11 => self.cmpi(instr),
             14 => self.addi(instr),
+            13 => self.addic_rc(instr),
             15 => self.addis(instr),
             16 => self.bcx(instr),
             18 => self.bx(instr),
@@ -172,6 +173,12 @@ impl Cpu {
         } else {
             self.gpr[instr.d()] = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
         }
+    }
+
+    fn addic_rc(&mut self, instr: Instruction) {
+        self.gpr[instr.d()] = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
+
+        self.cr.update_cr0(self.gpr[instr.d()]);
     }
 
     // add immediate shifted
