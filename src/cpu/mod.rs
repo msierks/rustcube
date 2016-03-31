@@ -1,5 +1,6 @@
 mod cpu;
 mod condition_register;
+mod hid;
 mod instruction;
 mod interrupt;
 mod mmu;
