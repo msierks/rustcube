@@ -9,6 +9,9 @@ notifications:
 before_script:
   - rustc --version
   - cargo --version
+script:
+  - cargo build
+  - cargo test
 branches:
   only:
     - master
