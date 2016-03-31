@@ -1,6 +1,7 @@
 use std::fmt;
 
 use super::condition_register::ConditionRegister;
+use super::hid::Hid2;
 use super::interrupt::Interrupt;
 use super::instruction::Instruction;
 use super::mmu;
@@ -8,6 +9,7 @@ use super::machine_status::MachineStatus;
 use super::time_base_register::TimeBaseRegister;
 use super::super::interconnect::Interconnect;
 
+const NUM_FPR: usize = 32;
 const NUM_GPR: usize = 32;
 const NUM_SPR: usize = 1023;
 const NUM_SR : usize = 16;
@@ -21,13 +23,15 @@ pub struct Cpu {
     cia: u32,
     nia: u32,
     ctr: u32,
+    fpr: [u64; NUM_FPR],
     gpr: [u32; NUM_GPR],
     spr: [u32; NUM_SPR], // ToDo phase out
     pub msr: MachineStatus,
     sr: [u32; NUM_SR],
     cr: ConditionRegister,
     lr: u32,
-    tb: TimeBaseRegister
+    tb: TimeBaseRegister,
+    hid2: Hid2
 }
 
 impl Cpu {
@@ -38,13 +42,15 @@ impl Cpu {
             cia: 0,
             nia: 0,
             ctr: 0,
+            fpr: [0; NUM_FPR],
             gpr: [0; NUM_GPR],
             spr: [0; NUM_SPR],
             msr: MachineStatus::default(),
             sr: [0; NUM_SR],
             cr: ConditionRegister::default(),
             lr: 0,
-            tb: TimeBaseRegister::default()
+            tb: TimeBaseRegister::default(),
+            hid2: Hid2::default()
         };
 
         cpu.exception(Interrupt::SystemReset); // power on reset
@@ -103,6 +109,7 @@ impl Cpu {
             37 => self.stwu(instr),
             36 => self.stw(instr),
             44 => self.sth(instr),
+            48 => self.lfs(instr),
             _  => panic!("Unrecognized instruction {} {}, cia {:#x}", instr.0, instr.opcode(), self.cia)
         }
 
@@ -388,6 +395,7 @@ impl Cpu {
         match n {
             8 => self.gpr[instr.s()] = self.lr,
             9 => self.gpr[instr.s()] = self.ctr,
+            920 => self.gpr[instr.s()] = self.hid2.as_u32(),
             _ => {
                 println!("FIXME: spr {} not implemented", n);
                 self.gpr[instr.s()] = self.spr[n];
@@ -432,6 +440,7 @@ impl Cpu {
             8 => self.lr = self.gpr[instr.s()],
             9 => self.ctr = self.gpr[instr.s()],
             528 ... 543 => self.mmu.write_bat_reg(n, self.gpr[instr.s()]),
+            920 => self.hid2 = self.gpr[instr.s()].into(),
             _ => {
                 println!("FIXME: mtspr {} not implemented", n);
                 self.spr[n] = self.gpr[instr.s()];
@@ -494,6 +503,24 @@ impl Cpu {
 
         self.interconnect.write_halfword(addr, self.gpr[instr.s()] as u16);
     }
+
+    // load floating point single
+    fn lfs(&mut self, instr: Instruction) {
+        let ea = if instr.a() == 0 {
+            instr.simm() as u32
+        } else {
+            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
+        };
+
+        let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);
+        let val  = self.interconnect.read_word(addr);
+
+        if !self.hid2.paired_single {
+            self.fpr[instr.d()] = convert_to_double(val);
+        } else {
+            self.fpr[instr.d()] = ((val as u64) << 32) & val as u64;
+        }
+    }
 }
 
 fn rotl(x: u32, shift: u8) -> u32 {
@@ -518,6 +545,11 @@ fn mask(x: u8, y: u8) -> u32 {
     } else {
         mask
     }
+}
+
+// FIXME
+fn convert_to_double(x: u32) -> u64 {
+    panic!("FixMe: convert_to_double");
 }
 
 // Note: A cast from a signed value widens with signed-extension
