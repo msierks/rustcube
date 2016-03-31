@@ -163,7 +163,7 @@ impl Mmu {
             }
          }
 
-         panic!("FixMe: perform address translation with Segment Register");
+         panic!("FixMe: perform address translation with Segment Register {:#x}", ea);
 
       } else { // read address translation mode
          ea
