@@ -79,22 +79,22 @@ impl MachineStatus {
     pub fn as_u32(&self) -> u32 {
         let mut value = 0;
 
-        value = value ^ ((self.power_management as u32)           << 18);
-        value = value ^ ((self.exception_little_endian as u32)    << 16);
-        value = value ^ ((self.external_interrupt as u32)         << 15);
-        value = value ^ ((self.privilege_level as u32)            << 14);
-        value = value ^ ((self.floating_point as u32)             << 13);
-        value = value ^ ((self.machine_check as u32)              << 12);
-        value = value ^ ((self.fp_exception_mode_0 as u32)        << 11);
-        value = value ^ ((self.fp_exception_mode_1 as u32)        <<  8);
-        value = value ^ ((self.single_step_trace as u32)          << 10);
-        value = value ^ ((self.branch_trace as u32)               <<  9);
-        value = value ^ ((self.exception_prefix as u32)           <<  6);
-        value = value ^ ((self.instr_address_translation as u32)  <<  5);
-        value = value ^ ((self.data_address_translation as u32)   <<  4);
-        value = value ^ ((self.performance_monitor_marked as u32) <<  2);
-        value = value ^ ((self.reset_recoverable as u32)          <<  1);
-        value = value ^ (self.little_endian as u32);
+        value ^= (self.power_management as u32)           << 18;
+        value ^= (self.exception_little_endian as u32)    << 16;
+        value ^= (self.external_interrupt as u32)         << 15;
+        value ^= (self.privilege_level as u32)            << 14;
+        value ^= (self.floating_point as u32)             << 13;
+        value ^= (self.machine_check as u32)              << 12;
+        value ^= (self.fp_exception_mode_0 as u32)        << 11;
+        value ^= (self.fp_exception_mode_1 as u32)        <<  8;
+        value ^= (self.single_step_trace as u32)          << 10;
+        value ^= (self.branch_trace as u32)               <<  9;
+        value ^= (self.exception_prefix as u32)           <<  6;
+        value ^= (self.instr_address_translation as u32)  <<  5;
+        value ^= (self.data_address_translation as u32)   <<  4;
+        value ^= (self.performance_monitor_marked as u32) <<  2;
+        value ^= (self.reset_recoverable as u32)          <<  1;
+        value ^=  self.little_endian as u32;
 
         value
     }
@@ -120,5 +120,62 @@ impl From<u32> for MachineStatus {
             reset_recoverable:          (value & (1 <<  1)) != 0,
             little_endian:              (value &  1)        != 0
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::MachineStatus;
+
+    #[test]
+    fn default() {
+        let msr = MachineStatus::default();
+
+        assert!(msr.exception_prefix); // exception prefix enabled by default
+    }
+
+    #[test]
+    fn u32_conversion() {
+        let msr: MachineStatus = 0x55555.into();
+
+        assert!(msr.power_management);
+        assert!(msr.exception_little_endian);
+        assert!(!msr.external_interrupt);
+        assert!(msr.privilege_level);
+        assert!(!msr.floating_point);
+        assert!(msr.machine_check);
+        assert!(!msr.fp_exception_mode_0);
+        assert!(msr.single_step_trace);
+        assert!(!msr.branch_trace);
+        assert!(msr.fp_exception_mode_1);
+        assert!(msr.exception_prefix);
+        assert!(!msr.instr_address_translation);
+        assert!(msr.data_address_translation);
+        assert!(msr.performance_monitor_marked);
+        assert!(!msr.reset_recoverable);
+        assert!(msr.little_endian);
+
+        assert_eq!(0x55555, msr.as_u32());
+
+        let msr: MachineStatus = 0xAA22.into();
+
+        assert!(!msr.power_management);
+        assert!(!msr.exception_little_endian);
+        assert!(msr.external_interrupt);
+        assert!(!msr.privilege_level);
+        assert!(msr.floating_point);
+        assert!(!msr.machine_check);
+        assert!(msr.fp_exception_mode_0);
+        assert!(!msr.single_step_trace);
+        assert!(msr.branch_trace);
+        assert!(!msr.fp_exception_mode_1);
+        assert!(!msr.exception_prefix);
+        assert!(msr.instr_address_translation);
+        assert!(!msr.data_address_translation);
+        assert!(!msr.performance_monitor_marked);
+        assert!(msr.reset_recoverable);
+        assert!(!msr.little_endian);
+
+        assert_eq!(0xAA22, msr.as_u32());
     }
 }
