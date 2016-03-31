@@ -110,7 +110,18 @@ impl Cpu {
             36 => self.stw(instr),
             44 => self.sth(instr),
             48 => self.lfs(instr),
-            _  => panic!("Unrecognized instruction {} {}, cia {:#x}", instr.0, instr.opcode(), self.cia)
+            50 => self.lfd(instr),
+            52 => self.stfs(instr),
+            53 => self.stfsu(instr),
+            63 => {
+
+                match instr.subopcode() {
+                    72 => self.fmrx(instr),
+                    _   => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.subopcode())
+                }
+
+            },
+            _  => panic!("Unrecognized instruction {} {} {}, cia {:#x}", instr.0, instr.opcode(), instr.subopcode(), self.cia)
         }
 
         self.cia = self.nia;
@@ -521,6 +532,51 @@ impl Cpu {
             self.fpr[instr.d()] = ((val as u64) << 32) & val as u64;
         }
     }
+
+    // load floating point double
+    fn lfd(&mut self, instr: Instruction) {
+        let ea = if instr.a() == 0 {
+            instr.simm() as u32
+        } else {
+            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
+        };
+
+        let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);
+
+        self.fpr[instr.d()] = self.interconnect.read_doubleword(addr);
+    }
+
+    // store floating point single
+    fn stfs(&mut self, instr: Instruction) {
+        let ea = if instr.a() == 0 {
+            instr.simm() as u32
+        } else {
+            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
+        };
+
+        let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);
+        let val  = convert_to_single(self.fpr[instr.s()]);
+
+        self.interconnect.write_word(addr, val);
+    }
+
+    // store floating point single with update
+    fn stfsu(&mut self, instr: Instruction) {
+        if instr.a() == 0 {
+            panic!("stfsu: invalid instruction");
+        }
+
+        let ea   = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
+        let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);
+        let val  = convert_to_single(self.fpr[instr.s()]);
+
+        self.interconnect.write_word(addr, val);
+    }
+
+    // floating move register (double-precision)
+    fn fmrx(&mut self, instr: Instruction) {
+        panic!("fixme: implement fmrx instruction");
+    }
 }
 
 fn rotl(x: u32, shift: u8) -> u32 {
@@ -550,6 +606,10 @@ fn mask(x: u8, y: u8) -> u32 {
 // FIXME
 fn convert_to_double(x: u32) -> u64 {
     panic!("FixMe: convert_to_double");
+}
+
+fn convert_to_single(x: u64) -> u32 {
+    0
 }
 
 // Note: A cast from a signed value widens with signed-extension

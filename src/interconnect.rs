@@ -102,6 +102,23 @@ impl Interconnect {
         }
     }
 
+    pub fn read_doubleword(&mut self, address: u32) -> u64 {
+        match map_address(address) {
+            Address::Ram => {
+                let mut data = [0u8; 8];
+                let mmap     = unsafe { self.mmap.as_slice() };
+
+                match {&mmap[address as usize ..]}.read(&mut data) {
+                    Ok(_) => BigEndian::read_u64(&data),
+                    Err(e) => panic!("{}", e)
+                }
+            },
+            _ => {
+                panic!("interconnect read_doubleword not implemented for address {:#x}", address);
+            }
+        }
+    }
+
     pub fn write_word(&mut self, address: u32, value: u32) {
         match map_address(address) {
             Address::Ram => {
