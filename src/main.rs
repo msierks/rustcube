@@ -1,12 +1,16 @@
 extern crate byteorder;
 extern crate memmap;
+extern crate num;
 
-use std::env;
+#[macro_use]
+extern crate enum_primitive;
 
 mod cpu;
 mod exi;
 mod gamecube;
 mod interconnect;
+
+use std::env;
 
 fn main() {
     let ipl_file_name = match env::args().nth(1) {

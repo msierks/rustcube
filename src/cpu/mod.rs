@@ -5,6 +5,7 @@ mod instruction;
 mod interrupt;
 mod mmu;
 mod machine_status;
+mod spr;
 mod time_base_register;
 
 pub use self::cpu::Cpu;
