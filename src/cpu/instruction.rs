@@ -1,4 +1,7 @@
 use std::fmt;
+use num::FromPrimitive;
+
+use super::spr::Spr;
 
 pub struct Instruction(pub u32);
 
@@ -108,10 +111,12 @@ impl Instruction {
         ((self.0 >> 1) & 0b1_1111) as u8
     }
 
-    #[inline(always)]
-    //pub fn spr(&self) -> u32 {
-    //    (self.0 >> 11) & 0b11_1111_1111
-    //}
+    pub fn spr(&self) -> Spr {
+        let n = ((self.0 >> 6) & 0b111_1100_000) | ((self.0 >> 16) & 0b1_1111);
+
+        Spr::from_u32(n).unwrap_or_else(
+            || panic!("Unrecognized spr: {:#010x} (op: {} {:#08b})", self.0, n, n))
+    }
 
     #[inline(always)]
     pub fn spr_upper(&self) -> u32 {

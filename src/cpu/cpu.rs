@@ -8,14 +8,11 @@ use super::mmu;
 use super::machine_status::MachineStatus;
 use super::time_base_register::TimeBaseRegister;
 use super::super::interconnect::Interconnect;
+use super::spr::Spr;
 
 const NUM_FPR: usize = 32;
 const NUM_GPR: usize = 32;
-const NUM_SPR: usize = 1023;
 const NUM_SR : usize = 16;
-
-const XER : usize = 1;
-const HID0: usize = 1008;
 
 pub struct Cpu {
     pub interconnect: Interconnect,
@@ -25,13 +22,14 @@ pub struct Cpu {
     ctr: u32,
     fpr: [u64; NUM_FPR],
     gpr: [u32; NUM_GPR],
-    spr: [u32; NUM_SPR], // ToDo phase out
     pub msr: MachineStatus,
     sr: [u32; NUM_SR],
     cr: ConditionRegister,
     lr: u32,
     tb: TimeBaseRegister,
-    hid2: Hid2
+    hid0: u32,
+    hid2: Hid2,
+    xer: u32
 }
 
 impl Cpu {
@@ -44,13 +42,14 @@ impl Cpu {
             ctr: 0,
             fpr: [0; NUM_FPR],
             gpr: [0; NUM_GPR],
-            spr: [0; NUM_SPR],
             msr: MachineStatus::default(),
             sr: [0; NUM_SR],
             cr: ConditionRegister::default(),
             lr: 0,
             tb: TimeBaseRegister::default(),
-            hid2: Hid2::default()
+            hid0: 0,
+            hid2: Hid2::default(),
+            xer: 0
         };
 
         cpu.exception(Interrupt::SystemReset); // power on reset
@@ -131,7 +130,7 @@ impl Cpu {
     }
 
     fn read_instruction(&mut self) -> Instruction {
-        let addr = self.mmu.translate_address(mmu::BatType::Instruction, &self.msr, self.cia);
+        let addr = self.mmu.translate_instr_address(&self.msr, self.cia);
 
         Instruction(self.interconnect.read_word(addr))
     }
@@ -162,7 +161,7 @@ impl Cpu {
             0b0010
         };
 
-        c |= self.spr[XER] as u8 & 0b1; // FIXME: this is wrong
+        c |= self.xer as u8 & 0b1; // FIXME: this is wrong
 
         self.cr.set_field(instr.crfd(), c);
     }
@@ -179,7 +178,7 @@ impl Cpu {
             0b0010
         };
 
-        c |= self.spr[XER] as u8 & 0b1; // FIXME: this is wrong
+        c |= self.xer as u8 & 0b1; // FIXME: this is wrong
 
         self.cr.set_field(instr.crfd(), c);
     }
@@ -348,7 +347,7 @@ impl Cpu {
             0b0010
         };
 
-        c |= self.spr[XER] as u8 & 0b1; // FIXME: this is wrong
+        c |= self.xer as u8 & 0b1; // FIXME: this is wrong
 
         self.cr.set_field(instr.crfd(), c);
     }
@@ -401,16 +400,12 @@ impl Cpu {
 
     // move from special purpose register
     fn mfspr(&mut self, instr: Instruction) {
-        let n = ((instr.spr_upper() << 5) | (instr.spr_lower() & 0b1_1111)) as usize;
-
-        match n {
-            8 => self.gpr[instr.s()] = self.lr,
-            9 => self.gpr[instr.s()] = self.ctr,
-            920 => self.gpr[instr.s()] = self.hid2.as_u32(),
-            _ => {
-                println!("FIXME: spr {} not implemented", n);
-                self.gpr[instr.s()] = self.spr[n];
-            }
+        match instr.spr() {
+            Spr::LR   => self.gpr[instr.s()] = self.lr,
+            Spr::CTR  => self.gpr[instr.s()] = self.ctr,
+            Spr::HID0 => self.gpr[instr.s()] = self.hid0,
+            Spr::HID2 => self.gpr[instr.s()] = self.hid2.as_u32(),
+            _ => panic!("mfspr not implemented for {:#?}", instr.spr())
         }
 
         // TODO: check privelege level
@@ -418,6 +413,7 @@ impl Cpu {
 
     // move from time base
     fn mftb(&mut self, instr: Instruction) {
+        // FixMe: this uses tbr, not spr
         let n = (instr.spr_upper() << 5) | (instr.spr_lower() & 0b1_1111);
 
         match n {
@@ -445,20 +441,45 @@ impl Cpu {
 
     // move special purpose register
     fn mtspr(&mut self, instr: Instruction) {
-        let n = ((instr.spr_upper() << 5) | (instr.spr_lower() & 0b1_1111)) as usize;
+        let spr = instr.spr();
 
-        match n {
-            8 => self.lr = self.gpr[instr.s()],
-            9 => self.ctr = self.gpr[instr.s()],
-            528 ... 543 => self.mmu.write_bat_reg(n, self.gpr[instr.s()]),
-            920 => self.hid2 = self.gpr[instr.s()].into(),
+        match spr {
+            Spr::LR  => self.lr  = self.gpr[instr.s()],
+            Spr::CTR => self.ctr = self.gpr[instr.s()],
+            Spr::XER => self.xer = self.gpr[instr.s()],
             _ => {
-                println!("FIXME: mtspr {} not implemented", n);
-                self.spr[n] = self.gpr[instr.s()];
+
+                if self.msr.privilege_level { // if user privelege level
+                    // FixMe: properly handle this case
+                    self.exception(Interrupt::Program);
+                    panic!("mtspr: user privelege level prevents setting spr {:#?}", spr);
+                }
+
+                match spr {
+                    Spr::LR     => self.lr = self.gpr[instr.s()],
+                    Spr::CTR    => self.ctr = self.gpr[instr.s()],
+                    Spr::IBAT0U => self.mmu.write_ibatu(0, self.gpr[instr.s()]),
+                    Spr::IBAT0L => self.mmu.write_ibatl(0, self.gpr[instr.s()]),
+                    Spr::IBAT1U => self.mmu.write_ibatu(1, self.gpr[instr.s()]),
+                    Spr::IBAT1L => self.mmu.write_ibatl(1, self.gpr[instr.s()]),
+                    Spr::IBAT2U => self.mmu.write_ibatu(2, self.gpr[instr.s()]),
+                    Spr::IBAT2L => self.mmu.write_ibatl(2, self.gpr[instr.s()]),
+                    Spr::IBAT3U => self.mmu.write_ibatu(3, self.gpr[instr.s()]),
+                    Spr::IBAT3L => self.mmu.write_ibatl(3, self.gpr[instr.s()]),
+                    Spr::DBAT0U => self.mmu.write_dbatu(0, self.gpr[instr.s()]),
+                    Spr::DBAT0L => self.mmu.write_dbatl(0, self.gpr[instr.s()]),
+                    Spr::DBAT1U => self.mmu.write_dbatu(1, self.gpr[instr.s()]),
+                    Spr::DBAT1L => self.mmu.write_dbatl(1, self.gpr[instr.s()]),
+                    Spr::DBAT2U => self.mmu.write_dbatu(2, self.gpr[instr.s()]),
+                    Spr::DBAT2L => self.mmu.write_dbatl(2, self.gpr[instr.s()]),
+                    Spr::DBAT3U => self.mmu.write_dbatu(3, self.gpr[instr.s()]),
+                    Spr::DBAT3L => self.mmu.write_dbatl(3, self.gpr[instr.s()]),
+                    Spr::HID0   => self.hid0 = self.gpr[instr.s()],
+                    Spr::HID2   => self.hid2 = self.gpr[instr.s()].into(),
+                    _ => panic!("mtspr not implemented for {:#?}", spr)
+                }
             }
         }
-
-        // TODO: check privelege level
     }
 
     // load word and zero
@@ -469,7 +490,7 @@ impl Cpu {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
 
-        let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);
+        let addr = self.mmu.translate_data_address(&self.msr, ea);
 
         self.gpr[instr.d()] = self.interconnect.read_word(addr);
     }
@@ -482,7 +503,7 @@ impl Cpu {
 
         let ea = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
 
-        let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);
+        let addr = self.mmu.translate_data_address(&self.msr, ea);
 
         self.interconnect.write_word(addr, self.gpr[instr.s()]);
 
@@ -497,7 +518,7 @@ impl Cpu {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
 
-        let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);
+        let addr = self.mmu.translate_data_address(&self.msr, ea);
 
         self.interconnect.write_word(addr, self.gpr[instr.s()]);
     }
@@ -510,7 +531,7 @@ impl Cpu {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
 
-        let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);
+        let addr = self.mmu.translate_data_address(&self.msr, ea);
 
         self.interconnect.write_halfword(addr, self.gpr[instr.s()] as u16);
     }
@@ -523,7 +544,7 @@ impl Cpu {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
 
-        let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);
+        let addr = self.mmu.translate_data_address(&self.msr, ea);
         let val  = self.interconnect.read_word(addr);
 
         if !self.hid2.paired_single {
@@ -541,7 +562,7 @@ impl Cpu {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
 
-        let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);
+        let addr = self.mmu.translate_data_address(&self.msr, ea);
 
         self.fpr[instr.d()] = self.interconnect.read_doubleword(addr);
     }
@@ -554,7 +575,7 @@ impl Cpu {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
 
-        let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);
+        let addr = self.mmu.translate_data_address(&self.msr, ea);
         let val  = convert_to_single(self.fpr[instr.s()]);
 
         self.interconnect.write_word(addr, val);
@@ -567,7 +588,7 @@ impl Cpu {
         }
 
         let ea   = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
-        let addr = self.mmu.translate_address(mmu::BatType::Data, &self.msr, ea);
+        let addr = self.mmu.translate_data_address(&self.msr, ea);
         let val  = convert_to_single(self.fpr[instr.s()]);
 
         self.interconnect.write_word(addr, val);
@@ -632,6 +653,6 @@ fn bon(bo: u8, n: u8) -> u8 {
 
 impl fmt::Debug for Cpu {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "MSR: {:?} gpr: {:?}, sr: {:?}, cr:{:?}, HID0: {}", self.msr, self.gpr, self.sr, self.cr, self.spr[HID0])
+        write!(f, "MSR: {:?} gpr: {:?}, sr: {:?}, cr:{:?}", self.msr, self.gpr, self.sr, self.cr)
     }
 }
