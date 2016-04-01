@@ -34,7 +34,7 @@ enum_from_primitive! {
         DBAT2L =  541,
         DBAT3U =  542,
         DBAT3L =  543,
-        GQRO   =  912,
+        GQR0   =  912,
         GQR1   =  913,
         GQR2   =  914,
         GQR3   =  915,
@@ -61,5 +61,6 @@ enum_from_primitive! {
         THRM1  = 1020,
         THRM2  = 1021,
         THRM3  = 1022,
+        UNKNOWN = -1
     }
 }

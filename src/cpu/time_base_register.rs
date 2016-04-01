@@ -3,6 +3,15 @@
 
 // TODO: put some thought into this
 
+enum_from_primitive! {
+    #[derive(Debug)]
+    pub enum Tbr {
+        TBL = 268,
+        TBU = 269,
+        UNKNOWN = -1
+    }
+}
+
 #[derive(Default, Debug)]
 pub struct TimeBaseRegister {
     tbr: u64

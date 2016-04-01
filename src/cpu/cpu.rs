@@ -3,15 +3,17 @@ use std::fmt;
 use super::condition_register::ConditionRegister;
 use super::hid::Hid2;
 use super::interrupt::Interrupt;
+use super::integer_exception_register::IntegerExceptionRegister;
 use super::instruction::Instruction;
 use super::mmu;
 use super::machine_status::MachineStatus;
-use super::time_base_register::TimeBaseRegister;
+use super::time_base_register::{TimeBaseRegister,Tbr};
 use super::super::interconnect::Interconnect;
 use super::spr::Spr;
 
 const NUM_FPR: usize = 32;
 const NUM_GPR: usize = 32;
+const NUM_GQR: usize =  8;
 const NUM_SR : usize = 16;
 
 pub struct Cpu {
@@ -29,7 +31,9 @@ pub struct Cpu {
     tb: TimeBaseRegister,
     hid0: u32,
     hid2: Hid2,
-    xer: u32
+    xer: u32,
+    gqr: [u32; NUM_GQR],
+    l2cr: u32
 }
 
 impl Cpu {
@@ -49,7 +53,9 @@ impl Cpu {
             tb: TimeBaseRegister::default(),
             hid0: 0,
             hid2: Hid2::default(),
-            xer: 0
+            xer: 0,
+            gqr: [0; NUM_GQR],
+            l2cr: 0
         };
 
         cpu.exception(Interrupt::SystemReset); // power on reset
@@ -85,7 +91,6 @@ impl Cpu {
             24 => self.ori(instr),
             25 => self.oris(instr),
             31 => {
-
                 match instr.subopcode() {
                      28 => self.andx(instr),
                      32 => self.cmpl(instr),
@@ -102,7 +107,6 @@ impl Cpu {
                     598 => self.sync(instr),
                     _   => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.subopcode())
                 }
-
             },
             32 => self.lwz(instr),
             37 => self.stwu(instr),
@@ -113,12 +117,10 @@ impl Cpu {
             52 => self.stfs(instr),
             53 => self.stfsu(instr),
             63 => {
-
                 match instr.subopcode() {
                     72 => self.fmrx(instr),
                     _   => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.subopcode())
                 }
-
             },
             _  => panic!("Unrecognized instruction {} {} {}, cia {:#x}", instr.0, instr.opcode(), instr.subopcode(), self.cia)
         }
@@ -405,7 +407,9 @@ impl Cpu {
             Spr::CTR  => self.gpr[instr.s()] = self.ctr,
             Spr::HID0 => self.gpr[instr.s()] = self.hid0,
             Spr::HID2 => self.gpr[instr.s()] = self.hid2.as_u32(),
-            _ => panic!("mfspr not implemented for {:#?}", instr.spr())
+            Spr::GQR0   => self.gpr[instr.s()] = self.gqr[0],
+            Spr::L2CR   => self.gpr[instr.s()] = self.l2cr,
+            _ => panic!("mfspr not implemented for {:#?}", instr.spr()) // FixMe: properly handle this case
         }
 
         // TODO: check privelege level
@@ -413,13 +417,10 @@ impl Cpu {
 
     // move from time base
     fn mftb(&mut self, instr: Instruction) {
-        // FixMe: this uses tbr, not spr
-        let n = (instr.spr_upper() << 5) | (instr.spr_lower() & 0b1_1111);
-
-        match n {
-            268 => self.gpr[instr.d()] = self.tb.l(),
-            269 => self.gpr[instr.d()] = self.tb.u(),
-            _ => panic!("Unrecognized TBR {}", n) // FixMe: invoke error handler
+        match instr.tbr() {
+            Tbr::TBL => self.gpr[instr.d()] = self.tb.l(),
+            Tbr::TBU => self.gpr[instr.d()] = self.tb.u(),
+            Tbr::UNKNOWN => panic!("mftb unknown tbr {:#?}", instr.tbr()) // FixMe: properly handle this case
         }
     }
 
@@ -476,6 +477,8 @@ impl Cpu {
                     Spr::DBAT3L => self.mmu.write_dbatl(3, self.gpr[instr.s()]),
                     Spr::HID0   => self.hid0 = self.gpr[instr.s()],
                     Spr::HID2   => self.hid2 = self.gpr[instr.s()].into(),
+                    Spr::GQR0   => self.gqr[0] = self.gpr[instr.s()],
+                    Spr::L2CR   => self.l2cr = self.gpr[instr.s()],
                     _ => panic!("mtspr not implemented for {:#?}", spr)
                 }
             }

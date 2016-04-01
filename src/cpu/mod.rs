@@ -2,6 +2,7 @@ mod cpu;
 mod condition_register;
 mod hid;
 mod instruction;
+mod integer_exception_register;
 mod interrupt;
 mod mmu;
 mod machine_status;
