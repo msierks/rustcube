@@ -1,4 +1,5 @@
 
+use super::floating_point_sc_register::FloatingPointScRegister;
 use super::integer_exception_register::IntegerExceptionRegister;
 
 const NUM_CR : usize = 8;
@@ -36,6 +37,10 @@ impl ConditionRegister {
         }
 
         self.value[0] |= xer.summary_overflow as u8;
+    }
+
+    pub fn update_cr1(&mut self, r: u64, xer: &FloatingPointScRegister) {
+        println!("FixMe: update_cr1");
     }
 
 }
