@@ -1,5 +1,6 @@
 mod cpu;
 mod condition_register;
+mod floating_point_sc_register;
 mod hid;
 mod instruction;
 mod integer_exception_register;

@@ -1,6 +1,7 @@
 use std::fmt;
 
 use super::condition_register::ConditionRegister;
+use super::floating_point_sc_register::FloatingPointScRegister;
 use super::hid::Hid2;
 use super::interrupt::Interrupt;
 use super::integer_exception_register::IntegerExceptionRegister;
@@ -32,6 +33,7 @@ pub struct Cpu {
     hid0: u32,
     hid2: Hid2,
     xer: IntegerExceptionRegister,
+    fpscr: FloatingPointScRegister,
     gqr: [u32; NUM_GQR],
     l2cr: u32
 }
@@ -54,6 +56,7 @@ impl Cpu {
             hid0: 0,
             hid2: Hid2::default(),
             xer: IntegerExceptionRegister::default(),
+            fpscr: FloatingPointScRegister::default(),
             gqr: [0; NUM_GQR],
             l2cr: 0
         };
@@ -596,7 +599,11 @@ impl Cpu {
 
     // floating move register (double-precision)
     fn fmrx(&mut self, instr: Instruction) {
-        panic!("fixme: implement fmrx instruction");
+        self.fpr[instr.d()] = self.fpr[instr.b()];
+
+        if instr.rc() {
+            self.cr.update_cr1(self.fpr[instr.d()], &self.fpscr);
+        }
     }
 }
 
