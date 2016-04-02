@@ -1,4 +1,6 @@
 
+use super::integer_exception_register::IntegerExceptionRegister;
+
 const NUM_CR : usize = 8;
 
 #[derive(Default, Debug)]
@@ -24,7 +26,7 @@ impl ConditionRegister {
         self.value[n] &= value;
     }
 
-    pub fn update_cr0(&mut self, r: u32) {
+    pub fn update_cr0(&mut self, r: u32, xer: &IntegerExceptionRegister) {
         if r == 0 {
             self.value[0] = 2; // EQ
         } else if (r & 0x80000000) != 0 {
@@ -33,7 +35,7 @@ impl ConditionRegister {
             self.value[0] = 4; // GT
         }
 
-        // FixMe: copy XER[SO] to forth bit
+        self.value[0] |= xer.summary_overflow as u8;
     }
 
 }

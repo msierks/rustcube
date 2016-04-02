@@ -31,7 +31,7 @@ pub struct Cpu {
     tb: TimeBaseRegister,
     hid0: u32,
     hid2: Hid2,
-    xer: u32,
+    xer: IntegerExceptionRegister,
     gqr: [u32; NUM_GQR],
     l2cr: u32
 }
@@ -53,7 +53,7 @@ impl Cpu {
             tb: TimeBaseRegister::default(),
             hid0: 0,
             hid2: Hid2::default(),
-            xer: 0,
+            xer: IntegerExceptionRegister::default(),
             gqr: [0; NUM_GQR],
             l2cr: 0
         };
@@ -163,7 +163,7 @@ impl Cpu {
             0b0010
         };
 
-        c |= self.xer as u8 & 0b1; // FIXME: this is wrong
+        c |= self.xer.summary_overflow as u8;
 
         self.cr.set_field(instr.crfd(), c);
     }
@@ -180,7 +180,7 @@ impl Cpu {
             0b0010
         };
 
-        c |= self.xer as u8 & 0b1; // FIXME: this is wrong
+        c |= self.xer.summary_overflow as u8;
 
         self.cr.set_field(instr.crfd(), c);
     }
@@ -197,7 +197,7 @@ impl Cpu {
     fn addic_rc(&mut self, instr: Instruction) {
         self.gpr[instr.d()] = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
 
-        self.cr.update_cr0(self.gpr[instr.d()]);
+        self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
     }
 
     // add immediate shifted
@@ -314,7 +314,7 @@ impl Cpu {
         self.gpr[instr.a()] = rotl(self.gpr[instr.s()], instr.sh()) & mask;
 
         if instr.rc() {
-            self.cr.update_cr0(self.gpr[instr.a()]);
+            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
         }
     }
 
@@ -332,7 +332,7 @@ impl Cpu {
         self.gpr[instr.a()] = self.gpr[instr.s()] & self.gpr[instr.b()];
 
         if instr.rc() {
-            self.cr.update_cr0(self.gpr[instr.a()]);
+            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
         }
     }
 
@@ -349,7 +349,7 @@ impl Cpu {
             0b0010
         };
 
-        c |= self.xer as u8 & 0b1; // FIXME: this is wrong
+        c |= self.xer.summary_overflow as u8;
 
         self.cr.set_field(instr.crfd(), c);
     }
@@ -359,7 +359,7 @@ impl Cpu {
         self.gpr[instr.d()] = self.gpr[instr.b()].wrapping_sub(self.gpr[instr.a()]);
 
         if instr.rc() {
-            self.cr.update_cr0(self.gpr[instr.d()]);
+            self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
         }
 
         if instr.oe() {
@@ -392,7 +392,7 @@ impl Cpu {
         self.gpr[instr.d()] = self.gpr[instr.a()].wrapping_add(self.gpr[instr.b()]);
 
         if instr.rc() {
-            self.cr.update_cr0(self.gpr[instr.d()]);
+            self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
         }
 
         if instr.oe() {
@@ -428,7 +428,7 @@ impl Cpu {
         self.gpr[instr.a()] = self.gpr[instr.s()] | self.gpr[instr.b()];
 
         if instr.rc() {
-            self.cr.update_cr0(self.gpr[instr.a()]);
+            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
         }
     }
 
@@ -436,7 +436,7 @@ impl Cpu {
         self.gpr[instr.a()] = !(self.gpr[instr.s()] | self.gpr[instr.b()]);
 
         if instr.rc() {
-            self.cr.update_cr0(self.gpr[instr.a()]);
+            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
         }
     }
 
@@ -447,7 +447,6 @@ impl Cpu {
         match spr {
             Spr::LR  => self.lr  = self.gpr[instr.s()],
             Spr::CTR => self.ctr = self.gpr[instr.s()],
-            Spr::XER => self.xer = self.gpr[instr.s()],
             _ => {
 
                 if self.msr.privilege_level { // if user privelege level
@@ -457,8 +456,6 @@ impl Cpu {
                 }
 
                 match spr {
-                    Spr::LR     => self.lr = self.gpr[instr.s()],
-                    Spr::CTR    => self.ctr = self.gpr[instr.s()],
                     Spr::IBAT0U => self.mmu.write_ibatu(0, self.gpr[instr.s()]),
                     Spr::IBAT0L => self.mmu.write_ibatl(0, self.gpr[instr.s()]),
                     Spr::IBAT1U => self.mmu.write_ibatu(1, self.gpr[instr.s()]),

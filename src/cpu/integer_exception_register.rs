@@ -4,7 +4,7 @@
 #[derive(Debug, Default)]
 pub struct IntegerExceptionRegister {
     // SO
-    summary_overflow: bool,
+    pub summary_overflow: bool,
 
     // OV
     overflow: bool,
