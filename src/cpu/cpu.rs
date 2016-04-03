@@ -95,10 +95,12 @@ impl Cpu {
             25 => self.oris(instr),
             31 => {
                 match instr.subopcode() {
+                     24 => self.slwx(instr),
                      28 => self.andx(instr),
                      32 => self.cmpl(instr),
                      40 => self.subfx(instr),
                      83 => self.mfmsr(instr),
+                     86 => self.dcbf(instr),
                     124 => self.norx(instr),
                     146 => self.mtmsr(instr),
                     210 => self.mtsr(instr),
@@ -108,13 +110,17 @@ impl Cpu {
                     444 => self.orx(instr),
                     467 => self.mtspr(instr),
                     598 => self.sync(instr),
+                    982 => self.icbi(instr),
                     _   => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.subopcode())
                 }
             },
             32 => self.lwz(instr),
+            35 => self.lbzu(instr),
             37 => self.stwu(instr),
             36 => self.stw(instr),
+            39 => self.stbu(instr),
             44 => self.sth(instr),
+            47 => self.stmw(instr),
             48 => self.lfs(instr),
             50 => self.lfd(instr),
             52 => self.stfs(instr),
@@ -331,6 +337,11 @@ impl Cpu {
         self.gpr[instr.a()] = self.gpr[instr.s()] | (instr.uimm() << 16);
     }
 
+    // shift left word
+    fn slwx(&mut self, instr: Instruction) {
+        panic!("FixMe: slwx");
+    }
+
     fn andx(&mut self, instr: Instruction) {
         self.gpr[instr.a()] = self.gpr[instr.s()] & self.gpr[instr.b()];
 
@@ -375,6 +386,11 @@ impl Cpu {
         self.gpr[instr.d()] = self.msr.as_u32();
 
         // TODO: check privelege level
+    }
+
+    // data cache block flush
+    fn dcbf(&mut self, instr: Instruction) {
+        println!("FixMe: dcbf");
     }
 
     // move to machine state register
@@ -485,6 +501,11 @@ impl Cpu {
         }
     }
 
+    // instruction cache block invalidate
+    fn icbi(&mut self, instr: Instruction) {
+        println!("FixMe: icbi");
+    }
+
     // load word and zero
     fn lwz(&mut self, instr: Instruction) {
         let ea = if instr.a() == 0 {
@@ -496,6 +517,15 @@ impl Cpu {
         let addr = self.mmu.translate_data_address(&self.msr, ea);
 
         self.gpr[instr.d()] = self.interconnect.read_word(addr);
+    }
+
+    // load byte and zero with update
+    fn lbzu(&mut self, instr: Instruction) {
+        let ea   = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
+        let addr = self.mmu.translate_data_address(&self.msr, ea);
+
+        self.gpr[instr.d()] = self.interconnect.read_byte(addr) as u32;
+        self.gpr[instr.a()] = ea;
     }
 
     // store word with update
@@ -526,6 +556,15 @@ impl Cpu {
         self.interconnect.write_word(addr, self.gpr[instr.s()]);
     }
 
+    // store byte with update
+    fn stbu(&mut self, instr: Instruction) {
+        let ea   = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
+        let addr = self.mmu.translate_data_address(&self.msr, ea);
+
+        self.interconnect.write_byte(addr, self.gpr[instr.d()] as u8);
+        self.gpr[instr.a()] = ea;
+    }
+
     // store half word
     fn sth(&mut self, instr: Instruction) {
         let ea = if instr.a() == 0 {
@@ -537,6 +576,26 @@ impl Cpu {
         let addr = self.mmu.translate_data_address(&self.msr, ea);
 
         self.interconnect.write_halfword(addr, self.gpr[instr.s()] as u16);
+    }
+
+    // store multiple word
+    fn stmw(&mut self, instr: Instruction) {
+        let mut ea = if instr.a() == 0 {
+            instr.simm() as u32
+        } else {
+            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
+        };
+
+        let mut r = instr.s();
+
+        while r <= 31 {
+            let addr = self.mmu.translate_data_address(&self.msr, ea);
+
+            self.interconnect.write_word(addr, self.gpr[r]);
+
+            r  += 1;
+            ea += 4;
+        }
     }
 
     // load floating point single
