@@ -75,6 +75,8 @@ impl Cpu {
         self.nia = self.cia + 4;
 
         match instr.opcode() {
+             7 => self.mulli(instr),
+             8 => self.subfic(instr),
             10 => self.cmpli(instr),
             11 => self.cmpi(instr),
             14 => self.addi(instr),
@@ -87,39 +89,52 @@ impl Cpu {
                     16 => self.bclrx(instr),
                     150 => self.isync(instr),
                     193 => self.crxor(instr),
+                    528 => self.bcctrx(instr),
                     _ => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.subopcode())
                 }
             },
             21 => self.rlwinmx(instr),
             24 => self.ori(instr),
             25 => self.oris(instr),
+            28 => self.andi_rc(instr),
             31 => {
                 match instr.subopcode() {
+                      0 => self.cmp(instr),
+                     23 => self.lwzx(instr),
                      24 => self.slwx(instr),
+                     26 => self.cntlzwx(instr),
                      28 => self.andx(instr),
                      32 => self.cmpl(instr),
                      40 => self.subfx(instr),
+                     60 => self.andcx(instr),
                      83 => self.mfmsr(instr),
                      86 => self.dcbf(instr),
                     124 => self.norx(instr),
                     146 => self.mtmsr(instr),
+                    151 => self.stwx(instr),
                     210 => self.mtsr(instr),
                     266 => self.addx(instr),
                     339 => self.mfspr(instr),
                     371 => self.mftb(instr),
                     444 => self.orx(instr),
                     467 => self.mtspr(instr),
+                    470 => self.dcbi(instr),
                     598 => self.sync(instr),
+                    922 => self.extshx(instr),
                     982 => self.icbi(instr),
                     _   => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.subopcode())
                 }
             },
             32 => self.lwz(instr),
+            33 => self.lwzu(instr),
+            34 => self.lbz(instr),
             35 => self.lbzu(instr),
             37 => self.stwu(instr),
             36 => self.stw(instr),
             39 => self.stbu(instr),
+            40 => self.lhz(instr),
             44 => self.sth(instr),
+            46 => self.lmw(instr),
             47 => self.stmw(instr),
             48 => self.lfs(instr),
             50 => self.lfd(instr),
@@ -157,6 +172,29 @@ impl Cpu {
         } else {
             self.cia = nia
         }
+    }
+
+    // multiply low immediate
+    fn mulli(&mut self, instr: Instruction) {
+        self.gpr[instr.d()] = (self.gpr[instr.a()] as i32).wrapping_mul(instr.simm() as i32) as u32;
+    }
+
+    // compare
+    fn cmp(&mut self, instr: Instruction) {
+        let a = self.gpr[instr.a()] as i32;
+        let b = self.gpr[instr.b()] as i32;
+
+        let mut c:u8 = if a < b {
+            0b1000
+        } else if a > b {
+            0b0100
+        } else {
+            0b0010
+        };
+
+        c |= self.xer.summary_overflow as u8;
+
+        self.cr.set_field(instr.crfd(), c);
     }
 
     // complare logic immediate
@@ -316,6 +354,25 @@ impl Cpu {
         self.cr.set_bit(instr.d(), d);
     }
 
+    // branch condition to count register
+    fn bcctrx(&mut self, instr: Instruction) {
+        let bo = instr.bo();
+
+        let cond_ok = if bon(bo, 0) == 0 {
+            self.cr.get_bit(instr.bi()) == bon(bo, 1)
+        } else {
+            true
+        };
+
+        if cond_ok {
+            self.nia = self.ctr & 0xFFFFFFFC;
+
+            if instr.lk() == 1 {
+                self.lr = self.cia + 4;
+            }
+        }
+    }
+
     // rotate word immediate then AND with mask
     fn rlwinmx(&mut self, instr: Instruction) {
         let mask = mask(instr.mb(), instr.me());
@@ -337,9 +394,61 @@ impl Cpu {
         self.gpr[instr.a()] = self.gpr[instr.s()] | (instr.uimm() << 16);
     }
 
+    fn andi_rc(&mut self, instr: Instruction) {
+        self.gpr[instr.a()] = self.gpr[instr.s()] & instr.uimm();
+
+        self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
+    }
+
+    // load word and zero index
+    fn lwzx(&mut self, instr: Instruction) {
+        let ea = if instr.a() == 0 {
+            self.gpr[instr.b()]
+        } else {
+            self.gpr[instr.a()].wrapping_add(self.gpr[instr.b()])
+        };
+
+        let addr = self.mmu.translate_data_address(&self.msr, ea);
+
+        self.gpr[instr.d()] = self.interconnect.read_word(addr);
+    }
+
     // shift left word
     fn slwx(&mut self, instr: Instruction) {
-        panic!("FixMe: slwx");
+        let n = (self.gpr[instr.a()] & 0x1F) as u8;
+        let r = rotl(self.gpr[instr.s()], n);
+
+        let m = if (self.gpr[instr.a()] & 20) << 5 == 0 {
+            mask(0, 31 - n)
+        } else {
+            0
+        };
+
+        self.gpr[instr.a()] = r & m;
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
+        }
+    }
+
+    // count leading zeroes word
+    fn cntlzwx(&mut self, instr: Instruction) {
+        let mut n = 0;
+        let s = self.gpr[instr.s()];
+
+        while n < 32 {
+            if s & (0x80000000 >> n) != 0 {
+                break;
+            }
+
+            n += 1;
+        }
+
+        self.gpr[instr.a()] = n;
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
+        }
     }
 
     fn andx(&mut self, instr: Instruction) {
@@ -381,6 +490,22 @@ impl Cpu {
         }
     }
 
+    // subtract from immediate
+    fn subfic(&mut self, instr: Instruction) {
+        self.gpr[instr.d()] = (instr.simm() as u32).wrapping_sub(self.gpr[instr.a()]);
+
+        // FixMe: update XER
+    }
+
+    // and with complement
+    fn andcx(&mut self, instr: Instruction) {
+        self.gpr[instr.a()] = self.gpr[instr.s()] & !self.gpr[instr.b()];
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
+        }
+    }
+
     // move from machine state register
     fn mfmsr(&mut self, instr: Instruction) {
         self.gpr[instr.d()] = self.msr.as_u32();
@@ -388,6 +513,7 @@ impl Cpu {
         // TODO: check privelege level
     }
 
+    #[allow(unused_variables)]
     // data cache block flush
     fn dcbf(&mut self, instr: Instruction) {
         println!("FixMe: dcbf");
@@ -501,6 +627,21 @@ impl Cpu {
         }
     }
 
+    // data cache block invalidate
+    fn dcbi(&mut self, instr: Instruction) {
+        println!("FixMe: dcbi");
+    }
+
+    // extend sign half word
+    fn extshx(&mut self, instr: Instruction) {
+        self.gpr[instr.a()] = ((self.gpr[instr.s()] as i16) as i32) as u32;
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
+        }
+    }
+
+    #[allow(unused_variables)]
     // instruction cache block invalidate
     fn icbi(&mut self, instr: Instruction) {
         println!("FixMe: icbi");
@@ -519,8 +660,34 @@ impl Cpu {
         self.gpr[instr.d()] = self.interconnect.read_word(addr);
     }
 
+    // load word and zero with update
+    fn lwzu(&mut self, instr: Instruction) {
+        let ea = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
+        let addr = self.mmu.translate_data_address(&self.msr, ea);
+
+        self.gpr[instr.d()] = self.interconnect.read_word(addr);
+        self.gpr[instr.a()] = ea;
+    }
+
+    // load byte and zero
+    fn lbz(&mut self, instr: Instruction) {
+        let ea = if instr.a() == 0 {
+            instr.simm() as u32
+        } else {
+            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
+        };
+
+        let addr = self.mmu.translate_data_address(&self.msr, ea);
+
+        self.gpr[instr.d()] = self.interconnect.read_byte(addr) as u32;
+    }
+
     // load byte and zero with update
     fn lbzu(&mut self, instr: Instruction) {
+        if instr.a() == 0 || instr.a() == instr.d() {
+            panic!("lbzu: invalid instruction");
+        }
+
         let ea   = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
         let addr = self.mmu.translate_data_address(&self.msr, ea);
 
@@ -565,6 +732,32 @@ impl Cpu {
         self.gpr[instr.a()] = ea;
     }
 
+    // store word indexed
+    fn stwx(&mut self, instr: Instruction) {
+        let ea = if instr.a() == 0 {
+            self.gpr[instr.b()]
+        } else {
+            self.gpr[instr.a()].wrapping_add(self.gpr[instr.b()])
+        };
+
+        let addr = self.mmu.translate_data_address(&self.msr, ea);
+
+        self.interconnect.write_word(addr, self.gpr[instr.s()]);
+    }
+
+    // load half word and zero
+    fn lhz(&mut self, instr: Instruction) {
+        let ea = if instr.a() == 0 {
+            instr.simm() as u32
+        } else {
+            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
+        };
+
+        let addr = self.mmu.translate_data_address(&self.msr, ea);
+
+        self.gpr[instr.d()] = self.interconnect.read_halfword(addr) as u32;
+    }
+
     // store half word
     fn sth(&mut self, instr: Instruction) {
         let ea = if instr.a() == 0 {
@@ -576,6 +769,26 @@ impl Cpu {
         let addr = self.mmu.translate_data_address(&self.msr, ea);
 
         self.interconnect.write_halfword(addr, self.gpr[instr.s()] as u16);
+    }
+
+    // load multiple word
+    fn lmw(&mut self, instr: Instruction) {
+        let mut ea = if instr.a() == 0 {
+            instr.simm() as u32
+        } else {
+            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
+        };
+
+        let mut r = instr.d();
+
+        while r <= 31 {
+            let addr = self.mmu.translate_data_address(&self.msr, ea);
+
+            self.gpr[r] = self.interconnect.read_word(addr);
+
+            r  += 1;
+            ea += 4;
+        }
     }
 
     // store multiple word

@@ -121,6 +121,24 @@ impl Interconnect {
         }
     }
 
+    pub fn read_halfword(&mut self, address: u32) -> u16 {
+        match map_address(address) {
+            Address::Ram => {
+                let mut data = [0u8; 2];
+                let mmap     = unsafe { self.mmap.as_slice() };
+
+                match {&mmap[address as usize ..]}.read(&mut data) {
+                    Ok(_) => BigEndian::read_u16(&data),
+                    Err(e) => panic!("{}", e)
+                }
+            },
+            _ => {
+                println!("interconnect read_halfword not implemented for address {:#x}", address);
+                0 // FIXME: this is bad and I should feel bad too ;)
+            }
+        }
+    }
+
     pub fn read_doubleword(&mut self, address: u32) -> u64 {
         match map_address(address) {
             Address::Ram => {
@@ -141,7 +159,7 @@ impl Interconnect {
     pub fn write_byte(&mut self, address: u32, value: u8) {
         match map_address(address) {
             Address::Ram => {
-                let mut data = [value];
+                let data = [value];
                 let mut mmap = unsafe { self.mmap.as_mut_slice() };
 
                 match {&mut mmap[address as usize ..]}.write(&data) {
