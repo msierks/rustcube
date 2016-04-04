@@ -1,40 +1,4 @@
 
-/*
-Effective Address (Dolphin OS)
-   80000000  24MB  Main Memory (RAM), write-back cached
-   C0000000  24MB  Main Memory (RAM), write-through cached
-   C8000000   2MB  Embedded Framebuffer (EFB)
-   CC000000        Command Processor (CP)
-   CC001000        Pixel Engine (PE)
-   CC002000        Video Interface (VI)
-   CC003000        Peripheral Interface (PI)
-   CC004000        Memory Interface (MI)
-   CC005000        DSP and DMA Audio Interface (AID)
-   CC006000        DVD Interface (DI)
-   CC006400        Serial Interface (SI)
-   CC006800        External Interface (EXI)
-   CC006C00        Audio Streaming Interface (AIS)
-   CC008000        PI FIFO (GX)
-   FFF00000   1MB  Boot ROM (first megabyte), used during BS only.
-
-
-Physical Address (Flipper memory interface)
-   00000000  24MB  Main Memory (RAM)
-   08000000   2MB  Embedded Framebuffer (EFB)
-   0C000000        Command Processor (CP)
-   0C001000        Pixel Engine (PE)
-   0C002000        Video Interface (VI)
-   0C003000        Peripheral Interface (PI)
-   0C004000        Memory Interface (MI)
-   0C005000        DSP and DMA Audio Interface (AID)
-   0C006000        DVD Interface (DI)
-   0C006400        Serial Interface (SI)
-   0C006800        External Interface (EXI)
-   0C006C00        Audio Streaming Interface (AIS)
-   0C008000        PI FIFO (GX)
-   FFF00000   1MB  Boot ROM (first megabyte)
-*/
-
 use super::machine_status::MachineStatus;
 
 #[derive(Default, Clone, Copy, Debug)]

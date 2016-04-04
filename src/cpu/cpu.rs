@@ -6,10 +6,9 @@ use super::hid::Hid2;
 use super::interrupt::Interrupt;
 use super::integer_exception_register::IntegerExceptionRegister;
 use super::instruction::Instruction;
-use super::mmu;
 use super::machine_status::MachineStatus;
 use super::time_base_register::{TimeBaseRegister,Tbr};
-use super::super::interconnect::Interconnect;
+use super::super::memory::Interconnect;
 use super::spr::Spr;
 
 const NUM_FPR: usize = 32;
@@ -19,7 +18,6 @@ const NUM_SR : usize = 16;
 
 pub struct Cpu {
     pub interconnect: Interconnect,
-    pub mmu: mmu::Mmu,
     cia: u32,
     nia: u32,
     ctr: u32,
@@ -42,7 +40,6 @@ impl Cpu {
     pub fn new(interconnect: Interconnect) -> Cpu {
         let mut cpu = Cpu {
             interconnect: interconnect,
-            mmu: mmu::Mmu::new(),
             cia: 0,
             nia: 0,
             ctr: 0,
@@ -66,7 +63,7 @@ impl Cpu {
     }
 
     pub fn run_instruction(&mut self) {
-        let instr = self.read_instruction();
+        let instr = self.interconnect.read_instruction(&self.msr, self.cia);
 
         if self.cia >= 0x81300000 && self.cia < 0xFFF00000 {
             println!("{:#x}: OP: {}", self.cia, instr.opcode());
@@ -153,12 +150,6 @@ impl Cpu {
 
         // tick timer
         self.tb.advance();
-    }
-
-    fn read_instruction(&mut self) -> Instruction {
-        let addr = self.mmu.translate_instr_address(&self.msr, self.cia);
-
-        Instruction(self.interconnect.read_word(addr))
     }
 
     // FixMe: handle exceptions properly
@@ -408,9 +399,7 @@ impl Cpu {
             self.gpr[instr.a()].wrapping_add(self.gpr[instr.b()])
         };
 
-        let addr = self.mmu.translate_data_address(&self.msr, ea);
-
-        self.gpr[instr.d()] = self.interconnect.read_word(addr);
+        self.gpr[instr.d()] = self.interconnect.read_u32(&self.msr, ea);
     }
 
     // shift left word
@@ -601,22 +590,22 @@ impl Cpu {
                 }
 
                 match spr {
-                    Spr::IBAT0U => self.mmu.write_ibatu(0, self.gpr[instr.s()]),
-                    Spr::IBAT0L => self.mmu.write_ibatl(0, self.gpr[instr.s()]),
-                    Spr::IBAT1U => self.mmu.write_ibatu(1, self.gpr[instr.s()]),
-                    Spr::IBAT1L => self.mmu.write_ibatl(1, self.gpr[instr.s()]),
-                    Spr::IBAT2U => self.mmu.write_ibatu(2, self.gpr[instr.s()]),
-                    Spr::IBAT2L => self.mmu.write_ibatl(2, self.gpr[instr.s()]),
-                    Spr::IBAT3U => self.mmu.write_ibatu(3, self.gpr[instr.s()]),
-                    Spr::IBAT3L => self.mmu.write_ibatl(3, self.gpr[instr.s()]),
-                    Spr::DBAT0U => self.mmu.write_dbatu(0, self.gpr[instr.s()]),
-                    Spr::DBAT0L => self.mmu.write_dbatl(0, self.gpr[instr.s()]),
-                    Spr::DBAT1U => self.mmu.write_dbatu(1, self.gpr[instr.s()]),
-                    Spr::DBAT1L => self.mmu.write_dbatl(1, self.gpr[instr.s()]),
-                    Spr::DBAT2U => self.mmu.write_dbatu(2, self.gpr[instr.s()]),
-                    Spr::DBAT2L => self.mmu.write_dbatl(2, self.gpr[instr.s()]),
-                    Spr::DBAT3U => self.mmu.write_dbatu(3, self.gpr[instr.s()]),
-                    Spr::DBAT3L => self.mmu.write_dbatl(3, self.gpr[instr.s()]),
+                    Spr::IBAT0U => self.interconnect.mmu.write_ibatu(0, self.gpr[instr.s()]),
+                    Spr::IBAT0L => self.interconnect.mmu.write_ibatl(0, self.gpr[instr.s()]),
+                    Spr::IBAT1U => self.interconnect.mmu.write_ibatu(1, self.gpr[instr.s()]),
+                    Spr::IBAT1L => self.interconnect.mmu.write_ibatl(1, self.gpr[instr.s()]),
+                    Spr::IBAT2U => self.interconnect.mmu.write_ibatu(2, self.gpr[instr.s()]),
+                    Spr::IBAT2L => self.interconnect.mmu.write_ibatl(2, self.gpr[instr.s()]),
+                    Spr::IBAT3U => self.interconnect.mmu.write_ibatu(3, self.gpr[instr.s()]),
+                    Spr::IBAT3L => self.interconnect.mmu.write_ibatl(3, self.gpr[instr.s()]),
+                    Spr::DBAT0U => self.interconnect.mmu.write_dbatu(0, self.gpr[instr.s()]),
+                    Spr::DBAT0L => self.interconnect.mmu.write_dbatl(0, self.gpr[instr.s()]),
+                    Spr::DBAT1U => self.interconnect.mmu.write_dbatu(1, self.gpr[instr.s()]),
+                    Spr::DBAT1L => self.interconnect.mmu.write_dbatl(1, self.gpr[instr.s()]),
+                    Spr::DBAT2U => self.interconnect.mmu.write_dbatu(2, self.gpr[instr.s()]),
+                    Spr::DBAT2L => self.interconnect.mmu.write_dbatl(2, self.gpr[instr.s()]),
+                    Spr::DBAT3U => self.interconnect.mmu.write_dbatu(3, self.gpr[instr.s()]),
+                    Spr::DBAT3L => self.interconnect.mmu.write_dbatl(3, self.gpr[instr.s()]),
                     Spr::HID0   => self.hid0 = self.gpr[instr.s()],
                     Spr::HID2   => self.hid2 = self.gpr[instr.s()].into(),
                     Spr::GQR0   => self.gqr[0] = self.gpr[instr.s()],
@@ -655,17 +644,14 @@ impl Cpu {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
 
-        let addr = self.mmu.translate_data_address(&self.msr, ea);
-
-        self.gpr[instr.d()] = self.interconnect.read_word(addr);
+        self.gpr[instr.d()] = self.interconnect.read_u32(&self.msr, ea);
     }
 
     // load word and zero with update
     fn lwzu(&mut self, instr: Instruction) {
         let ea = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
-        let addr = self.mmu.translate_data_address(&self.msr, ea);
 
-        self.gpr[instr.d()] = self.interconnect.read_word(addr);
+        self.gpr[instr.d()] = self.interconnect.read_u32(&self.msr, ea);
         self.gpr[instr.a()] = ea;
     }
 
@@ -677,9 +663,7 @@ impl Cpu {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
 
-        let addr = self.mmu.translate_data_address(&self.msr, ea);
-
-        self.gpr[instr.d()] = self.interconnect.read_byte(addr) as u32;
+        self.gpr[instr.d()] = self.interconnect.read_u8(&self.msr, ea) as u32;
     }
 
     // load byte and zero with update
@@ -689,9 +673,8 @@ impl Cpu {
         }
 
         let ea   = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
-        let addr = self.mmu.translate_data_address(&self.msr, ea);
 
-        self.gpr[instr.d()] = self.interconnect.read_byte(addr) as u32;
+        self.gpr[instr.d()] = self.interconnect.read_u8(&self.msr, ea) as u32;
         self.gpr[instr.a()] = ea;
     }
 
@@ -703,9 +686,7 @@ impl Cpu {
 
         let ea = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
 
-        let addr = self.mmu.translate_data_address(&self.msr, ea);
-
-        self.interconnect.write_word(addr, self.gpr[instr.s()]);
+        self.interconnect.write_u32(&self.msr, ea, self.gpr[instr.s()]);
 
         self.gpr[instr.a()] = ea; // is this conditional ???
     }
@@ -718,17 +699,15 @@ impl Cpu {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
 
-        let addr = self.mmu.translate_data_address(&self.msr, ea);
-
-        self.interconnect.write_word(addr, self.gpr[instr.s()]);
+        self.interconnect.write_u32(&self.msr, ea, self.gpr[instr.s()]);
     }
 
     // store byte with update
     fn stbu(&mut self, instr: Instruction) {
         let ea   = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
-        let addr = self.mmu.translate_data_address(&self.msr, ea);
 
-        self.interconnect.write_byte(addr, self.gpr[instr.d()] as u8);
+        self.interconnect.write_u8(&self.msr, ea, self.gpr[instr.d()] as u8);
+
         self.gpr[instr.a()] = ea;
     }
 
@@ -740,9 +719,7 @@ impl Cpu {
             self.gpr[instr.a()].wrapping_add(self.gpr[instr.b()])
         };
 
-        let addr = self.mmu.translate_data_address(&self.msr, ea);
-
-        self.interconnect.write_word(addr, self.gpr[instr.s()]);
+        self.interconnect.write_u32(&self.msr, ea, self.gpr[instr.s()]);
     }
 
     // load half word and zero
@@ -753,9 +730,7 @@ impl Cpu {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
 
-        let addr = self.mmu.translate_data_address(&self.msr, ea);
-
-        self.gpr[instr.d()] = self.interconnect.read_halfword(addr) as u32;
+        self.gpr[instr.d()] = self.interconnect.read_u16(&self.msr, ea) as u32;
     }
 
     // store half word
@@ -766,9 +741,7 @@ impl Cpu {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
 
-        let addr = self.mmu.translate_data_address(&self.msr, ea);
-
-        self.interconnect.write_halfword(addr, self.gpr[instr.s()] as u16);
+        self.interconnect.write_u16(&self.msr, ea, self.gpr[instr.s()] as u16);
     }
 
     // load multiple word
@@ -782,9 +755,7 @@ impl Cpu {
         let mut r = instr.d();
 
         while r <= 31 {
-            let addr = self.mmu.translate_data_address(&self.msr, ea);
-
-            self.gpr[r] = self.interconnect.read_word(addr);
+            self.gpr[r] = self.interconnect.read_u32(&self.msr, ea);
 
             r  += 1;
             ea += 4;
@@ -802,9 +773,7 @@ impl Cpu {
         let mut r = instr.s();
 
         while r <= 31 {
-            let addr = self.mmu.translate_data_address(&self.msr, ea);
-
-            self.interconnect.write_word(addr, self.gpr[r]);
+            self.interconnect.write_u32(&self.msr, ea, self.gpr[r]);
 
             r  += 1;
             ea += 4;
@@ -819,8 +788,7 @@ impl Cpu {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
 
-        let addr = self.mmu.translate_data_address(&self.msr, ea);
-        let val  = self.interconnect.read_word(addr);
+        let val = self.interconnect.read_u32(&self.msr, ea);
 
         if !self.hid2.paired_single {
             self.fpr[instr.d()] = convert_to_double(val);
@@ -837,9 +805,7 @@ impl Cpu {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
 
-        let addr = self.mmu.translate_data_address(&self.msr, ea);
-
-        self.fpr[instr.d()] = self.interconnect.read_doubleword(addr);
+        self.fpr[instr.d()] = self.interconnect.read_u64(&self.msr, ea);
     }
 
     // store floating point single
@@ -850,10 +816,9 @@ impl Cpu {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
 
-        let addr = self.mmu.translate_data_address(&self.msr, ea);
-        let val  = convert_to_single(self.fpr[instr.s()]);
+        let val = convert_to_single(self.fpr[instr.s()]);
 
-        self.interconnect.write_word(addr, val);
+        self.interconnect.write_u32(&self.msr, ea, val);
     }
 
     // store floating point single with update
@@ -862,11 +827,10 @@ impl Cpu {
             panic!("stfsu: invalid instruction");
         }
 
-        let ea   = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
-        let addr = self.mmu.translate_data_address(&self.msr, ea);
-        let val  = convert_to_single(self.fpr[instr.s()]);
+        let ea  = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
+        let val = convert_to_single(self.fpr[instr.s()]);
 
-        self.interconnect.write_word(addr, val);
+        self.interconnect.write_u32(&self.msr, ea, val);
     }
 
     // floating move register (double-precision)

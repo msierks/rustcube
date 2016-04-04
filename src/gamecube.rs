@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use super::cpu;
-use super::interconnect;
+use super::memory;
 
 #[derive(Debug)]
 pub struct Gamecube {
@@ -10,7 +10,7 @@ pub struct Gamecube {
 
 impl Gamecube {
     pub fn new() -> Gamecube {
-        let interconnect = interconnect::Interconnect::new();
+        let interconnect = memory::Interconnect::new();
         let cpu = cpu::Cpu::new(interconnect);
 
         Gamecube {

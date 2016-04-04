@@ -8,7 +8,7 @@ extern crate enum_primitive;
 mod cpu;
 mod exi;
 mod gamecube;
-mod interconnect;
+mod memory;
 
 use std::env;
 
