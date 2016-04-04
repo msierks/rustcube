@@ -80,6 +80,7 @@ impl Cpu {
             13 => self.addic_rc(instr),
             15 => self.addis(instr),
             16 => self.bcx(instr),
+            17 => self.sc(instr),
             18 => self.bx(instr),
             19 => {
                 match instr.subopcode() {
@@ -90,6 +91,7 @@ impl Cpu {
                     _ => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.subopcode())
                 }
             },
+            20 => self.rlwimix(instr),
             21 => self.rlwinmx(instr),
             24 => self.ori(instr),
             25 => self.oris(instr),
@@ -130,6 +132,7 @@ impl Cpu {
             36 => self.stw(instr),
             39 => self.stbu(instr),
             40 => self.lhz(instr),
+            41 => self.lhzu(instr),
             44 => self.sth(instr),
             46 => self.lmw(instr),
             47 => self.stmw(instr),
@@ -361,6 +364,17 @@ impl Cpu {
             if instr.lk() == 1 {
                 self.lr = self.cia + 4;
             }
+        }
+    }
+
+    fn rlwimix(&mut self, instr: Instruction) {
+        let m = mask(instr.mb(), instr.me());
+        let r = rotl(self.gpr[instr.s()], instr.sh());
+
+        self.gpr[instr.a()] = (r & m) | (self.gpr[instr.a()] & !m);
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
         }
     }
 
@@ -733,6 +747,16 @@ impl Cpu {
         self.gpr[instr.d()] = self.interconnect.read_u16(&self.msr, ea) as u32;
     }
 
+    // load half word and zero with update
+    fn lhzu(&mut self, instr: Instruction) {
+        let ea = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
+
+        let addr = self.mmu.translate_data_address(&self.msr, ea);
+
+        self.gpr[instr.d()] = self.interconnect.read_halfword(addr) as u32;
+        self.gpr[instr.a()] = ea;
+    }
+
     // store half word
     fn sth(&mut self, instr: Instruction) {
         let ea = if instr.a() == 0 {
@@ -840,6 +864,11 @@ impl Cpu {
         if instr.rc() {
             self.cr.update_cr1(self.fpr[instr.d()], &self.fpscr);
         }
+    }
+
+    // system call
+    fn sc(&mut self, instr: Instruction) {
+        println!("FixMe: sc");
     }
 }
 
