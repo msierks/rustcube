@@ -6,6 +6,7 @@ use std::io::Read;
 use std::rc::Rc;
 
 use super::ram::Ram;
+use super::super::audio_interface::AudioInterface;
 use super::super::dsp_interface::DspInterface;
 use super::super::exi::Exi;
 use super::super::cpu::instruction::Instruction;
@@ -30,7 +31,7 @@ pub enum Address {
     DvdInterface,
     SerialInterface,
     ExpansionInterface(u32, u32),
-    AudioInterface,
+    AudioInterface(u32),
     PiFifo,
     Bootrom(u32)
 }
@@ -52,7 +53,7 @@ fn map(address: u32) -> Address {
             let register = (address - 0x0C006800) - (channel * 0x14);
             Address::ExpansionInterface(channel, register)
         },
-        0x0C006C00 ... 0x0C006CFF => Address::AudioInterface,
+        0x0C006C00 ... 0x0C006C20 => Address::AudioInterface(address - 0x0C006C00),
         0x0C008000 ... 0x0C008FFF => Address::PiFifo,
         0xFFF00000 ... 0xFFFFFFFF => Address::Bootrom(address - 0xFFF00000),
         _ => panic!("Unrecognized physical address: {:#x}", address)
@@ -60,6 +61,7 @@ fn map(address: u32) -> Address {
 }
 
 pub struct Interconnect {
+    ai: AudioInterface,
     bootrom: Rc<RefCell<Box<[u8; BOOTROM_SIZE]>>>,
     dsp: DspInterface,
     exi: Exi,
@@ -76,6 +78,7 @@ impl Interconnect {
         let bootrom = Rc::new(RefCell::new(Box::new([0; BOOTROM_SIZE])));
 
         Interconnect {
+            ai: AudioInterface::default(),
             dsp: DspInterface::default(),
             exi: Exi::new(bootrom.clone()),
             bootrom: bootrom,
@@ -114,6 +117,7 @@ impl Interconnect {
 
         match map(addr) {
             Address::Ram => self.ram.read_u16(addr),
+            Address::DspInterface(offset) => self.dsp.read_u16(offset),
             Address::Bootrom(offset) => BigEndian::read_u16(&self.bootrom.borrow()[offset as usize ..]),
             _ => panic!("read_u16 not implemented for {:#?} address {:#x}", map(addr), addr)
         }
@@ -128,6 +132,7 @@ impl Interconnect {
             Address::SerialInterface => self.si.read_u32(addr),
             Address::ExpansionInterface(channel, register) => self.exi.read(channel, register),
             Address::Bootrom(offset) => BigEndian::read_u32(&self.bootrom.borrow()[offset as usize ..]),
+            Address::AudioInterface(offset) => self.ai.read_u32(offset),
             _ => panic!("read_u32 not implemented for {:#?} address {:#x}", map(addr), addr)
         }
     }
@@ -168,8 +173,10 @@ impl Interconnect {
         match map(addr) {
             Address::Ram => self.ram.write_u32(addr, val),
             Address::ProcessorInterface => self.pi.write_u32(addr, val),
+            Address::DspInterface(offset) => self.dsp.write_u32(offset, val),
             Address::SerialInterface => self.si.write_u32(addr, val),
             Address::ExpansionInterface(channel, register) => self.exi.write(channel, register, val, &mut self.ram),
+            Address::AudioInterface(offset) => self.ai.write_u32(offset, val),
             _ => panic!("write_u32 not implemented for {:#?} address {:#x}", map(addr), addr)
         }
     }

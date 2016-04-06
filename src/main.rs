@@ -5,6 +5,7 @@ extern crate num;
 #[macro_use]
 extern crate enum_primitive;
 
+mod audio_interface;
 mod cpu;
 mod dsp_interface;
 mod exi;
