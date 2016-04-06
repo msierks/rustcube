@@ -1,4 +1,3 @@
-use memmap::Mmap;
 use std::rc::Rc;
 use std::cell::RefCell;
 
@@ -6,6 +5,7 @@ use super::channel::{Channel, TransferSelection};
 use super::device::DeviceDummy;
 use super::device_ipl::{DeviceIpl, BOOTROM_SIZE};
 use super::device_ad16::DeviceAd16;
+use super::super::memory::ram::Ram;
 
 const NUM_CHANNELS: usize = 3;
 
@@ -52,7 +52,7 @@ impl Exi {
         }
     }
 
-    pub fn write(&mut self, channel_num: u32, register: u32, value: u32, memory: &mut Mmap) {
+    pub fn write(&mut self, channel_num: u32, register: u32, value: u32, memory: &mut Ram) {
         let channel = match self.channels.get_mut(channel_num as usize) {
             Some(channel) => channel,
             None => panic!("exi channel out of range: {}", channel_num)

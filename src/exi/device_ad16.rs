@@ -1,7 +1,6 @@
 
 use super::device::Device;
-
-use memmap::Mmap;
+use super::super::memory::ram::Ram;
 
 // AD16
 
@@ -30,7 +29,7 @@ impl Device for DeviceAd16 {
         panic!("ExiDeviceAd16: read_dma");
     }
 
-    fn write_dma(&self, memory: &mut Mmap, address: u32, length: u32) {
+    fn write_dma(&self, memory: &mut Ram, address: u32, length: u32) {
         panic!("ExiDeviceAd16: write_dma");
     }
 }

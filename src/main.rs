@@ -6,9 +6,13 @@ extern crate num;
 extern crate enum_primitive;
 
 mod cpu;
+mod dsp_interface;
 mod exi;
 mod gamecube;
 mod memory;
+mod memory_interface;
+mod processor_interface;
+mod serial_interface;
 
 use std::env;
 

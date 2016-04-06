@@ -1,9 +1,9 @@
-use memmap::Mmap;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::io::Write;
 
 use super::device::Device;
+use super::super::memory::ram::Ram;
 
 pub const BOOTROM_SIZE: usize = 0x0200000; // 2 MB
 
@@ -40,14 +40,10 @@ impl Device for DeviceIpl {
         println!("ExiDeviceIpl: read_dma address");
     }
 
-    fn write_dma(&self, memory: &mut Mmap, address: u32, length: u32) {
+    fn write_dma(&self, memory: &mut Ram, address: u32, length: u32) {
         let bootrom = **self.bootrom.borrow_mut();
-        let mut mmap = unsafe { memory.as_mut_slice() };
 
-        match {&mut mmap[address as usize ..]}.write(&bootrom[self.address as usize .. (self.address + length) as usize]) {
-            Ok(_) => {},
-            Err(e) => panic!("{}", e)
-        }
+        memory.write_dma(address, &bootrom[self.address as usize .. (self.address + length) as usize]);
     }
 }
 

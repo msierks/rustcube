@@ -751,9 +751,7 @@ impl Cpu {
     fn lhzu(&mut self, instr: Instruction) {
         let ea = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
 
-        let addr = self.mmu.translate_data_address(&self.msr, ea);
-
-        self.gpr[instr.d()] = self.interconnect.read_halfword(addr) as u32;
+        self.gpr[instr.d()] = self.interconnect.read_u16(&self.msr, ea) as u32;
         self.gpr[instr.a()] = ea;
     }
 

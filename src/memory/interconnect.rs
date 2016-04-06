@@ -6,22 +6,27 @@ use std::io::Read;
 use std::rc::Rc;
 
 use super::ram::Ram;
+use super::super::dsp_interface::DspInterface;
 use super::super::exi::Exi;
 use super::super::cpu::instruction::Instruction;
 use super::super::cpu::mmu::Mmu;
 use super::super::cpu::machine_status::MachineStatus;
+use super::super::memory_interface::MemoryInterface;
+use super::super::processor_interface::ProcessorInterface;
+use super::super::serial_interface::SerialInterface;
 
 const BOOTROM_SIZE: usize = 0x0200000; // 2 MB
 
+#[derive(Debug)]
 pub enum Address {
     Ram,
     EmbeddedFramebuffer,
     CommandProcessor,
     PixelEngine,
     VideoInterface,
-    PeripheralInterface,
+    ProcessorInterface,
     MemoryInterface,
-    DspInterface,
+    DspInterface(u32),
     DvdInterface,
     SerialInterface,
     ExpansionInterface(u32, u32),
@@ -37,9 +42,9 @@ fn map(address: u32) -> Address {
         0x0C000000 ... 0x0C000FFF => Address::CommandProcessor,
         0x0C001000 ... 0x0C001FFF => Address::PixelEngine,
         0x0C002000 ... 0x0C002FFF => Address::VideoInterface,
-        0x0C003000 ... 0x0C003FFF => Address::PeripheralInterface,
+        0x0C003000 ... 0x0C003FFF => Address::ProcessorInterface,
         0x0C004000 ... 0x0C004FFF => Address::MemoryInterface,
-        0x0C005000 ... 0x0C005FFF => Address::DspInterface,
+        0x0C005000 ... 0x0C005200 => Address::DspInterface(address - 0x0C005000),
         0x0C006000 ... 0x0C0063FF => Address::DvdInterface,
         0x0C006400 ... 0x0C0067FF => Address::SerialInterface,
         0x0C006800 ... 0x0C0068FF => {
@@ -49,18 +54,20 @@ fn map(address: u32) -> Address {
         },
         0x0C006C00 ... 0x0C006CFF => Address::AudioInterface,
         0x0C008000 ... 0x0C008FFF => Address::PiFifo,
-        0xFFF00000 ... 0xFFFFFFFF => {
-            Address::Bootrom(address - 0xFFF00000)
-        },
+        0xFFF00000 ... 0xFFFFFFFF => Address::Bootrom(address - 0xFFF00000),
         _ => panic!("Unrecognized physical address: {:#x}", address)
     }
 }
 
 pub struct Interconnect {
     bootrom: Rc<RefCell<Box<[u8; BOOTROM_SIZE]>>>,
+    dsp: DspInterface,
     exi: Exi,
     pub mmu: Mmu,
+    mi: MemoryInterface,
+    pi: ProcessorInterface,
     ram: Ram,
+    si: SerialInterface
 }
 
 impl Interconnect {
@@ -69,10 +76,14 @@ impl Interconnect {
         let bootrom = Rc::new(RefCell::new(Box::new([0; BOOTROM_SIZE])));
 
         Interconnect {
+            dsp: DspInterface::default(),
             exi: Exi::new(bootrom.clone()),
             bootrom: bootrom,
             mmu: Mmu::new(),
-            ram: Ram::new()
+            mi: MemoryInterface::new(),
+            pi: ProcessorInterface::new(),
+            ram: Ram::new(),
+            si: SerialInterface::new()
         }
     }
 
@@ -82,7 +93,7 @@ impl Interconnect {
         let val = match map(addr) {
             Address::Ram => self.ram.read_u32(addr),
             Address::Bootrom(offset) => BigEndian::read_u32(&self.bootrom.borrow()[offset as usize ..]),
-            _ => panic!("read_instruction not implemented for address {:#x}", addr)
+            _ => panic!("read_instruction not implemented for {:#?} address {:#x}", map(addr), addr)
         };
 
         Instruction(val)
@@ -94,7 +105,7 @@ impl Interconnect {
         match map(addr) {
             Address::Ram => self.ram.read_u8(addr),
             Address::Bootrom(offset) => self.bootrom.borrow()[offset as usize],
-            _ => panic!("read_u8 not implemented for address {:#x}", addr)
+            _ => panic!("read_u8 not implemented for {:#?} address {:#x}", map(addr), addr)
         }
     }
 
@@ -104,7 +115,7 @@ impl Interconnect {
         match map(addr) {
             Address::Ram => self.ram.read_u16(addr),
             Address::Bootrom(offset) => BigEndian::read_u16(&self.bootrom.borrow()[offset as usize ..]),
-            _ => panic!("read_u16 not implemented for address {:#x}", addr)
+            _ => panic!("read_u16 not implemented for {:#?} address {:#x}", map(addr), addr)
         }
     }
 
@@ -113,9 +124,11 @@ impl Interconnect {
 
         match map(addr) {
             Address::Ram => self.ram.read_u32(addr),
+            Address::ProcessorInterface => self.pi.read_u32(addr),
+            Address::SerialInterface => self.si.read_u32(addr),
             Address::ExpansionInterface(channel, register) => self.exi.read(channel, register),
             Address::Bootrom(offset) => BigEndian::read_u32(&self.bootrom.borrow()[offset as usize ..]),
-            _ => panic!("read_u32 not implemented for address {:#x}", addr)
+            _ => panic!("read_u32 not implemented for {:#?} address {:#x}", map(addr), addr)
         }
     }
 
@@ -125,7 +138,7 @@ impl Interconnect {
         match map(addr) {
             Address::Ram => self.ram.read_u64(addr),
             Address::Bootrom(offset) => BigEndian::read_u64(&self.bootrom.borrow()[offset as usize ..]),
-            _ => panic!("read_u64 not implemented for address {:#x}", addr)
+            _ => panic!("read_u64 not implemented for {:#?} address {:#x}", map(addr), addr)
         }
     }
 
@@ -134,7 +147,7 @@ impl Interconnect {
 
         match map(addr) {
             Address::Ram => self.ram.write_u8(addr, val),
-            _ => panic!("write_u8 not implemented for address {:#x}", addr)
+            _ => panic!("write_u8 not implemented for {:#?} address {:#x}", map(addr), addr)
         }
     }
 
@@ -143,7 +156,9 @@ impl Interconnect {
 
         match map(addr) {
             Address::Ram => self.ram.write_u16(addr, val),
-            _ => panic!("write_u16 not implemented for address {:#x}", addr)
+            Address::MemoryInterface => println!("FixMe: memory interface"),
+            Address::DspInterface(offset) => self.dsp.write_u16(offset, val),
+            _ => panic!("write_u16 not implemented for {:#?} address {:#x}", map(addr), addr)
         }
     }
 
@@ -152,8 +167,10 @@ impl Interconnect {
 
         match map(addr) {
             Address::Ram => self.ram.write_u32(addr, val),
-            //Address::ExpansionInterface(channel, register) => self.exi.write(channel, register, val, &mut self.mmap),
-            _ => panic!("write_u32 not implemented for address {:#x}", addr)
+            Address::ProcessorInterface => self.pi.write_u32(addr, val),
+            Address::SerialInterface => self.si.write_u32(addr, val),
+            Address::ExpansionInterface(channel, register) => self.exi.write(channel, register, val, &mut self.ram),
+            _ => panic!("write_u32 not implemented for {:#?} address {:#x}", map(addr), addr)
         }
     }
 
@@ -162,7 +179,7 @@ impl Interconnect {
 
         match map(addr) {
             Address::Ram => self.ram.write_u64(addr, val),
-            _ => panic!("write_u64 not implemented for address {:#x}", addr)
+            _ => panic!("write_u64 not implemented for {:#?} address {:#x}", map(addr), addr)
         }
     }
 
