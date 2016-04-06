@@ -1,11 +1,11 @@
 
-use memmap::Mmap;
+use super::super::memory::ram::Ram;
 
 pub trait Device {
     fn read_imm(&self) -> u32;
     fn write_imm(&mut self, value: u32);
     fn read_dma(&self);
-    fn write_dma(&self, memory: &mut Mmap, address: u32, length: u32);
+    fn write_dma(&self, memory: &mut Ram, address: u32, length: u32);
 }
 
 #[allow(dead_code)]
@@ -25,7 +25,7 @@ impl Device for DeviceDummy {
         println!("EXIDUMMY: read_dma");
     }
 
-    fn write_dma(&self, memory: &mut Mmap, address: u32, length: u32) {
+    fn write_dma(&self, memory: &mut Ram, address: u32, length: u32) {
         println!("EXIDUMMY: write_dma");
     }
 }

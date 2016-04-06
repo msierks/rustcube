@@ -1,4 +1,4 @@
 mod interconnect;
-mod ram;
+pub mod ram;
 
 pub use self::interconnect::Interconnect;
