@@ -1,6 +1,5 @@
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::io::Write;
 
 use super::device::Device;
 use super::super::memory::ram::Ram;

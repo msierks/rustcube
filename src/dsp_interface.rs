@@ -16,6 +16,8 @@ const AR_DMA_SIZE_LOW: u32     = 0x2A;
 
 #[derive(Debug, Default)]
 pub struct DspInterface {
+    mailbox_high: u16,
+    mailbox_low: u16,
     control_register: ControlRegister,
     ar_size: u16,
     ar_refresh: u16
@@ -23,13 +25,29 @@ pub struct DspInterface {
 
 impl DspInterface {
 
+    pub fn read_u16(&self, register: u32) -> u16 {
+        match register {
+            MAILBOX_OUT_HIGH => {
+                //self.mailbox_high
+                panic!("dsp read mailbox high");
+                0x8000 // set bit 15
+            },
+            MAILBOX_OUT_LOW => self.mailbox_low,
+            CONTROL_STATUS => self.control_register.as_u16(),
+            AR_SIZE => self.ar_size,
+            AR_REFRESH => self.ar_refresh,
+            _ => panic!("unrecognized dsp register {:#x}", register)
+        }
+    }
+
     pub fn write_u16(&mut self, register: u32, val: u16) {
         match register {
-            MAILBOX_IN_HIGH => panic!("FixMe: write_u16 dsp register {:#x}", register),
-            MAILBOX_IN_LOW => panic!("FixMe: write_u16 dsp register {:#x}", register),
-            MAILBOX_OUT_HIGH => panic!("FixMe: write_u16 dsp register {:#x}", register),
-            MAILBOX_OUT_LOW => panic!("FixMe: write_u16 dsp register {:#x}", register),
-            CONTROL_STATUS => panic!("FixMe: write_u16 dsp register {:#x}", register),
+            MAILBOX_IN_HIGH => self.mailbox_high = val,
+            MAILBOX_IN_LOW => self.mailbox_low = val,
+            CONTROL_STATUS => {
+                self.control_register = val.into();
+                self.control_register.dsp_reset = false;
+            },
             AR_SIZE => self.ar_size = val,
             AR_MODE => panic!("FixMe: write_u16 dsp register {:#x}", register),
             AR_REFRESH => self.ar_refresh = val,
@@ -43,12 +61,8 @@ impl DspInterface {
         }
     }
 
-    pub fn read_control(&self) -> u16 {
-        self.control_register.as_u16()
-    }
-
-    pub fn write_control(&mut self, value: u16) {
-        self.control_register = value.into();
+    pub fn write_u32(&mut self, register: u32, val: u32) {
+        println!("dsp: write_u32 ??? {:#x} {:#x}", register, val); // should this really be happening ???
     }
 }
 
