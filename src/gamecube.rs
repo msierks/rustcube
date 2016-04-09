@@ -1,21 +1,29 @@
 use std::path::Path;
 
-use super::cpu;
-use super::memory;
+use super::cpu::Cpu;
+use super::debugger::Debugger;
+use super::memory::Interconnect;
 
 #[derive(Debug)]
 pub struct Gamecube {
-    cpu: cpu::Cpu
+    cpu: Cpu,
+    debugger: Debugger
 }
 
 impl Gamecube {
     pub fn new() -> Gamecube {
-        let interconnect = memory::Interconnect::new();
-        let cpu = cpu::Cpu::new(interconnect);
+        let debugger = Debugger::new();
+        let interconnect = Interconnect::new();
+        let cpu = Cpu::new(interconnect);
 
         Gamecube {
-            cpu: cpu
+            cpu: cpu,
+            debugger: debugger
         }
+    }
+
+    pub fn enable_debugger(&mut self, bind_addr: String) {
+        self.debugger.enable(bind_addr);
     }
 
     pub fn load_ipl<P: AsRef<Path>>(&mut self, path: P) {
@@ -23,6 +31,6 @@ impl Gamecube {
     }
 
     pub fn run_instruction(&mut self) {
-        self.cpu.run_instruction();
+        self.cpu.run_instruction(&mut self.debugger);
     }
 }
