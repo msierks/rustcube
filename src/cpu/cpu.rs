@@ -8,6 +8,7 @@ use super::integer_exception_register::IntegerExceptionRegister;
 use super::instruction::Instruction;
 use super::machine_status::MachineStatus;
 use super::time_base_register::{TimeBaseRegister,Tbr};
+use super::super::debugger::Debugger;
 use super::super::memory::Interconnect;
 use super::spr::Spr;
 
@@ -62,7 +63,9 @@ impl Cpu {
         cpu
     }
 
-    pub fn run_instruction(&mut self) {
+    pub fn run_instruction(&mut self, debugger: &mut Debugger) {
+        debugger.set_cia(self);
+
         let instr = self.interconnect.read_instruction(&self.msr, self.cia);
 
         if self.cia >= 0x81300000 && self.cia < 0xFFF00000 {

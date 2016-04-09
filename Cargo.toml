@@ -6,5 +6,6 @@ authors = ["Michael Sierks <msierks@117@gmail.com>"]
 [dependencies]
 byteorder = "0.4"
 enum_primitive = "0.1.0"
+getopts = "0.2"
 memmap = "0.2.3"
 num = "0.1.30"
