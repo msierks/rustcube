@@ -27,11 +27,7 @@ impl DspInterface {
 
     pub fn read_u16(&self, register: u32) -> u16 {
         match register {
-            MAILBOX_OUT_HIGH => {
-                //self.mailbox_high
-                panic!("dsp read mailbox high");
-                0x8000 // set bit 15
-            },
+            MAILBOX_OUT_HIGH => self.mailbox_high,
             MAILBOX_OUT_LOW => self.mailbox_low,
             CONTROL_STATUS => self.control_register.as_u16(),
             AR_SIZE => self.ar_size,
@@ -42,8 +38,11 @@ impl DspInterface {
 
     pub fn write_u16(&mut self, register: u32, val: u16) {
         match register {
-            MAILBOX_IN_HIGH => self.mailbox_high = val,
-            MAILBOX_IN_LOW => self.mailbox_low = val,
+            MAILBOX_IN_HIGH => self.mailbox_high = 0x8000,
+            MAILBOX_IN_LOW => {
+                self.mailbox_high = 0x0000;
+                self.mailbox_low = val
+            },
             CONTROL_STATUS => {
                 self.control_register = val.into();
                 self.control_register.dsp_reset = false;
