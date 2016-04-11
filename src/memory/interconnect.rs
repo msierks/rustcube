@@ -8,6 +8,7 @@ use std::rc::Rc;
 use super::ram::Ram;
 use super::super::audio_interface::AudioInterface;
 use super::super::dsp_interface::DspInterface;
+use super::super::dvd_interface::DvdInterface;
 use super::super::exi::Exi;
 use super::super::cpu::instruction::Instruction;
 use super::super::cpu::mmu::Mmu;
@@ -28,7 +29,7 @@ pub enum Address {
     ProcessorInterface,
     MemoryInterface,
     DspInterface(u32),
-    DvdInterface,
+    DvdInterface(u32),
     SerialInterface,
     ExpansionInterface(u32, u32),
     AudioInterface(u32),
@@ -46,7 +47,7 @@ fn map(address: u32) -> Address {
         0x0C003000 ... 0x0C003FFF => Address::ProcessorInterface,
         0x0C004000 ... 0x0C004FFF => Address::MemoryInterface,
         0x0C005000 ... 0x0C005200 => Address::DspInterface(address - 0x0C005000),
-        0x0C006000 ... 0x0C0063FF => Address::DvdInterface,
+        0x0C006000 ... 0x0C0063FF => Address::DvdInterface(address - 0x0C006000),
         0x0C006400 ... 0x0C0067FF => Address::SerialInterface,
         0x0C006800 ... 0x0C0068FF => {
             let channel  = (address - 0x0C006800) / 0x14;
@@ -64,6 +65,7 @@ pub struct Interconnect {
     ai: AudioInterface,
     bootrom: Rc<RefCell<Box<[u8; BOOTROM_SIZE]>>>,
     dsp: DspInterface,
+    dvd: DvdInterface,
     exi: Exi,
     pub mmu: Mmu,
     mi: MemoryInterface,
@@ -80,6 +82,7 @@ impl Interconnect {
         Interconnect {
             ai: AudioInterface::default(),
             dsp: DspInterface::default(),
+            dvd: DvdInterface::default(),
             exi: Exi::new(bootrom.clone()),
             bootrom: bootrom,
             mmu: Mmu::new(),
@@ -174,6 +177,7 @@ impl Interconnect {
             Address::Ram => self.ram.write_u32(addr, val),
             Address::ProcessorInterface => self.pi.write_u32(addr, val),
             Address::DspInterface(offset) => self.dsp.write_u32(offset, val),
+            Address::DvdInterface(offset) => self.dvd.write_u32(offset, val),
             Address::SerialInterface => self.si.write_u32(addr, val),
             Address::ExpansionInterface(channel, register) => self.exi.write(channel, register, val, &mut self.ram),
             Address::AudioInterface(offset) => self.ai.write_u32(offset, val),
