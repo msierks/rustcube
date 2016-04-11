@@ -22,8 +22,9 @@ impl Gamecube {
         }
     }
 
-    pub fn enable_debugger(&mut self, bind_addr: String) {
-        self.debugger.enable(bind_addr);
+    pub fn enable_debugger(&mut self) {
+        self.debugger.enable();
+        self.debugger.intro();
     }
 
     pub fn load_ipl<P: AsRef<Path>>(&mut self, path: P) {

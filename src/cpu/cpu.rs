@@ -19,11 +19,11 @@ const NUM_SR : usize = 16;
 
 pub struct Cpu {
     pub interconnect: Interconnect,
-    cia: u32,
-    nia: u32,
+    pub cia: u32,
+    pub nia: u32,
     ctr: u32,
     fpr: [u64; NUM_FPR],
-    gpr: [u32; NUM_GPR],
+    pub gpr: [u32; NUM_GPR],
     pub msr: MachineStatus,
     sr: [u32; NUM_SR],
     cr: ConditionRegister,
@@ -59,13 +59,11 @@ impl Cpu {
             l2cr: 0
         };
 
-        cpu.exception(Interrupt::SystemReset); // power on reset
+        cpu.exception(Interrupt::SystemReset);
         cpu
     }
 
     pub fn run_instruction(&mut self, debugger: &mut Debugger) {
-        debugger.set_cia(self);
-
         let instr = self.interconnect.read_instruction(&self.msr, self.cia);
 
         if self.cia >= 0x81300000 && self.cia < 0xFFF00000 {
@@ -73,6 +71,8 @@ impl Cpu {
         }
 
         self.nia = self.cia + 4;
+
+        debugger.set_cia(self);
 
         match instr.opcode() {
              7 => self.mulli(instr),
@@ -121,6 +121,7 @@ impl Cpu {
                     444 => self.orx(instr),
                     467 => self.mtspr(instr),
                     470 => self.dcbi(instr),
+                    536 => self.srwx(instr),
                     598 => self.sync(instr),
                     922 => self.extshx(instr),
                     982 => self.icbi(instr),
@@ -133,6 +134,7 @@ impl Cpu {
             35 => self.lbzu(instr),
             37 => self.stwu(instr),
             36 => self.stw(instr),
+            38 => self.stb(instr),
             39 => self.stbu(instr),
             40 => self.lhz(instr),
             41 => self.lhzu(instr),
@@ -269,11 +271,16 @@ impl Cpu {
             true
         };
 
-        let cond_ok = if bon(bo, 0) == 0 {
+        let mut cond_ok = if bon(bo, 0) == 0 {
             bon(bo, 1) == self.cr.get_bit(instr.bi())
         } else {
             true
         };
+
+        // skip dsp condition till it can be implemented properly
+        if self.cia == 0x81333a7c {
+            cond_ok = false;
+        }
 
         if ctr_ok && cond_ok {
             if instr.aa() == 1 {
@@ -342,6 +349,23 @@ impl Cpu {
     // synchronize
     fn sync(&mut self, instr: Instruction) {
         // don't do anything
+    }
+
+    // shift right word
+    fn srwx(&mut self, instr: Instruction) {
+        let rB = self.gpr[instr.b()];
+        let n  = (rB & 0x1F) as u8;
+        let m = if rB & 20 == 0 {
+            mask(n, 31)
+        } else {
+            0
+        };
+
+        self.gpr[instr.a()] = rotl(self.gpr[instr.s()], 32 - n) & m;
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
+        }
     }
 
     // condition register XOR
@@ -719,9 +743,20 @@ impl Cpu {
         self.interconnect.write_u32(&self.msr, ea, self.gpr[instr.s()]);
     }
 
+    // store byte
+    fn stb(&mut self, instr: Instruction) {
+        let ea = if instr.a() == 0 {
+            instr.simm() as u32
+        } else {
+            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
+        };
+
+        self.interconnect.write_u8(&self.msr, ea, self.gpr[instr.d()] as u8);
+    }
+
     // store byte with update
     fn stbu(&mut self, instr: Instruction) {
-        let ea   = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
+        let ea = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
 
         self.interconnect.write_u8(&self.msr, ea, self.gpr[instr.d()] as u8);
 

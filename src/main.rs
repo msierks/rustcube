@@ -30,9 +30,8 @@ fn main() {
     let program = args[0].clone();
 
     let mut opts = Options::new();
-    opts.optopt("d", "", "enable gdb server", "127.0.0.1:9001");
+    opts.optflag("d", "", "enable debug console");
     opts.optflag("h", "help", "print this help menu");
-
 
     let matches = match opts.parse(&args[1..]) {
         Ok(m) => { m }
@@ -53,12 +52,11 @@ fn main() {
 
     let mut gamecube = gamecube::Gamecube::new();
 
-    match matches.opt_str("d") {
-        Some(v) => gamecube.enable_debugger(v),
-        None => {}
-    }
-
     gamecube.load_ipl(ipl_file_name);
+
+    if matches.opt_present("d") {
+        gamecube.enable_debugger();
+    }
 
     loop {
         //println!("{:?}", gamecube);
