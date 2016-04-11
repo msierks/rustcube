@@ -10,6 +10,7 @@ mod audio_interface;
 mod cpu;
 mod debugger;
 mod dsp_interface;
+mod dvd_interface;
 mod exi;
 mod gamecube;
 mod memory;
