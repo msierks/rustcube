@@ -4,7 +4,6 @@ use super::cpu::Cpu;
 use super::debugger::Debugger;
 use super::memory::Interconnect;
 
-#[derive(Debug)]
 pub struct Gamecube {
     cpu: Cpu,
     debugger: Debugger
@@ -24,7 +23,6 @@ impl Gamecube {
 
     pub fn enable_debugger(&mut self) {
         self.debugger.enable();
-        self.debugger.intro();
     }
 
     pub fn load_ipl<P: AsRef<Path>>(&mut self, path: P) {
