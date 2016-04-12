@@ -20,7 +20,7 @@ const NUM_SR : usize = 16;
 pub struct Cpu {
     pub interconnect: Interconnect,
     pub cia: u32,
-    pub nia: u32,
+    nia: u32,
     ctr: u32,
     fpr: [u64; NUM_FPR],
     pub gpr: [u32; NUM_GPR],
@@ -63,8 +63,12 @@ impl Cpu {
         cpu
     }
 
+    pub fn read_instruction(&mut self) -> Instruction {
+        self.interconnect.read_instruction(&self.msr, self.cia)
+    }
+
     pub fn run_instruction(&mut self, debugger: &mut Debugger) {
-        let instr = self.interconnect.read_instruction(&self.msr, self.cia);
+        let instr = self.read_instruction();
 
         if self.cia >= 0x81300000 && self.cia < 0xFFF00000 {
             println!("{:#x}: OP: {}", self.cia, instr.opcode());
@@ -79,8 +83,8 @@ impl Cpu {
              8 => self.subfic(instr),
             10 => self.cmpli(instr),
             11 => self.cmpi(instr),
-            14 => self.addi(instr),
             13 => self.addic_rc(instr),
+            14 => self.addi(instr),
             15 => self.addis(instr),
             16 => self.bcx(instr),
             17 => self.sc(instr),
@@ -353,9 +357,9 @@ impl Cpu {
 
     // shift right word
     fn srwx(&mut self, instr: Instruction) {
-        let rB = self.gpr[instr.b()];
-        let n  = (rB & 0x1F) as u8;
-        let m = if rB & 20 == 0 {
+        let r = self.gpr[instr.b()];
+        let n  = (r & 0x1F) as u8;
+        let m = if r & 20 == 0 {
             mask(n, 31)
         } else {
             0
