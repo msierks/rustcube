@@ -1,27 +1,46 @@
-use std::io::{self, Write};
+use std::process;
+use rustyline::error::ReadlineError;
+use rustyline::Editor;
 
 use super::debugger::Debugger;
 use super::super::cpu::Cpu;
 
-#[derive(Default)]
-pub struct Console;
+pub struct Console {
+    rl: Editor<'static>
+}
 
 impl Console {
     // FixMe: handle arrow key control chars, command history, etc
 
-    pub fn read(&mut self) -> Command {
-        let mut input = String::new();
-
-        print!("(rustcube) ");
-
-        io::stdout().flush().unwrap();
-
-        match io::stdin().read_line(&mut input) {
-            Ok(_) => {},
-            Err(error) => println!("error: {}", error),
+    pub fn new() -> Console {
+        Console {
+            rl: Editor::new()
         }
+    }
 
-        Command::new(input)
+    pub fn read(&mut self) -> Command {
+        loop {
+            let readline = self.rl.readline("(rustcube) ");
+
+            match readline {
+                Ok(line) => {
+                    self.rl.add_history_entry(&line);
+                    return Command::new(line);
+                },
+                Err(ReadlineError::Interrupted) => {
+                    println!("CTRL-C");
+                    process::exit(0);
+                },
+                Err(ReadlineError::Eof) => {
+                    println!("CTRL-D");
+                    process::exit(0);
+                },
+                Err(err) => {
+                    println!("Error: {:?}", err);
+                    process::exit(1);
+                }
+            }
+        }
     }
 
     pub fn intro(&mut self) {
@@ -62,6 +81,14 @@ impl Command {
     }
 
     fn advance(&self, args: &Vec<&str>, debugger: &mut Debugger) {
+        if args.len() > 1 {
+            match u32::from_str_radix(&args[1][2..], 16) {
+                Ok(v) => debugger.set_advance(v),
+                Err(e) => println!("Error: {}", e)
+            }
+        } else {
+            println!("Missing required argument.");
+        }
         println!("FixMe: continue running till given location.");
     }
 
@@ -98,7 +125,8 @@ impl Command {
             println!("clear    - delete a breakpoint");
             println!("continue - continue running program");
             println!("show     - show things about program");
-            println!("step     - step a single instruction");
+            println!("step     - step a single instruction\n");
+            println!("Note: the ipl starts at address 0x81300000")
         } else {
             println!("Unrecognized help command: \"{}\". Try \"help\"", args[1])
         }
@@ -108,7 +136,7 @@ impl Command {
         if args.len() > 1 {
 
             match args[1] {
-                "break" | "b" => {
+                "breakpoints" | "b" => {
                     for breakpoint in &debugger.breakpoints {
                         println!("break: {:#010x}", breakpoint);
                     }
@@ -121,6 +149,7 @@ impl Command {
                         }
                     }
                 },
+                "lr" => println!("lr: {:#010x}", cpu.lr),
                 _ => println!("Unrecognized show command: \"{}\". Try \"help show\"", args[1])
             }
 

@@ -2,6 +2,7 @@ extern crate byteorder;
 extern crate getopts;
 extern crate memmap;
 extern crate num;
+extern crate rustyline;
 
 #[macro_use]
 extern crate enum_primitive;

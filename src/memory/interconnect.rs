@@ -51,7 +51,7 @@ fn map(address: u32) -> Address {
         0x0C006400 ... 0x0C0067FF => Address::SerialInterface,
         0x0C006800 ... 0x0C0068FF => {
             let channel  = (address - 0x0C006800) / 0x14;
-            let register = (address - 0x0C006800) - (channel * 0x14);
+            let register = (address - 0x0C006800) % 0x14;
             Address::ExpansionInterface(channel, register)
         },
         0x0C006C00 ... 0x0C006C20 => Address::AudioInterface(address - 0x0C006C00),
@@ -115,7 +115,7 @@ impl Interconnect {
         }
     }
 
-    pub fn read_u16(&self, msr: &MachineStatus, addr: u32) -> u16 {
+    pub fn read_u16(&mut self, msr: &MachineStatus, addr: u32) -> u16 {
         let addr = self.mmu.translate_data_address(msr, addr);
 
         match map(addr) {
@@ -215,7 +215,7 @@ impl Interconnect {
             }
         };
 
-        descrambler(&mut bootrom[0x100..0x15ee30]);
+        descrambler(&mut bootrom[0x100..0x15ee40]);
     }
 }
 

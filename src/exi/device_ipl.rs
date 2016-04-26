@@ -27,7 +27,6 @@ impl Device for DeviceIpl {
             _ => { // Mask ROM
                 self.address = value >> 6;
 
-                //println!("ExiDeviceIpl: write_imm -> position {:#x}", self.address);
                 if self.address > BOOTROM_SIZE as u32  { // ipl size
                     panic!("ExiDeviceIPL: position our of range: {:#x}", self.address);
                 }

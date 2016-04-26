@@ -20,14 +20,26 @@ pub struct DspInterface {
     mailbox_low: u16,
     control_register: ControlRegister,
     ar_size: u16,
-    ar_refresh: u16
+    ar_refresh: u16,
+    ar_mma_addr_high: u16,
+    ar_mma_addr_low: u16,
+    ar_ar_addr_high: u16,
+    ar_ar_addr_low: u16,
+    ar_dma_size_high: u16,
+    ar_dma_size_low: u16
 }
 
 impl DspInterface {
 
-    pub fn read_u16(&self, register: u32) -> u16 {
+    pub fn read_u16(&mut self, register: u32) -> u16 {
+        println!("dsp read register {}", register);
+
         match register {
-            MAILBOX_OUT_HIGH => self.mailbox_high,
+            MAILBOX_OUT_HIGH => {
+                let val = self.mailbox_high;
+                self.mailbox_high = 0;
+                val
+            },
             MAILBOX_OUT_LOW => self.mailbox_low,
             CONTROL_STATUS => self.control_register.as_u16(),
             AR_SIZE => self.ar_size,
@@ -38,9 +50,11 @@ impl DspInterface {
 
     pub fn write_u16(&mut self, register: u32, val: u16) {
         match register {
-            MAILBOX_IN_HIGH => self.mailbox_high = 0x8000,
+            MAILBOX_IN_HIGH => {
+                self.mailbox_high = 0x8000
+            },
             MAILBOX_IN_LOW => {
-                self.mailbox_high = 0x0000;
+                self.mailbox_high = 0x0000; // check if this is necessary
                 self.mailbox_low = val
             },
             CONTROL_STATUS => {
@@ -50,18 +64,25 @@ impl DspInterface {
             AR_SIZE => self.ar_size = val,
             AR_MODE => panic!("FixMe: write_u16 dsp register {:#x}", register),
             AR_REFRESH => self.ar_refresh = val,
-            AR_DMA_MMAADDR_HIGH => panic!("FixMe: write_u16 dsp register {:#x}", register),
-            AR_DMA_MMAADDR_LOW => panic!("FixMe: write_u16 dsp register {:#x}", register),
-            AR_DMA_ARADDR_HIGH => panic!("FixMe: write_u16 dsp register {:#x}", register),
-            AR_DMA_ARADDR_LOW => panic!("FixMe: write_u16 dsp register {:#x}", register),
-            AR_DMA_SIZE_HIGH => panic!("FixMe: write_u16 dsp register {:#x}", register),
-            AR_DMA_SIZE_LOW => panic!("FixMe: write_u16 dsp register {:#x}", register),
+            AR_DMA_MMAADDR_HIGH => self.ar_mma_addr_high = val,
+            AR_DMA_MMAADDR_LOW => self.ar_mma_addr_low = val,
+            AR_DMA_ARADDR_HIGH => self.ar_ar_addr_high = val,
+            AR_DMA_ARADDR_LOW => self.ar_ar_addr_low = val,
+            AR_DMA_SIZE_HIGH => self.ar_dma_size_high = val,
+            AR_DMA_SIZE_LOW => {
+                self.mailbox_high = 0x8000;
+                self.ar_dma_size_low = val;
+            },
             _ => panic!("unrecognized dsp register {:#x}", register)
         }
     }
 
     pub fn write_u32(&mut self, register: u32, val: u32) {
-        println!("dsp: write_u32 ??? {:#x} {:#x}", register, val); // should this really be happening ???
+        let high = ((val >> 16) & 0xFFFF) as u16;
+        let low  = (val & 0xFFFF) as u16;
+
+        self.write_u16(register, high);
+        self.write_u16(register + 2, low);
     }
 }
 
