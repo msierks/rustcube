@@ -1,24 +1,29 @@
 
 use super::console::Console;
+use super::disassembler::Disassembler;
 use super::super::cpu::Cpu;
 
 pub struct Debugger {
     console: Console,
+    disassembler: Disassembler,
     active: bool,
     resume: bool,
     step: bool,
     step_count: u32,
+    advance: u32,
     pub breakpoints: Vec<u32>,
 }
 
 impl Debugger {
     pub fn new() -> Debugger {
         Debugger {
-            console: Console::default(),
+            console: Console::new(),
+            disassembler: Disassembler::default(),
             active: false,
             resume: false,
             step: false,
             step_count: 0,
+            advance: 0,
             breakpoints: Vec::new()
         }
     }
@@ -29,8 +34,13 @@ impl Debugger {
     }
 
     pub fn debug(&mut self, cpu: &mut Cpu) {
-        if (self.step && self.step_count == 0) || self.breakpoints.contains(&cpu.cia) {
-            self.resume = false;
+        if self.advance == 0 {
+            if (self.step && self.step_count == 0) || self.breakpoints.contains(&cpu.cia) {
+                self.resume = false;
+            }
+        } else if self.advance == cpu.cia {
+            self.advance = 0;
+            self.resume = false
         }
 
         while !self.resume {
@@ -64,6 +74,11 @@ impl Debugger {
         }
     }
 
+    pub fn set_advance(&mut self, val: u32) {
+        self.advance = val;
+        self.resume = true;
+    }
+
     pub fn set_cia(&mut self, cpu: &mut Cpu) {
         if self.active {
             if self.step {
@@ -76,6 +91,14 @@ impl Debugger {
             }
 
             self.debug(cpu);
+
+            if self.step {
+                let instr = cpu.read_instruction();
+
+                self.disassembler.disassemble(cpu, instr);
+
+                println!("{:#010x}       {: <7} {}", cpu.cia, self.disassembler.opcode, self.disassembler.operands);
+            }
         }
     }
 }

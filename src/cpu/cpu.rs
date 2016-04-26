@@ -11,6 +11,7 @@ use super::time_base_register::{TimeBaseRegister,Tbr};
 use super::super::debugger::Debugger;
 use super::super::memory::Interconnect;
 use super::spr::Spr;
+use super::util::*;
 
 const NUM_FPR: usize = 32;
 const NUM_GPR: usize = 32;
@@ -27,7 +28,7 @@ pub struct Cpu {
     pub msr: MachineStatus,
     sr: [u32; NUM_SR],
     cr: ConditionRegister,
-    lr: u32,
+    pub lr: u32,
     tb: TimeBaseRegister,
     hid0: u32,
     hid2: Hid2,
@@ -69,10 +70,6 @@ impl Cpu {
 
     pub fn run_instruction(&mut self, debugger: &mut Debugger) {
         let instr = self.read_instruction();
-
-        if self.cia >= 0x81300000 && self.cia < 0xFFF00000 {
-            println!("{:#x}: OP: {}", self.cia, instr.opcode());
-        }
 
         self.nia = self.cia + 4;
 
@@ -136,8 +133,8 @@ impl Cpu {
             33 => self.lwzu(instr),
             34 => self.lbz(instr),
             35 => self.lbzu(instr),
-            37 => self.stwu(instr),
             36 => self.stw(instr),
+            37 => self.stwu(instr),
             38 => self.stb(instr),
             39 => self.stbu(instr),
             40 => self.lhz(instr),
@@ -280,11 +277,6 @@ impl Cpu {
         } else {
             true
         };
-
-        // skip dsp condition till it can be implemented properly
-        if self.cia == 0x81333a7c {
-            cond_ok = false;
-        }
 
         if ctr_ok && cond_ok {
             if instr.aa() == 1 {
@@ -550,7 +542,7 @@ impl Cpu {
     #[allow(unused_variables)]
     // data cache block flush
     fn dcbf(&mut self, instr: Instruction) {
-        println!("FixMe: dcbf");
+        //println!("FixMe: dcbf");
     }
 
     // move to machine state register
@@ -663,7 +655,7 @@ impl Cpu {
 
     // data cache block invalidate
     fn dcbi(&mut self, instr: Instruction) {
-        println!("FixMe: dcbi");
+        //println!("FixMe: dcbi");
     }
 
     // extend sign half word
@@ -678,7 +670,7 @@ impl Cpu {
     #[allow(unused_variables)]
     // instruction cache block invalidate
     fn icbi(&mut self, instr: Instruction) {
-        println!("FixMe: icbi");
+        //println!("FixMe: icbi");
     }
 
     // load word and zero
@@ -908,7 +900,7 @@ impl Cpu {
 
     // system call
     fn sc(&mut self, instr: Instruction) {
-        println!("FixMe: sc");
+        //println!("FixMe: sc");
     }
 }
 
@@ -943,20 +935,6 @@ fn convert_to_double(x: u32) -> u64 {
 
 fn convert_to_single(x: u64) -> u32 {
     0
-}
-
-// Note: A cast from a signed value widens with signed-extension
-//       A cast from an unsigned value widens with zero-extension
-fn sign_ext_16(x: u16) -> i32 {
-    (x as i16) as i32
-}
-
-fn sign_ext_26(x: u32) -> i32 {
-    if x & 0x2000000 != 0 {
-        (x | 0xFC000000) as i32
-    } else {
-        x as i32
-    }
 }
 
 fn bon(bo: u8, n: u8) -> u8 {

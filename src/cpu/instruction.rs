@@ -47,6 +47,10 @@ impl Instruction {
         ((self.0 >> 23) & 0b111) as usize
     }
 
+    pub fn l(&self) -> bool {
+        (self.0 & 0x200000) == 1
+    }
+
     #[inline(always)]
     pub fn simm(&self) -> i16 {
         (self.0 & 0b1111_1111_1111_1111) as i16

@@ -81,8 +81,11 @@ impl From<u32> for Status {
             1 => 0,
             2 => 1,
             4 => 2,
-            _ => 0
+            0 => 0, // should this really happen ???
+            _ => panic!("unhandled device num: {}", (value >> 7) & 7)
         };
+
+        println!("DEVICE: {}", device);
 
         Status {
             connected:     (value & (1 << 13)) != 0,

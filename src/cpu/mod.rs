@@ -9,5 +9,6 @@ pub mod mmu;
 pub mod machine_status;
 mod spr;
 mod time_base_register;
+pub mod util;
 
 pub use self::cpu::Cpu;
