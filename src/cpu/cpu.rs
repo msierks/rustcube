@@ -116,6 +116,7 @@ impl Cpu {
                     146 => self.mtmsr(instr),
                     151 => self.stwx(instr),
                     210 => self.mtsr(instr),
+                    235 => self.mullwx(instr),
                     266 => self.addx(instr),
                     339 => self.mfspr(instr),
                     371 => self.mftb(instr),
@@ -178,6 +179,21 @@ impl Cpu {
     // multiply low immediate
     fn mulli(&mut self, instr: Instruction) {
         self.gpr[instr.d()] = (self.gpr[instr.a()] as i32).wrapping_mul(instr.simm() as i32) as u32;
+    }
+
+    fn mullwx(&mut self, instr: Instruction) {
+        let a = self.gpr[instr.a()] as i32;
+        let b = self.gpr[instr.b()] as i32;
+
+        self.gpr[instr.d()] = (a * b) as u32;
+
+        if instr.oe() {
+            panic!("OE: mullwx");
+        }
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
+        }
     }
 
     // compare
