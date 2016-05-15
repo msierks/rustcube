@@ -216,8 +216,8 @@ impl Cpu {
     }
 
     fn cmpi(&mut self, instr: Instruction) {
-        let a = self.gpr[instr.a()];
-        let b = instr.uimm();
+        let a = self.gpr[instr.a()] as i32;
+        let b = instr.simm() as i32;
 
         let mut c:u8 = if a < b {
             0b1000
