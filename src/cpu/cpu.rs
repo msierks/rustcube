@@ -276,12 +276,12 @@ impl Cpu {
         if instr.a() == 0 {
             self.gpr[instr.d()] = instr.simm() as u32;
         } else {
-            self.gpr[instr.d()] = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
+            self.gpr[instr.d()] = self.gpr[instr.a()].wrapping_add((instr.simm() as i32) as u32);
         }
     }
 
     fn addic_rc(&mut self, instr: Instruction) {
-        self.gpr[instr.d()] = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
+        self.gpr[instr.d()] = self.gpr[instr.a()].wrapping_add((instr.simm() as i32) as u32);
 
         self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
     }
@@ -386,23 +386,6 @@ impl Cpu {
         // don't do anything
     }
 
-    // shift right word
-    fn srwx(&mut self, instr: Instruction) {
-        let r = self.gpr[instr.b()];
-        let n  = (r & 0x1F) as u8;
-        let m = if r & 20 == 0 {
-            mask(n, 31)
-        } else {
-            0
-        };
-
-        self.gpr[instr.a()] = rotl(self.gpr[instr.s()], 32 - n) & m;
-
-        if instr.rc() {
-            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
-        }
-    }
-
     // condition register XOR
     fn crxor(&mut self, instr: Instruction) {
         let d = self.cr.get_bit(instr.a()) ^ self.cr.get_bit(instr.b());
@@ -480,16 +463,28 @@ impl Cpu {
 
     // shift left word
     fn slwx(&mut self, instr: Instruction) {
-        let n = (self.gpr[instr.a()] & 0x1F) as u8;
-        let r = rotl(self.gpr[instr.s()], n);
+        let r = self.gpr[instr.b()];
 
-        let m = if (self.gpr[instr.a()] & 20) << 5 == 0 {
-            mask(0, 31 - n)
-        } else {
+        self.gpr[instr.a()] = if r & 0x20 != 0 {
             0
+        } else {
+            self.gpr[instr.s()] << (r & 0x1F)
         };
 
-        self.gpr[instr.a()] = r & m;
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
+        }
+    }
+
+    // shift right word
+    fn srwx(&mut self, instr: Instruction) {
+        let r = self.gpr[instr.b()];
+
+        self.gpr[instr.a()] = if r & 0x20 != 0 {
+            0
+        } else {
+            self.gpr[instr.s()] >> (r & 0x1F)
+        };
 
         if instr.rc() {
             self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
@@ -557,7 +552,7 @@ impl Cpu {
 
     // subtract from immediate
     fn subfic(&mut self, instr: Instruction) {
-        self.gpr[instr.d()] = (instr.simm() as u32).wrapping_sub(self.gpr[instr.a()]);
+        self.gpr[instr.d()] = (instr.simm() as i32).wrapping_sub(self.gpr[instr.a()] as i32) as u32;
 
         // FixMe: update XER
     }
