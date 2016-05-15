@@ -125,6 +125,7 @@ impl Cpu {
                     536 => self.srwx(instr),
                     598 => self.sync(instr),
                     922 => self.extshx(instr),
+                    954 => self.extsbx(instr),
                     982 => self.icbi(instr),
                     _   => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.subopcode())
                 }
@@ -661,6 +662,15 @@ impl Cpu {
     // extend sign half word
     fn extshx(&mut self, instr: Instruction) {
         self.gpr[instr.a()] = ((self.gpr[instr.s()] as i16) as i32) as u32;
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
+        }
+    }
+
+    // extend sign byte
+    fn extsbx(&mut self, instr: Instruction) {
+        self.gpr[instr.a()] = ((self.gpr[instr.s()] as i8) as i32) as u32;
 
         if instr.rc() {
             self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
