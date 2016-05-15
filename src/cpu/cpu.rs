@@ -121,6 +121,7 @@ impl Cpu {
                     339 => self.mfspr(instr),
                     371 => self.mftb(instr),
                     444 => self.orx(instr),
+                    459 => self.divwux(instr),
                     467 => self.mtspr(instr),
                     470 => self.dcbi(instr),
                     536 => self.srwx(instr),
@@ -181,6 +182,7 @@ impl Cpu {
         self.gpr[instr.d()] = (self.gpr[instr.a()] as i32).wrapping_mul(instr.simm() as i32) as u32;
     }
 
+    // multiply low word
     fn mullwx(&mut self, instr: Instruction) {
         let a = self.gpr[instr.a()] as i32;
         let b = self.gpr[instr.b()] as i32;
@@ -189,6 +191,26 @@ impl Cpu {
 
         if instr.oe() {
             panic!("OE: mullwx");
+        }
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
+        }
+    }
+
+    // divide word unsigned
+    fn divwux(&mut self, instr: Instruction) {
+        let a = self.gpr[instr.a()];
+        let b = self.gpr[instr.b()];
+
+        if b == 0 {
+            if instr.oe() {
+                panic!("OE: divwux");
+            }
+
+            self.gpr[instr.d()] = 0;
+        } else {
+            self.gpr[instr.d()] = a / b;
         }
 
         if instr.rc() {
