@@ -85,8 +85,6 @@ impl From<u32> for Status {
             _ => panic!("unhandled device num: {}", (value >> 7) & 7)
         };
 
-        println!("DEVICE: {}", device);
-
         Status {
             connected:     (value & (1 << 13)) != 0,
             ext_interrupt: (value & (1 << 12)) != 0,
