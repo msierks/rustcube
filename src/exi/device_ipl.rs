@@ -21,8 +21,8 @@ impl Device for DeviceIpl {
         let command = value & 0x3FFFFF00;
 
         match command {
-            0x20000000 => panic!("ExiDeviceIpl: command RTC unhandled"),  // RTC
-            0x20000100 => panic!("ExiDeviceIpl: command SRAM unhandled"), // SRAM
+            0x20000000 => println!("ExiDeviceIpl: command RTC unhandled {:#x}", value),  // RTC
+            0x20000100 => println!("ExiDeviceIpl: command SRAM unhandled {:#x}", value), // SRAM
             0x20010000 => panic!("ExiDeviceIpl: command UART unhandled"), // UART
             _ => { // Mask ROM
                 self.address = value >> 6;
