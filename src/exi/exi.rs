@@ -65,6 +65,8 @@ impl Exi {
             0x0C => {
                 channel.control = value.into();
 
+                //println!("EXI {:#b} {:#?}", value, channel.control);
+
                 match channel.control.transfer_selection {
                     TransferSelection::DMA => {
                         channel.get_device(channel.status.exi_device).write_dma(memory, channel.dma_address, channel.dma_length)

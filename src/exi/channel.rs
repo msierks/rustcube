@@ -147,8 +147,8 @@ impl Control {
 impl From<u32> for Control {
     fn from(value: u32) -> Self {
         Control {
-            transfer_length:    (value << 4),
-            transfer_type:      ((value << 2) & 3) as u8,
+            transfer_length:    (value >> 4),
+            transfer_type:      ((value >> 2) & 3) as u8,
             transfer_selection: value.into(),
             enabled:            (value & 1) != 0
         }
