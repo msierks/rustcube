@@ -18,13 +18,24 @@ impl Device for DeviceIpl {
     }
 
     fn write_imm(&mut self, value: u32) {
-        let command = value & 0x3FFFFF00;
+        let command = (value & 0x7FFFFF00) >> 8;
+        let write   = value & 0x80000000 != 0;
+
+        let mut device_name = "";
 
         match command {
-            0x20000000 => println!("ExiDeviceIpl: command RTC unhandled {:#x}", value),  // RTC
-            0x20000100 => println!("ExiDeviceIpl: command SRAM unhandled {:#x}", value), // SRAM
-            0x20010000 => panic!("ExiDeviceIpl: command UART unhandled"), // UART
-            _ => { // Mask ROM
+            0x200000 => {
+                device_name = "RTC";
+            },
+            0x200001 => {
+                device_name = "SRAM";
+            },
+            0x200100 => {
+                device_name = "UART";
+            },
+            _ => {
+                device_name = "MaskROM";
+
                 self.address = value >> 6;
 
                 if self.address > BOOTROM_SIZE as u32  { // ipl size
@@ -32,6 +43,14 @@ impl Device for DeviceIpl {
                 }
             }
         }
+
+        let write_str = if write {
+            "write"
+        } else {
+            "read"
+        };
+
+        println!("ExpansionInterface: {} {} {:#010x}", device_name, write_str, value);
     }
 
     fn read_dma(&self) {
