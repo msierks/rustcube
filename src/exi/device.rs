@@ -2,9 +2,9 @@
 use super::super::memory::ram::Ram;
 
 pub trait Device {
-    fn read_imm(&self) -> u32;
-    fn write_imm(&mut self, value: u32);
-    fn read_dma(&self);
+    fn read_imm(&self, len: u8) -> u32;
+    fn write_imm(&mut self, value: u32, len: u8);
+    fn read_dma(&self, memory: &mut Ram, address: u32, length: u32);
     fn write_dma(&self, memory: &mut Ram, address: u32, length: u32);
 }
 
@@ -12,16 +12,16 @@ pub trait Device {
 pub struct DeviceDummy;
 
 impl Device for DeviceDummy {
-    fn read_imm(&self) -> u32 {
+    fn read_imm(&self, len: u8) -> u32 {
         println!("EXIDUMMY: read_imm");
         0
     }
 
-    fn write_imm(&mut self, value: u32) {
+    fn write_imm(&mut self, value: u32, len: u8) {
         println!("EXIDUMMY: write_imm {:#x}", value);
     }
 
-    fn read_dma(&self) {
+    fn read_dma(&self, memory: &mut Ram, address: u32, length: u32) {
         println!("EXIDUMMY: read_dma");
     }
 

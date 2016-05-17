@@ -13,6 +13,8 @@ pub struct Channel {
 
     pub dma_length: u32,
 
+    pub imm_data: u32,
+
     // channel devices
     pub devices: [Box<Device>; NUM_DEVICES]
 }
@@ -24,6 +26,7 @@ impl Channel {
             control: Control::default(),
             dma_address: 0,
             dma_length: 0,
+            imm_data: 0,
             devices: devices
         }
     }
@@ -97,48 +100,56 @@ impl From<u32> for Status {
 }
 
 #[derive(Debug)]
-pub enum TransferSelection {
+pub enum TransferMode {
     IMM,
     DMA
 }
 
-impl Default for TransferSelection {
+impl Default for TransferMode {
     fn default() -> Self {
-        TransferSelection::IMM
+        TransferMode::IMM
     }
 }
 
-impl From<u32> for TransferSelection {
-    fn from(value: u32) -> Self {
-        if (value & (1 << 1)) != 0 {
-            TransferSelection::DMA
-        } else {
-            TransferSelection::IMM
-        }
+#[derive(Debug)]
+pub enum TransferType {
+    READ,
+    WRITE,
+    READWRITE
+}
+
+impl Default for TransferType {
+    fn default() -> Self {
+        TransferType::READ
     }
 }
 
 #[derive(Default, Debug)]
 pub struct Control {
-    transfer_length: u32,
-    transfer_type: u8,
-    pub transfer_selection: TransferSelection,
-    pub enabled: bool // Note: When an EXI DMA\IMM operation has been completed, the EXI Enable Bit will be reset to 0.
+    pub transfer_length: u8, // IMM transfer length for write operations
+    pub transfer_type: TransferType,
+    pub transfer_mode: TransferMode,
+    pub transfer_start: bool // Note: When an EXI DMA\IMM operation has been completed, the EXI Enable Bit will be reset to 0.
 }
 
 impl Control {
     pub fn as_u32(&self) -> u32 {
         let mut value = 0;
 
-        value = value ^ ((self.transfer_length as u32)  << 4);
-        value = value ^ ((self.transfer_type as u32)  << 2);
+        value = value ^ ((self.transfer_length as u32) << 4);
 
-        match self.transfer_selection {
-            TransferSelection::DMA => value = value ^ (1 << 1),
-            TransferSelection::IMM => value = value ^ (0 << 1)
+        match self.transfer_type {
+            TransferType::READ => value = value ^ (0 << 2),
+            TransferType::WRITE => value = value ^ (1 << 2),
+            TransferType::READWRITE => value = value ^ (1 << 3)
+        }
+
+        match self.transfer_mode {
+            TransferMode::IMM => value = value ^ (0 << 1),
+            TransferMode::DMA => value = value ^ (1 << 1)
         };
 
-        value = value ^ (self.enabled as u32);
+        value = value ^ (self.transfer_start as u32);
 
         value
     }
@@ -146,11 +157,24 @@ impl Control {
 
 impl From<u32> for Control {
     fn from(value: u32) -> Self {
+        let transfer_type = match (value >> 2) & 3 {
+            0 => TransferType::READ,
+            1 => TransferType::WRITE,
+            2 => TransferType::READWRITE,
+            _ => panic!("Unrecognized EXI transfer type.")
+        };
+
+        let transfer_mode = match (value >> 1) & 1 {
+            0 => TransferMode::IMM,
+            1 => TransferMode::DMA,
+            _ => unreachable!()
+        };
+
         Control {
-            transfer_length:    (value >> 4),
-            transfer_type:      ((value >> 2) & 3) as u8,
-            transfer_selection: value.into(),
-            enabled:            (value & 1) != 0
+            transfer_length: ((value >> 4) & 3) as u8,
+            transfer_type:   transfer_type,
+            transfer_mode:   transfer_mode,
+            transfer_start:  (value & 1) != 0
         }
     }
 }
