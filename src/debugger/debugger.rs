@@ -12,6 +12,7 @@ pub struct Debugger {
     step_count: u32,
     advance: u32,
     pub breakpoints: Vec<u32>,
+    pub watchpoints: Vec<u32>
 }
 
 impl Debugger {
@@ -24,7 +25,8 @@ impl Debugger {
             step: false,
             step_count: 0,
             advance: 0,
-            breakpoints: Vec::new()
+            breakpoints: Vec::new(),
+            watchpoints: Vec::new()
         }
     }
 
@@ -34,15 +36,6 @@ impl Debugger {
     }
 
     pub fn debug(&mut self, cpu: &mut Cpu) {
-        if self.advance == 0 {
-            if (self.step && self.step_count == 0) || self.breakpoints.contains(&cpu.cia) {
-                self.resume = false;
-            }
-        } else if self.advance == cpu.cia {
-            self.advance = 0;
-            self.resume = false
-        }
-
         while !self.resume {
             let command = self.console.read();
 
@@ -56,11 +49,20 @@ impl Debugger {
         }
     }
 
+    pub fn add_watchpoint(&mut self, addr: u32) {
+        if !self.watchpoints.contains(&addr) {
+            self.watchpoints.push(addr);
+        }
+    }
+
     pub fn remove_breakpoint(&mut self, addr: u32) {
         self.breakpoints.retain(|&a| a != addr);
     }
 
-    // FixMe: ignore breakpoints at current location
+    pub fn remove_watchpoint(&mut self, addr: u32) {
+        self.watchpoints.retain(|&a| a != addr);
+    }
+
     pub fn continue_(&mut self) {
         self.step = false;
         self.resume = true;
@@ -90,6 +92,15 @@ impl Debugger {
                 }
             }
 
+            if self.advance == 0 {
+                if (self.step && self.step_count == 0) || self.breakpoints.contains(&cpu.cia) {
+                    self.resume = false;
+                }
+            } else if self.advance == cpu.cia {
+                self.advance = 0;
+                self.resume = false
+            }
+
             self.debug(cpu);
 
             if self.step {
@@ -98,6 +109,24 @@ impl Debugger {
                 self.disassembler.disassemble(cpu, instr);
 
                 println!("{:#010x}       {: <7} {}", cpu.cia, self.disassembler.opcode, self.disassembler.operands);
+            }
+        }
+    }
+
+    pub fn write_memory(&mut self, cpu: &mut Cpu, addr: u32) {
+        if self.active {
+            if self.watchpoints.contains(&addr) {
+                println!("Write watchpoint triggered at {:#010x}", addr);
+
+                let instr = cpu.read_instruction();
+
+                self.disassembler.disassemble(cpu, instr);
+
+                println!("{:#010x}       {: <7} {}", cpu.cia, self.disassembler.opcode, self.disassembler.operands);
+
+                self.resume = false;
+
+                self.debug(cpu);
             }
         }
     }

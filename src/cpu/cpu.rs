@@ -114,7 +114,7 @@ impl Cpu {
                      86 => self.dcbf(instr),
                     124 => self.norx(instr),
                     146 => self.mtmsr(instr),
-                    151 => self.stwx(instr),
+                    151 => self.stwx(instr, debugger),
                     210 => self.mtsr(instr),
                     235 => self.mullwx(instr),
                     266 => self.addx(instr),
@@ -136,19 +136,19 @@ impl Cpu {
             33 => self.lwzu(instr),
             34 => self.lbz(instr),
             35 => self.lbzu(instr),
-            36 => self.stw(instr),
-            37 => self.stwu(instr),
-            38 => self.stb(instr),
-            39 => self.stbu(instr),
+            36 => self.stw(instr, debugger),
+            37 => self.stwu(instr, debugger),
+            38 => self.stb(instr, debugger),
+            39 => self.stbu(instr, debugger),
             40 => self.lhz(instr),
             41 => self.lhzu(instr),
-            44 => self.sth(instr),
+            44 => self.sth(instr, debugger),
             46 => self.lmw(instr),
-            47 => self.stmw(instr),
+            47 => self.stmw(instr, debugger),
             48 => self.lfs(instr),
             50 => self.lfd(instr),
-            52 => self.stfs(instr),
-            53 => self.stfsu(instr),
+            52 => self.stfs(instr, debugger),
+            53 => self.stfsu(instr, debugger),
             63 => {
                 match instr.subopcode() {
                     72 => self.fmrx(instr),
@@ -759,12 +759,14 @@ impl Cpu {
     }
 
     // store word with update
-    fn stwu(&mut self, instr: Instruction) {
+    fn stwu(&mut self, instr: Instruction, debugger: &mut Debugger) {
         if instr.a() == 0 {
             panic!("stwu: invalid instruction");
         }
 
         let ea = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
+
+        debugger.write_memory(self, ea);
 
         self.interconnect.write_u32(&self.msr, ea, self.gpr[instr.s()]);
 
@@ -772,30 +774,36 @@ impl Cpu {
     }
 
     // store word
-    fn stw(&mut self, instr: Instruction) {
+    fn stw(&mut self, instr: Instruction, debugger: &mut Debugger) {
         let ea = if instr.a() == 0 {
             instr.simm() as u32
         } else {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
+
+        debugger.write_memory(self, ea);
 
         self.interconnect.write_u32(&self.msr, ea, self.gpr[instr.s()]);
     }
 
     // store byte
-    fn stb(&mut self, instr: Instruction) {
+    fn stb(&mut self, instr: Instruction, debugger: &mut Debugger) {
         let ea = if instr.a() == 0 {
             instr.simm() as u32
         } else {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
 
+        debugger.write_memory(self, ea);
+
         self.interconnect.write_u8(&self.msr, ea, self.gpr[instr.d()] as u8);
     }
 
     // store byte with update
-    fn stbu(&mut self, instr: Instruction) {
+    fn stbu(&mut self, instr: Instruction, debugger: &mut Debugger) {
         let ea = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
+
+        debugger.write_memory(self, ea);
 
         self.interconnect.write_u8(&self.msr, ea, self.gpr[instr.d()] as u8);
 
@@ -803,12 +811,14 @@ impl Cpu {
     }
 
     // store word indexed
-    fn stwx(&mut self, instr: Instruction) {
+    fn stwx(&mut self, instr: Instruction, debugger: &mut Debugger) {
         let ea = if instr.a() == 0 {
             self.gpr[instr.b()]
         } else {
             self.gpr[instr.a()].wrapping_add(self.gpr[instr.b()])
         };
+
+        debugger.write_memory(self, ea);
 
         self.interconnect.write_u32(&self.msr, ea, self.gpr[instr.s()]);
     }
@@ -833,12 +843,14 @@ impl Cpu {
     }
 
     // store half word
-    fn sth(&mut self, instr: Instruction) {
+    fn sth(&mut self, instr: Instruction, debugger: &mut Debugger) {
         let ea = if instr.a() == 0 {
             instr.simm() as u32
         } else {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
+
+        debugger.write_memory(self, ea);
 
         self.interconnect.write_u16(&self.msr, ea, self.gpr[instr.s()] as u16);
     }
@@ -862,7 +874,7 @@ impl Cpu {
     }
 
     // store multiple word
-    fn stmw(&mut self, instr: Instruction) {
+    fn stmw(&mut self, instr: Instruction, debugger: &mut Debugger) {
         let mut ea = if instr.a() == 0 {
             instr.simm() as u32
         } else {
@@ -872,6 +884,8 @@ impl Cpu {
         let mut r = instr.s();
 
         while r <= 31 {
+            debugger.write_memory(self, ea);
+
             self.interconnect.write_u32(&self.msr, ea, self.gpr[r]);
 
             r  += 1;
@@ -908,7 +922,7 @@ impl Cpu {
     }
 
     // store floating point single
-    fn stfs(&mut self, instr: Instruction) {
+    fn stfs(&mut self, instr: Instruction, debugger: &mut Debugger) {
         let ea = if instr.a() == 0 {
             instr.simm() as u32
         } else {
@@ -917,17 +931,21 @@ impl Cpu {
 
         let val = convert_to_single(self.fpr[instr.s()]);
 
+        debugger.write_memory(self, ea);
+
         self.interconnect.write_u32(&self.msr, ea, val);
     }
 
     // store floating point single with update
-    fn stfsu(&mut self, instr: Instruction) {
+    fn stfsu(&mut self, instr: Instruction, debugger: &mut Debugger) {
         if instr.a() == 0 {
             panic!("stfsu: invalid instruction");
         }
 
         let ea  = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
         let val = convert_to_single(self.fpr[instr.s()]);
+
+        debugger.write_memory(self, ea);
 
         self.interconnect.write_u32(&self.msr, ea, val);
     }
