@@ -7,6 +7,10 @@ use super::super::memory::ram::Ram;
 pub struct DeviceAd16;
 
 impl Device for DeviceAd16 {
+    fn device_select(&mut self) {
+        println!("DeviceAd16 Selected");
+    }
+
     fn read_imm(&self, len: u8) -> u32 {
         println!("ExiDeviceAd16: read_imm {}", len);
         0x04120000 // FixMe: always returns AD16 EXI ID

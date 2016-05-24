@@ -50,7 +50,7 @@ impl Channel {
 pub struct Status {
     connected: bool,
     ext_interrupt: bool,
-    pub exi_device: u8,
+    pub device_select: u8,
     exi_frequency: u8,
     tc_interupt: bool,
     exi_interrupt: bool
@@ -91,7 +91,7 @@ impl From<u32> for Status {
         Status {
             connected:     (value & (1 << 13)) != 0,
             ext_interrupt: (value & (1 << 12)) != 0,
-            exi_device:     device,
+            device_select: device,
             exi_frequency: ((value >> 4) & 7) as u8,
             tc_interupt:   (value & (1 <<  3)) != 0,
             exi_interrupt: (value & (1 <<  1)) != 0
