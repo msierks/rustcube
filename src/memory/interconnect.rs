@@ -16,6 +16,7 @@ use super::super::cpu::machine_status::MachineStatus;
 use super::super::memory_interface::MemoryInterface;
 use super::super::processor_interface::ProcessorInterface;
 use super::super::serial_interface::SerialInterface;
+use super::super::video_interface::VideoInterface;
 
 const BOOTROM_SIZE: usize = 0x0200000; // 2 MB
 
@@ -25,7 +26,7 @@ pub enum Address {
     EmbeddedFramebuffer,
     CommandProcessor,
     PixelEngine,
-    VideoInterface,
+    VideoInterface(u32),
     ProcessorInterface(u32),
     MemoryInterface,
     DspInterface(u32),
@@ -43,7 +44,7 @@ fn map(address: u32) -> Address {
         0x08000000 ... 0x0BFFFFFF => Address::EmbeddedFramebuffer,
         0x0C000000 ... 0x0C000FFF => Address::CommandProcessor,
         0x0C001000 ... 0x0C001FFF => Address::PixelEngine,
-        0x0C002000 ... 0x0C002FFF => Address::VideoInterface,
+        0x0C002000 ... 0x0C002FFF => Address::VideoInterface(address - 0x0C002000),
         0x0C003000 ... 0x0C003FFF => Address::ProcessorInterface(address - 0x0C003000),
         0x0C004000 ... 0x0C004FFF => Address::MemoryInterface,
         0x0C005000 ... 0x0C005200 => Address::DspInterface(address - 0x0C005000),
@@ -71,7 +72,8 @@ pub struct Interconnect {
     mi: MemoryInterface,
     pi: ProcessorInterface,
     ram: Ram,
-    si: SerialInterface
+    si: SerialInterface,
+    vi: VideoInterface
 }
 
 impl Interconnect {
@@ -89,7 +91,8 @@ impl Interconnect {
             mi: MemoryInterface::new(),
             pi: ProcessorInterface::new(),
             ram: Ram::new(),
-            si: SerialInterface::new()
+            si: SerialInterface::new(),
+            vi: VideoInterface::new()
         }
     }
 
@@ -164,6 +167,7 @@ impl Interconnect {
 
         match map(addr) {
             Address::Ram => self.ram.write_u16(addr, val),
+            Address::VideoInterface(offset) => self.vi.write_u16(offset, val),
             Address::MemoryInterface => println!("FixMe: memory interface"),
             Address::DspInterface(offset) => self.dsp.write_u16(offset, val),
             _ => panic!("write_u16 not implemented for {:#?} address {:#x}", map(addr), addr)
