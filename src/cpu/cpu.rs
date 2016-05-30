@@ -126,6 +126,7 @@ impl Cpu {
                     470 => self.dcbi(instr),
                     536 => self.srwx(instr),
                     598 => self.sync(instr),
+                    824 => self.srawix(instr),
                     922 => self.extshx(instr),
                     954 => self.extsbx(instr),
                     982 => self.icbi(instr),
@@ -696,6 +697,20 @@ impl Cpu {
     // data cache block invalidate
     fn dcbi(&mut self, instr: Instruction) {
         //println!("FixMe: dcbi");
+    }
+
+    // shift right algebraic word immediate
+    fn srawix(&mut self, instr: Instruction) {
+        let n = instr.sh();
+        let rs = self.gpr[instr.s()] as i32;
+
+        self.gpr[instr.a()] = (rs >> n) as u32;
+
+        if rs < 0 && (rs << (32 - n) != 0) {
+            self.xer.carry = true;
+        } else {
+            self.xer.carry = false;
+        }
     }
 
     // extend sign half word
