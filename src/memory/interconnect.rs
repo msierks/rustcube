@@ -26,7 +26,7 @@ pub enum Address {
     CommandProcessor,
     PixelEngine,
     VideoInterface,
-    ProcessorInterface,
+    ProcessorInterface(u32),
     MemoryInterface,
     DspInterface(u32),
     DvdInterface(u32),
@@ -44,7 +44,7 @@ fn map(address: u32) -> Address {
         0x0C000000 ... 0x0C000FFF => Address::CommandProcessor,
         0x0C001000 ... 0x0C001FFF => Address::PixelEngine,
         0x0C002000 ... 0x0C002FFF => Address::VideoInterface,
-        0x0C003000 ... 0x0C003FFF => Address::ProcessorInterface,
+        0x0C003000 ... 0x0C003FFF => Address::ProcessorInterface(address - 0x0C003000),
         0x0C004000 ... 0x0C004FFF => Address::MemoryInterface,
         0x0C005000 ... 0x0C005200 => Address::DspInterface(address - 0x0C005000),
         0x0C006000 ... 0x0C0063FF => Address::DvdInterface(address - 0x0C006000),
@@ -131,7 +131,7 @@ impl Interconnect {
 
         match map(addr) {
             Address::Ram => self.ram.read_u32(addr),
-            Address::ProcessorInterface => self.pi.read_u32(addr),
+            Address::ProcessorInterface(offset) => self.pi.read_u32(offset),
             Address::SerialInterface => self.si.read_u32(addr),
             Address::ExpansionInterface(channel, register) => self.exi.read(channel, register),
             Address::Bootrom(offset) => BigEndian::read_u32(&self.bootrom.borrow()[offset as usize ..]),
@@ -175,7 +175,7 @@ impl Interconnect {
 
         match map(addr) {
             Address::Ram => self.ram.write_u32(addr, val),
-            Address::ProcessorInterface => self.pi.write_u32(addr, val),
+            Address::ProcessorInterface(offset) => self.pi.write_u32(offset, val),
             Address::DspInterface(offset) => self.dsp.write_u32(offset, val),
             Address::DvdInterface(offset) => self.dvd.write_u32(offset, val),
             Address::SerialInterface => self.si.write_u32(addr, val),
