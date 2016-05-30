@@ -143,6 +143,7 @@ impl Cpu {
             40 => self.lhz(instr),
             41 => self.lhzu(instr),
             44 => self.sth(instr, debugger),
+            45 => self.sthu(instr, debugger),
             46 => self.lmw(instr),
             47 => self.stmw(instr, debugger),
             48 => self.lfs(instr),
@@ -426,6 +427,11 @@ impl Cpu {
     // rotate word immediate then AND with mask
     fn rlwinmx(&mut self, instr: Instruction) {
         let mask = mask(instr.mb(), instr.me());
+
+        // FixMe: hack to step over unknown bug
+        if self.cia == 0x81337614 {
+            self.gpr[instr.s()] = 32;
+        }
 
         self.gpr[instr.a()] = rotl(self.gpr[instr.s()], instr.sh()) & mask;
 
@@ -854,6 +860,22 @@ impl Cpu {
 
         self.interconnect.write_u16(&self.msr, ea, self.gpr[instr.s()] as u16);
     }
+
+    // store half word with update
+    fn sthu(&mut self, instr: Instruction, debugger: &mut Debugger) {
+        let ea = if instr.a() == 0 {
+            instr.simm() as u32
+        } else {
+            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
+        };
+
+        debugger.write_memory(self, ea);
+
+        self.interconnect.write_u16(&self.msr, ea, self.gpr[instr.s()] as u16);
+
+        self.gpr[instr.a()] = ea;
+    }
+
 
     // load multiple word
     fn lmw(&mut self, instr: Instruction) {
