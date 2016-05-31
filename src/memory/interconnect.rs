@@ -123,6 +123,7 @@ impl Interconnect {
 
         match map(addr) {
             Address::Ram => self.ram.read_u16(addr),
+            Address::VideoInterface(offset) => self.vi.read_u16(offset),
             Address::DspInterface(offset) => self.dsp.read_u16(offset),
             Address::Bootrom(offset) => BigEndian::read_u16(&self.bootrom.borrow()[offset as usize ..]),
             _ => panic!("read_u16 not implemented for {:#?} address {:#x}", map(addr), addr)

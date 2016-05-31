@@ -144,6 +144,7 @@ impl Cpu {
             39 => self.stbu(instr, debugger),
             40 => self.lhz(instr),
             41 => self.lhzu(instr),
+            42 => self.lha(instr),
             44 => self.sth(instr, debugger),
             45 => self.sthu(instr, debugger),
             46 => self.lmw(instr),
@@ -877,6 +878,13 @@ impl Cpu {
 
         self.gpr[instr.d()] = self.interconnect.read_u16(&self.msr, ea) as u32;
         self.gpr[instr.a()] = ea;
+    }
+
+    // load half word algebraic
+    fn lha(&mut self, instr: Instruction) {
+        let ea = self.gpr[instr.a()] + (instr.simm() as i32) as u32;
+
+        self.gpr[instr.d()] = ((self.interconnect.read_u16(&self.msr, ea) as i16) as i32) as u32;
     }
 
     // store half word
