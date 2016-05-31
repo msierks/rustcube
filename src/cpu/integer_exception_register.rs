@@ -10,7 +10,7 @@ pub struct IntegerExceptionRegister {
     overflow: bool,
 
     // CA
-    carry: bool,
+    pub carry: bool,
 
     byte_count: u8
 }

@@ -18,6 +18,7 @@ mod memory;
 mod memory_interface;
 mod processor_interface;
 mod serial_interface;
+mod video_interface;
 
 use getopts::Options;
 use std::env;

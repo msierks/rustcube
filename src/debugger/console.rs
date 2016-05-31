@@ -1,6 +1,7 @@
 use std::process;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
+use std::num::ParseIntError;
 
 use super::debugger::Debugger;
 use super::super::cpu::Cpu;
@@ -74,6 +75,7 @@ impl Command {
                 "help" => self.help(&args),
                 "show" => self.show(&args, debugger, cpu),
                 "step" => self.step(&args, debugger),
+                "watch" | "w" => self.watch_(&args, debugger),
                 _ => self.help(&args)
             }
 
@@ -82,7 +84,7 @@ impl Command {
 
     fn advance(&self, args: &Vec<&str>, debugger: &mut Debugger) {
         if args.len() > 1 {
-            match u32::from_str_radix(&args[1][2..], 16) {
+            match parse_hex_str(&args[1]) {
                 Ok(v) => debugger.set_advance(v),
                 Err(e) => println!("Error: {}", e)
             }
@@ -94,8 +96,19 @@ impl Command {
 
     fn break_(&self, args: &Vec<&str>, debugger: &mut Debugger) {
         if args.len() > 1 {
-            match u32::from_str_radix(&args[1][2..], 16) {
+            match parse_hex_str(&args[1]) {
                 Ok(v) => debugger.add_breakpoint(v),
+                Err(e) => println!("Error: {}", e)
+            }
+        } else {
+            println!("Missing required argument.");
+        }
+    }
+
+    fn watch_(&self, args: &Vec<&str>, debugger: &mut Debugger) {
+        if args.len() > 1 {
+            match parse_hex_str(&args[1]) {
+                Ok(v) => debugger.add_watchpoint(v),
                 Err(e) => println!("Error: {}", e)
             }
         } else {
@@ -105,8 +118,11 @@ impl Command {
 
     fn clear(&self, args: &Vec<&str>, debugger: &mut Debugger) {
         if args.len() > 1 {
-            match u32::from_str_radix(&args[1][2..], 16) {
-                Ok(v) => debugger.remove_breakpoint(v),
+            match parse_hex_str(&args[1]) {
+                Ok(v) => {
+                    debugger.remove_breakpoint(v);
+                    debugger.remove_watchpoint(v);
+                },
                 Err(e) => println!("Error: {}", e)
             }
         } else {
@@ -121,11 +137,13 @@ impl Command {
     fn help(&self, args: &Vec<&str>) {
         if args.len() < 2 {
             println!("List of available commands:\n");
+            println!("advance  - continue running to given location");
             println!("break    - set a breakpoint");
             println!("clear    - delete a breakpoint");
             println!("continue - continue running program");
             println!("show     - show things about program");
-            println!("step     - step a single instruction\n");
+            println!("step     - step a single instruction");
+            println!("watch    - set a watchpoint for written value\n");
             println!("Note: the ipl starts at address 0x81300000")
         } else {
             println!("Unrecognized help command: \"{}\". Try \"help\"", args[1])
@@ -150,6 +168,11 @@ impl Command {
                     }
                 },
                 "lr" => println!("lr: {:#010x}", cpu.lr),
+                "watchpoints" | "w" => {
+                    for watchpoint in &debugger.watchpoints {
+                        println!("watch: {:#010x}", watchpoint);
+                    }
+                },
                 _ => println!("Unrecognized show command: \"{}\". Try \"help show\"", args[1])
             }
 
@@ -167,5 +190,13 @@ impl Command {
         } else {
             debugger.set_step(1);
         }
+    }
+}
+
+fn parse_hex_str(val: &str) -> Result<u32, ParseIntError> {
+    if val.starts_with("0x") {
+        u32::from_str_radix(&val[2..], 16)
+    } else {
+        u32::from_str_radix(val, 16)
     }
 }

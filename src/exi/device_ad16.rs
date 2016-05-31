@@ -7,11 +7,16 @@ use super::super::memory::ram::Ram;
 pub struct DeviceAd16;
 
 impl Device for DeviceAd16 {
-    fn read_imm(&self) -> u32 {
+    fn device_select(&mut self) {
+        println!("DeviceAd16 Selected");
+    }
+
+    fn read_imm(&self, len: u8) -> u32 {
+        println!("ExiDeviceAd16: read_imm {}", len);
         0x04120000 // FixMe: always returns AD16 EXI ID
     }
 
-    fn write_imm(&mut self, value: u32) {
+    fn write_imm(&mut self, value: u32, len: u8) {
         match value {
             0x00000000 => println!("AD16: get ID command"),
             0x01000000 => println!("AD16: init"),
@@ -25,12 +30,12 @@ impl Device for DeviceAd16 {
         }
     }
 
-    fn read_dma(&self) {
-        panic!("ExiDeviceAd16: read_dma");
+    fn read_dma(&self, memory: &mut Ram, address: u32, length: u32) {
+        println!("ExiDeviceAd16: read_dma");
     }
 
     fn write_dma(&self, memory: &mut Ram, address: u32, length: u32) {
-        panic!("ExiDeviceAd16: write_dma");
+        println!("ExiDeviceAd16: write_dma");
     }
 }
 

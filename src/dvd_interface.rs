@@ -11,6 +11,7 @@ pub struct DvdInterface {
 impl DvdInterface {
 
     pub fn write_u32(&mut self, register: u32, val: u32) {
+        println!("write dvd interface");
         match register {
             STATUS => self.status_register = val.into(),
             COVER => self.cover_register = val.into(),

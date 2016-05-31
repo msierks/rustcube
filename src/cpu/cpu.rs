@@ -114,7 +114,8 @@ impl Cpu {
                      86 => self.dcbf(instr),
                     124 => self.norx(instr),
                     146 => self.mtmsr(instr),
-                    151 => self.stwx(instr),
+                    151 => self.stwx(instr, debugger),
+                    202 => self.addzex(instr),
                     210 => self.mtsr(instr),
                     235 => self.mullwx(instr),
                     266 => self.addx(instr),
@@ -124,8 +125,10 @@ impl Cpu {
                     459 => self.divwux(instr),
                     467 => self.mtspr(instr),
                     470 => self.dcbi(instr),
+                    491 => self.divwx(instr),
                     536 => self.srwx(instr),
                     598 => self.sync(instr),
+                    824 => self.srawix(instr),
                     922 => self.extshx(instr),
                     954 => self.extsbx(instr),
                     982 => self.icbi(instr),
@@ -136,19 +139,21 @@ impl Cpu {
             33 => self.lwzu(instr),
             34 => self.lbz(instr),
             35 => self.lbzu(instr),
-            36 => self.stw(instr),
-            37 => self.stwu(instr),
-            38 => self.stb(instr),
-            39 => self.stbu(instr),
+            36 => self.stw(instr, debugger),
+            37 => self.stwu(instr, debugger),
+            38 => self.stb(instr, debugger),
+            39 => self.stbu(instr, debugger),
             40 => self.lhz(instr),
             41 => self.lhzu(instr),
-            44 => self.sth(instr),
+            42 => self.lha(instr),
+            44 => self.sth(instr, debugger),
+            45 => self.sthu(instr, debugger),
             46 => self.lmw(instr),
-            47 => self.stmw(instr),
+            47 => self.stmw(instr, debugger),
             48 => self.lfs(instr),
             50 => self.lfd(instr),
-            52 => self.stfs(instr),
-            53 => self.stfsu(instr),
+            52 => self.stfs(instr, debugger),
+            53 => self.stfsu(instr, debugger),
             63 => {
                 match instr.subopcode() {
                     72 => self.fmrx(instr),
@@ -191,6 +196,22 @@ impl Cpu {
 
         if instr.oe() {
             panic!("OE: mullwx");
+        }
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
+        }
+    }
+
+    // divide word
+    fn divwx(&mut self, instr: Instruction) {
+        let a = self.gpr[instr.a()] as i32;
+        let b = self.gpr[instr.b()] as i32;
+
+        if b == 0 || (a as u32 == 0x8000_0000 && b == -1) {
+            self.gpr[instr.d()] = 0xFFFFFFFF;
+        } else {
+            self.gpr[instr.d()] = (a / b) as u32;
         }
 
         if instr.rc() {
@@ -292,6 +313,21 @@ impl Cpu {
             self.gpr[instr.d()] = instr.uimm() << 16;
         } else {
             self.gpr[instr.d()] = self.gpr[instr.a()].wrapping_add(instr.uimm() << 16);
+        }
+    }
+
+    // add to zero extended
+    fn addzex(&mut self, instr: Instruction) {
+        self.gpr[instr.d()] = self.gpr[instr.a()] + self.xer.carry as u32;
+
+        // FixMe: carry ???
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
+        }
+
+        if instr.oe() {
+            panic!("OE: addzex");
         }
     }
 
@@ -426,6 +462,11 @@ impl Cpu {
     // rotate word immediate then AND with mask
     fn rlwinmx(&mut self, instr: Instruction) {
         let mask = mask(instr.mb(), instr.me());
+
+        // FixMe: hack to step over unknown bug
+        if self.cia == 0x81337614 {
+            self.gpr[instr.s()] = 32;
+        }
 
         self.gpr[instr.a()] = rotl(self.gpr[instr.s()], instr.sh()) & mask;
 
@@ -692,6 +733,20 @@ impl Cpu {
         //println!("FixMe: dcbi");
     }
 
+    // shift right algebraic word immediate
+    fn srawix(&mut self, instr: Instruction) {
+        let n = instr.sh();
+        let rs = self.gpr[instr.s()] as i32;
+
+        self.gpr[instr.a()] = (rs >> n) as u32;
+
+        if rs < 0 && (rs << (32 - n) != 0) {
+            self.xer.carry = true;
+        } else {
+            self.xer.carry = false;
+        }
+    }
+
     // extend sign half word
     fn extshx(&mut self, instr: Instruction) {
         self.gpr[instr.a()] = ((self.gpr[instr.s()] as i16) as i32) as u32;
@@ -759,12 +814,14 @@ impl Cpu {
     }
 
     // store word with update
-    fn stwu(&mut self, instr: Instruction) {
+    fn stwu(&mut self, instr: Instruction, debugger: &mut Debugger) {
         if instr.a() == 0 {
             panic!("stwu: invalid instruction");
         }
 
         let ea = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
+
+        debugger.write_memory(self, ea);
 
         self.interconnect.write_u32(&self.msr, ea, self.gpr[instr.s()]);
 
@@ -772,30 +829,36 @@ impl Cpu {
     }
 
     // store word
-    fn stw(&mut self, instr: Instruction) {
+    fn stw(&mut self, instr: Instruction, debugger: &mut Debugger) {
         let ea = if instr.a() == 0 {
             instr.simm() as u32
         } else {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
+
+        debugger.write_memory(self, ea);
 
         self.interconnect.write_u32(&self.msr, ea, self.gpr[instr.s()]);
     }
 
     // store byte
-    fn stb(&mut self, instr: Instruction) {
+    fn stb(&mut self, instr: Instruction, debugger: &mut Debugger) {
         let ea = if instr.a() == 0 {
             instr.simm() as u32
         } else {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
 
+        debugger.write_memory(self, ea);
+
         self.interconnect.write_u8(&self.msr, ea, self.gpr[instr.d()] as u8);
     }
 
     // store byte with update
-    fn stbu(&mut self, instr: Instruction) {
+    fn stbu(&mut self, instr: Instruction, debugger: &mut Debugger) {
         let ea = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
+
+        debugger.write_memory(self, ea);
 
         self.interconnect.write_u8(&self.msr, ea, self.gpr[instr.d()] as u8);
 
@@ -803,12 +866,14 @@ impl Cpu {
     }
 
     // store word indexed
-    fn stwx(&mut self, instr: Instruction) {
+    fn stwx(&mut self, instr: Instruction, debugger: &mut Debugger) {
         let ea = if instr.a() == 0 {
             self.gpr[instr.b()]
         } else {
             self.gpr[instr.a()].wrapping_add(self.gpr[instr.b()])
         };
+
+        debugger.write_memory(self, ea);
 
         self.interconnect.write_u32(&self.msr, ea, self.gpr[instr.s()]);
     }
@@ -832,16 +897,41 @@ impl Cpu {
         self.gpr[instr.a()] = ea;
     }
 
+    // load half word algebraic
+    fn lha(&mut self, instr: Instruction) {
+        let ea = self.gpr[instr.a()] + (instr.simm() as i32) as u32;
+
+        self.gpr[instr.d()] = ((self.interconnect.read_u16(&self.msr, ea) as i16) as i32) as u32;
+    }
+
     // store half word
-    fn sth(&mut self, instr: Instruction) {
+    fn sth(&mut self, instr: Instruction, debugger: &mut Debugger) {
         let ea = if instr.a() == 0 {
             instr.simm() as u32
         } else {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
 
+        debugger.write_memory(self, ea);
+
         self.interconnect.write_u16(&self.msr, ea, self.gpr[instr.s()] as u16);
     }
+
+    // store half word with update
+    fn sthu(&mut self, instr: Instruction, debugger: &mut Debugger) {
+        let ea = if instr.a() == 0 {
+            instr.simm() as u32
+        } else {
+            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
+        };
+
+        debugger.write_memory(self, ea);
+
+        self.interconnect.write_u16(&self.msr, ea, self.gpr[instr.s()] as u16);
+
+        self.gpr[instr.a()] = ea;
+    }
+
 
     // load multiple word
     fn lmw(&mut self, instr: Instruction) {
@@ -862,7 +952,7 @@ impl Cpu {
     }
 
     // store multiple word
-    fn stmw(&mut self, instr: Instruction) {
+    fn stmw(&mut self, instr: Instruction, debugger: &mut Debugger) {
         let mut ea = if instr.a() == 0 {
             instr.simm() as u32
         } else {
@@ -872,6 +962,8 @@ impl Cpu {
         let mut r = instr.s();
 
         while r <= 31 {
+            debugger.write_memory(self, ea);
+
             self.interconnect.write_u32(&self.msr, ea, self.gpr[r]);
 
             r  += 1;
@@ -908,7 +1000,7 @@ impl Cpu {
     }
 
     // store floating point single
-    fn stfs(&mut self, instr: Instruction) {
+    fn stfs(&mut self, instr: Instruction, debugger: &mut Debugger) {
         let ea = if instr.a() == 0 {
             instr.simm() as u32
         } else {
@@ -917,17 +1009,21 @@ impl Cpu {
 
         let val = convert_to_single(self.fpr[instr.s()]);
 
+        debugger.write_memory(self, ea);
+
         self.interconnect.write_u32(&self.msr, ea, val);
     }
 
     // store floating point single with update
-    fn stfsu(&mut self, instr: Instruction) {
+    fn stfsu(&mut self, instr: Instruction, debugger: &mut Debugger) {
         if instr.a() == 0 {
             panic!("stfsu: invalid instruction");
         }
 
         let ea  = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
         let val = convert_to_single(self.fpr[instr.s()]);
+
+        debugger.write_memory(self, ea);
 
         self.interconnect.write_u32(&self.msr, ea, val);
     }

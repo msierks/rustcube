@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use super::channel::{Channel, TransferSelection};
+use super::channel::{Channel, TransferMode, TransferType};
 use super::device::DeviceDummy;
 use super::device_ipl::{DeviceIpl, BOOTROM_SIZE};
 use super::device_ad16::DeviceAd16;
@@ -47,7 +47,7 @@ impl Exi {
             0x04 => channel.dma_address,      // DMA Addr
             0x08 => channel.dma_length,       // DMA Length
             0x0C => channel.control.as_u32(), // DMA Control
-            0x10 => channel.get_device(channel.status.exi_device).read_imm(), // IMM Data
+            0x10 => channel.imm_data,         // IMM Data
             _ => panic!("exi register out of range {:#x}", register)
         }
     }
@@ -59,28 +59,46 @@ impl Exi {
         };
 
         match register {
-            0x00 => channel.status = value.into(), // Status
+            0x00 => { // Status
+                channel.status = value.into();
+
+                let device_select = channel.status.device_select;
+
+                channel.get_device_mut(device_select).device_select();
+            },
             0x04 => channel.dma_address = value,   // DMA Addr
             0x08 => channel.dma_length = value,    // DMA Length
-            0x0C => {
+            0x0C => {                              // DMA Control
                 channel.control = value.into();
 
-                //println!("EXI {:#b} {:#?}", value, channel.control);
+                if channel.control.transfer_start {
 
-                match channel.control.transfer_selection {
-                    TransferSelection::DMA => {
-                        channel.get_device(channel.status.exi_device).write_dma(memory, channel.dma_address, channel.dma_length)
-                    },
-                    _ => {}
+                    match channel.control.transfer_mode {
+                        TransferMode::IMM => {
+                            match channel.control.transfer_type {
+                                TransferType::READ => channel.imm_data = channel.get_device(channel.status.device_select).read_imm(channel.control.transfer_length + 1),
+                                TransferType::WRITE => {
+                                    let device_select = channel.status.device_select;
+                                    let imm_data = channel.imm_data;
+                                    let transfer_len = channel.control.transfer_length + 1;
+                                    channel.get_device_mut(device_select).write_imm(imm_data, transfer_len);
+                                },
+                                _ => panic!("EXI IMM invalid transfer type")
+                            }
+                        },
+                        TransferMode::DMA => {
+                            match channel.control.transfer_type {
+                                TransferType::READ => channel.get_device(channel.status.device_select).read_dma(memory, channel.dma_address, channel.dma_length),
+                                TransferType::WRITE => channel.get_device(channel.status.device_select).write_dma(memory, channel.dma_address, channel.dma_length),
+                                _ => panic!("EXI DMA invalid transfer type")
+                            }
+                        }
+                    }
+
+                    channel.control.transfer_start = false;
                 }
-
-                channel.control.enabled = false; // finish transfer immediately
-            }, // DMA Control
-            0x10 => {
-                let device_num = channel.status.exi_device;
-
-                channel.get_device_mut(device_num).write_imm(value);
-            }, // IMM Data
+            },
+            0x10 => channel.imm_data = value, // IMM Data
             _ => panic!("exi register out of range {:#x}", register)
         }
     }
