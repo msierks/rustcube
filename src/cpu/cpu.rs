@@ -115,6 +115,7 @@ impl Cpu {
                     124 => self.norx(instr),
                     146 => self.mtmsr(instr),
                     151 => self.stwx(instr, debugger),
+                    202 => self.addzex(instr),
                     210 => self.mtsr(instr),
                     235 => self.mullwx(instr),
                     266 => self.addx(instr),
@@ -294,6 +295,21 @@ impl Cpu {
             self.gpr[instr.d()] = instr.uimm() << 16;
         } else {
             self.gpr[instr.d()] = self.gpr[instr.a()].wrapping_add(instr.uimm() << 16);
+        }
+    }
+
+    // add to zero extended
+    fn addzex(&mut self, instr: Instruction) {
+        self.gpr[instr.d()] = self.gpr[instr.a()] + self.xer.carry as u32;
+
+        // FixMe: carry ???
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
+        }
+
+        if instr.oe() {
+            panic!("OE: addzex");
         }
     }
 
