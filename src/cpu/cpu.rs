@@ -125,6 +125,7 @@ impl Cpu {
                     459 => self.divwux(instr),
                     467 => self.mtspr(instr),
                     470 => self.dcbi(instr),
+                    491 => self.divwx(instr),
                     536 => self.srwx(instr),
                     598 => self.sync(instr),
                     824 => self.srawix(instr),
@@ -195,6 +196,22 @@ impl Cpu {
 
         if instr.oe() {
             panic!("OE: mullwx");
+        }
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
+        }
+    }
+
+    // divide word
+    fn divwx(&mut self, instr: Instruction) {
+        let a = self.gpr[instr.a()] as i32;
+        let b = self.gpr[instr.b()] as i32;
+
+        if b == 0 || (a as u32 == 0x8000_0000 && b == -1) {
+            self.gpr[instr.d()] = 0xFFFFFFFF;
+        } else {
+            self.gpr[instr.d()] = (a / b) as u32;
         }
 
         if instr.rc() {
