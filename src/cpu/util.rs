@@ -1,4 +1,18 @@
 
+pub fn bon(bo: u8, n: u8) -> u8 {
+    (bo >> (4 - n)) & 1
+}
+
+// FIXME
+pub fn convert_to_double(x: u32) -> u64 {
+    panic!("FixMe: convert_to_double");
+}
+
+// FIXME
+pub fn convert_to_single(x: u64) -> u32 {
+    0
+}
+
 // Note: A cast from a signed value widens with signed-extension
 //       A cast from an unsigned value widens with zero-extension
 pub fn sign_ext_16(x: u16) -> i32 {

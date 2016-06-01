@@ -20,6 +20,8 @@ mod processor_interface;
 mod serial_interface;
 mod video_interface;
 
+use debugger::Debugger;
+use gamecube::Gamecube;
 use getopts::Options;
 use std::env;
 
@@ -53,16 +55,15 @@ fn main() {
         return;
     };
 
-    let mut gamecube = gamecube::Gamecube::new();
+    let mut gamecube = Gamecube::new();
 
     gamecube.load_ipl(ipl_file_name);
 
     if matches.opt_present("d") {
-        gamecube.enable_debugger();
-    }
+        let mut debugger = Debugger::new(gamecube);
 
-    loop {
-        //println!("{:?}", gamecube);
-        gamecube.run_instruction();
+        debugger.run();
+    } else {
+        gamecube.run();
     }
 }

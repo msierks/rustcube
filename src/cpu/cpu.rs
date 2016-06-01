@@ -8,7 +8,6 @@ use super::integer_exception_register::IntegerExceptionRegister;
 use super::instruction::Instruction;
 use super::machine_status::MachineStatus;
 use super::time_base_register::{TimeBaseRegister,Tbr};
-use super::super::debugger::Debugger;
 use super::super::memory::Interconnect;
 use super::spr::Spr;
 use super::util::*;
@@ -68,12 +67,10 @@ impl Cpu {
         self.interconnect.read_instruction(&self.msr, self.cia)
     }
 
-    pub fn run_instruction(&mut self, debugger: &mut Debugger) {
+    pub fn run_instruction(&mut self) {
         let instr = self.read_instruction();
 
         self.nia = self.cia + 4;
-
-        debugger.set_cia(self);
 
         match instr.opcode() {
              7 => self.mulli(instr),
@@ -114,7 +111,7 @@ impl Cpu {
                      86 => self.dcbf(instr),
                     124 => self.norx(instr),
                     146 => self.mtmsr(instr),
-                    151 => self.stwx(instr, debugger),
+                    151 => self.stwx(instr),
                     202 => self.addzex(instr),
                     210 => self.mtsr(instr),
                     235 => self.mullwx(instr),
@@ -139,21 +136,21 @@ impl Cpu {
             33 => self.lwzu(instr),
             34 => self.lbz(instr),
             35 => self.lbzu(instr),
-            36 => self.stw(instr, debugger),
-            37 => self.stwu(instr, debugger),
-            38 => self.stb(instr, debugger),
-            39 => self.stbu(instr, debugger),
+            36 => self.stw(instr),
+            37 => self.stwu(instr),
+            38 => self.stb(instr),
+            39 => self.stbu(instr),
             40 => self.lhz(instr),
             41 => self.lhzu(instr),
             42 => self.lha(instr),
-            44 => self.sth(instr, debugger),
-            45 => self.sthu(instr, debugger),
+            44 => self.sth(instr),
+            45 => self.sthu(instr),
             46 => self.lmw(instr),
-            47 => self.stmw(instr, debugger),
+            47 => self.stmw(instr),
             48 => self.lfs(instr),
             50 => self.lfd(instr),
-            52 => self.stfs(instr, debugger),
-            53 => self.stfsu(instr, debugger),
+            52 => self.stfs(instr),
+            53 => self.stfsu(instr),
             63 => {
                 match instr.subopcode() {
                     72 => self.fmrx(instr),
@@ -182,117 +179,18 @@ impl Cpu {
         }
     }
 
-    // multiply low immediate
-    fn mulli(&mut self, instr: Instruction) {
-        self.gpr[instr.d()] = (self.gpr[instr.a()] as i32).wrapping_mul(instr.simm() as i32) as u32;
-    }
+    fn addx(&mut self, instr: Instruction) {
+        self.gpr[instr.d()] = self.gpr[instr.a()].wrapping_add(self.gpr[instr.b()]);
 
-    // multiply low word
-    fn mullwx(&mut self, instr: Instruction) {
-        let a = self.gpr[instr.a()] as i32;
-        let b = self.gpr[instr.b()] as i32;
-
-        self.gpr[instr.d()] = (a * b) as u32;
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
+        }
 
         if instr.oe() {
-            panic!("OE: mullwx");
-        }
-
-        if instr.rc() {
-            self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
+            panic!("OE: subfx");
         }
     }
 
-    // divide word
-    fn divwx(&mut self, instr: Instruction) {
-        let a = self.gpr[instr.a()] as i32;
-        let b = self.gpr[instr.b()] as i32;
-
-        if b == 0 || (a as u32 == 0x8000_0000 && b == -1) {
-            self.gpr[instr.d()] = 0xFFFFFFFF;
-        } else {
-            self.gpr[instr.d()] = (a / b) as u32;
-        }
-
-        if instr.rc() {
-            self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
-        }
-    }
-
-    // divide word unsigned
-    fn divwux(&mut self, instr: Instruction) {
-        let a = self.gpr[instr.a()];
-        let b = self.gpr[instr.b()];
-
-        if b == 0 {
-            if instr.oe() {
-                panic!("OE: divwux");
-            }
-
-            self.gpr[instr.d()] = 0;
-        } else {
-            self.gpr[instr.d()] = a / b;
-        }
-
-        if instr.rc() {
-            self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
-        }
-    }
-
-    // compare
-    fn cmp(&mut self, instr: Instruction) {
-        let a = self.gpr[instr.a()] as i32;
-        let b = self.gpr[instr.b()] as i32;
-
-        let mut c:u8 = if a < b {
-            0b1000
-        } else if a > b {
-            0b0100
-        } else {
-            0b0010
-        };
-
-        c |= self.xer.summary_overflow as u8;
-
-        self.cr.set_field(instr.crfd(), c);
-    }
-
-    // complare logic immediate
-    fn cmpli(&mut self, instr: Instruction) {
-        let a = self.gpr[instr.a()];
-        let b = instr.uimm();
-
-        let mut c:u8 = if a < b {
-            0b1000
-        } else if a > b {
-            0b0100
-        } else {
-            0b0010
-        };
-
-        c |= self.xer.summary_overflow as u8;
-
-        self.cr.set_field(instr.crfd(), c);
-    }
-
-    fn cmpi(&mut self, instr: Instruction) {
-        let a = self.gpr[instr.a()] as i32;
-        let b = instr.simm() as i32;
-
-        let mut c:u8 = if a < b {
-            0b1000
-        } else if a > b {
-            0b0100
-        } else {
-            0b0010
-        };
-
-        c |= self.xer.summary_overflow as u8;
-
-        self.cr.set_field(instr.crfd(), c);
-    }
-
-    // add immediate
     fn addi(&mut self, instr: Instruction) {
         if instr.a() == 0 {
             self.gpr[instr.d()] = instr.simm() as u32;
@@ -307,7 +205,6 @@ impl Cpu {
         self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
     }
 
-    // add immediate shifted
     fn addis(&mut self, instr: Instruction) {
         if instr.a() == 0 {
             self.gpr[instr.d()] = instr.uimm() << 16;
@@ -316,7 +213,6 @@ impl Cpu {
         }
     }
 
-    // add to zero extended
     fn addzex(&mut self, instr: Instruction) {
         self.gpr[instr.d()] = self.gpr[instr.a()] + self.xer.carry as u32;
 
@@ -331,7 +227,40 @@ impl Cpu {
         }
     }
 
-    // branch conditional
+    fn andx(&mut self, instr: Instruction) {
+        self.gpr[instr.a()] = self.gpr[instr.s()] & self.gpr[instr.b()];
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
+        }
+    }
+
+    fn andcx(&mut self, instr: Instruction) {
+        self.gpr[instr.a()] = self.gpr[instr.s()] & !self.gpr[instr.b()];
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
+        }
+    }
+
+    fn andi_rc(&mut self, instr: Instruction) {
+        self.gpr[instr.a()] = self.gpr[instr.s()] & instr.uimm();
+
+        self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
+    }
+
+    fn bx(&mut self, instr: Instruction) {
+        if instr.aa() == 1 {
+            self.nia = sign_ext_26(instr.li() << 2) as u32;
+        } else {
+            self.nia = self.cia.wrapping_add(sign_ext_26(instr.li() << 2) as u32);
+        }
+
+        if instr.lk() == 1 {
+            self.lr = self.cia + 4;
+        }
+    }
+
     fn bcx(&mut self, instr: Instruction) {
         let bo = instr.bo();
 
@@ -347,7 +276,7 @@ impl Cpu {
             true
         };
 
-        let mut cond_ok = if bon(bo, 0) == 0 {
+        let cond_ok = if bon(bo, 0) == 0 {
             bon(bo, 1) == self.cr.get_bit(instr.bi())
         } else {
             true
@@ -366,20 +295,24 @@ impl Cpu {
         }
     }
 
-    // branch
-    fn bx(&mut self, instr: Instruction) {
-        if instr.aa() == 1 {
-            self.nia = sign_ext_26(instr.li() << 2) as u32;
-        } else {
-            self.nia = self.cia.wrapping_add(sign_ext_26(instr.li() << 2) as u32);
-        }
+    fn bcctrx(&mut self, instr: Instruction) {
+        let bo = instr.bo();
 
-        if instr.lk() == 1 {
-            self.lr = self.cia + 4;
+        let cond_ok = if bon(bo, 0) == 0 {
+            self.cr.get_bit(instr.bi()) == bon(bo, 1)
+        } else {
+            true
+        };
+
+        if cond_ok {
+            self.nia = self.ctr & 0xFFFFFFFC;
+
+            if instr.lk() == 1 {
+                self.lr = self.cia + 4;
+            }
         }
     }
 
-    // branch conditional to link register
     fn bclrx(&mut self, instr: Instruction) {
         let bo = instr.bo();
 
@@ -410,158 +343,49 @@ impl Cpu {
         }
     }
 
-    #[allow(unused_variables)]
-    // isync - instruction synchronize
-    fn isync(&mut self, instr: Instruction) {
-        // don't do anything
-    }
+    fn cmp(&mut self, instr: Instruction) {
+        let a = self.gpr[instr.a()] as i32;
+        let b = self.gpr[instr.b()] as i32;
 
-    #[allow(unused_variables)]
-    // synchronize
-    fn sync(&mut self, instr: Instruction) {
-        // don't do anything
-    }
-
-    // condition register XOR
-    fn crxor(&mut self, instr: Instruction) {
-        let d = self.cr.get_bit(instr.a()) ^ self.cr.get_bit(instr.b());
-
-        self.cr.set_bit(instr.d(), d);
-    }
-
-    // branch condition to count register
-    fn bcctrx(&mut self, instr: Instruction) {
-        let bo = instr.bo();
-
-        let cond_ok = if bon(bo, 0) == 0 {
-            self.cr.get_bit(instr.bi()) == bon(bo, 1)
+        let mut c:u8 = if a < b {
+            0b1000
+        } else if a > b {
+            0b0100
         } else {
-            true
+            0b0010
         };
 
-        if cond_ok {
-            self.nia = self.ctr & 0xFFFFFFFC;
+        c |= self.xer.summary_overflow as u8;
 
-            if instr.lk() == 1 {
-                self.lr = self.cia + 4;
-            }
-        }
+        self.cr.set_field(instr.crfd(), c);
     }
 
-    fn rlwimix(&mut self, instr: Instruction) {
-        let m = mask(instr.mb(), instr.me());
-        let r = rotl(self.gpr[instr.s()], instr.sh());
-
-        self.gpr[instr.a()] = (r & m) | (self.gpr[instr.a()] & !m);
-
-        if instr.rc() {
-            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
-        }
-    }
-
-    // rotate word immediate then AND with mask
-    fn rlwinmx(&mut self, instr: Instruction) {
-        let mask = mask(instr.mb(), instr.me());
-
-        // FixMe: hack to step over unknown bug
-        if self.cia == 0x81337614 {
-            self.gpr[instr.s()] = 32;
+    fn cmpi(&mut self, instr: Instruction) {
+        if instr.l() {
+            panic!("cmpi: invalid instruction");
         }
 
-        self.gpr[instr.a()] = rotl(self.gpr[instr.s()], instr.sh()) & mask;
+        let a = self.gpr[instr.a()] as i32;
+        let b = instr.simm() as i32;
 
-        if instr.rc() {
-            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
-        }
-    }
-
-    // OR immediate
-    fn ori(&mut self, instr: Instruction) {
-        self.gpr[instr.a()] = self.gpr[instr.s()] | instr.uimm();
-    }
-
-    // OR immediate shifted
-    fn oris(&mut self, instr: Instruction) {
-        self.gpr[instr.a()] = self.gpr[instr.s()] | (instr.uimm() << 16);
-    }
-
-    fn andi_rc(&mut self, instr: Instruction) {
-        self.gpr[instr.a()] = self.gpr[instr.s()] & instr.uimm();
-
-        self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
-    }
-
-    // load word and zero index
-    fn lwzx(&mut self, instr: Instruction) {
-        let ea = if instr.a() == 0 {
-            self.gpr[instr.b()]
+        let mut c:u8 = if a < b {
+            0b1000
+        } else if a > b {
+            0b0100
         } else {
-            self.gpr[instr.a()].wrapping_add(self.gpr[instr.b()])
+            0b0010
         };
 
-        self.gpr[instr.d()] = self.interconnect.read_u32(&self.msr, ea);
+        c |= self.xer.summary_overflow as u8;
+
+        self.cr.set_field(instr.crfd(), c);
     }
 
-    // shift left word
-    fn slwx(&mut self, instr: Instruction) {
-        let r = self.gpr[instr.b()];
-
-        self.gpr[instr.a()] = if r & 0x20 != 0 {
-            0
-        } else {
-            self.gpr[instr.s()] << (r & 0x1F)
-        };
-
-        if instr.rc() {
-            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
-        }
-    }
-
-    // shift right word
-    fn srwx(&mut self, instr: Instruction) {
-        let r = self.gpr[instr.b()];
-
-        self.gpr[instr.a()] = if r & 0x20 != 0 {
-            0
-        } else {
-            self.gpr[instr.s()] >> (r & 0x1F)
-        };
-
-        if instr.rc() {
-            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
-        }
-    }
-
-    // count leading zeroes word
-    fn cntlzwx(&mut self, instr: Instruction) {
-        let mut n = 0;
-        let s = self.gpr[instr.s()];
-
-        while n < 32 {
-            if s & (0x80000000 >> n) != 0 {
-                break;
-            }
-
-            n += 1;
-        }
-
-        self.gpr[instr.a()] = n;
-
-        if instr.rc() {
-            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
-        }
-    }
-
-    fn andx(&mut self, instr: Instruction) {
-        self.gpr[instr.a()] = self.gpr[instr.s()] & self.gpr[instr.b()];
-
-        if instr.rc() {
-            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
-        }
-    }
-
-    // ToDo: if L = 1, instruction form is invalid
     fn cmpl(&mut self, instr: Instruction) {
+        if instr.l() {
+            panic!("cmpl: invalid instruction");
+        }
+
         let a = self.gpr[instr.a()];
         let b = self.gpr[instr.b()];
 
@@ -578,75 +402,254 @@ impl Cpu {
         self.cr.set_field(instr.crfd(), c);
     }
 
-    // subtract from
-    fn subfx(&mut self, instr: Instruction) {
-        self.gpr[instr.d()] = self.gpr[instr.b()].wrapping_sub(self.gpr[instr.a()]);
-
-        if instr.rc() {
-            self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
+    fn cmpli(&mut self, instr: Instruction) {
+        if instr.l() {
+            panic!("cmpli: invalid instruction");
         }
 
-        if instr.oe() {
-            panic!("OE: subfx");
+        let a = self.gpr[instr.a()];
+        let b = instr.uimm();
+
+        let mut c:u8 = if a < b {
+            0b1000
+        } else if a > b {
+            0b0100
+        } else {
+            0b0010
+        };
+
+        c |= self.xer.summary_overflow as u8;
+
+        self.cr.set_field(instr.crfd(), c);
+    }
+
+    fn cntlzwx(&mut self, instr: Instruction) {
+        let mut n = 0;
+        let s = self.gpr[instr.s()];
+
+        while n < 32 {
+            n += 1;
+
+            if s & (0x80000000 >> n) != 0 {
+                break;
+            }
         }
-    }
 
-    // subtract from immediate
-    fn subfic(&mut self, instr: Instruction) {
-        self.gpr[instr.d()] = (instr.simm() as i32).wrapping_sub(self.gpr[instr.a()] as i32) as u32;
-
-        // FixMe: update XER
-    }
-
-    // and with complement
-    fn andcx(&mut self, instr: Instruction) {
-        self.gpr[instr.a()] = self.gpr[instr.s()] & !self.gpr[instr.b()];
+        self.gpr[instr.a()] = n;
 
         if instr.rc() {
             self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
         }
     }
 
-    // move from machine state register
-    fn mfmsr(&mut self, instr: Instruction) {
-        self.gpr[instr.d()] = self.msr.as_u32();
+    fn crxor(&mut self, instr: Instruction) {
+        let d = self.cr.get_bit(instr.a()) ^ self.cr.get_bit(instr.b());
 
-        // TODO: check privelege level
+        self.cr.set_bit(instr.d(), d);
     }
 
     #[allow(unused_variables)]
-    // data cache block flush
     fn dcbf(&mut self, instr: Instruction) {
         //println!("FixMe: dcbf");
     }
 
-    // move to machine state register
-    fn mtmsr(&mut self, instr: Instruction) {
-        self.msr = self.gpr[instr.s()].into();
-
-        // TODO: check privelege level
+    #[allow(unused_variables)]
+    fn dcbi(&mut self, instr: Instruction) {
+        //println!("FixMe: dcbi");
     }
 
-    // move to segment register
-    fn mtsr(&mut self, instr: Instruction) {
-        self.sr[instr.sr()] = self.gpr[instr.s()];
+    fn divwx(&mut self, instr: Instruction) {
+        let a = self.gpr[instr.a()] as i32;
+        let b = self.gpr[instr.b()] as i32;
 
-        // TODO: check privelege level -> supervisor level instruction
-    }
-
-    fn addx(&mut self, instr: Instruction) {
-        self.gpr[instr.d()] = self.gpr[instr.a()].wrapping_add(self.gpr[instr.b()]);
+        if b == 0 || (a as u32 == 0x8000_0000 && b == -1) {
+            self.gpr[instr.d()] = 0xFFFFFFFF;
+        } else {
+            self.gpr[instr.d()] = (a / b) as u32;
+        }
 
         if instr.rc() {
             self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
         }
+    }
 
-        if instr.oe() {
-            panic!("OE: subfx");
+    fn divwux(&mut self, instr: Instruction) {
+        let a = self.gpr[instr.a()];
+        let b = self.gpr[instr.b()];
+
+        if b == 0 {
+            if instr.oe() {
+                panic!("OE: divwux");
+            }
+
+            self.gpr[instr.d()] = 0;
+        } else {
+            self.gpr[instr.d()] = a / b;
+        }
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
         }
     }
 
-    // move from special purpose register
+    fn extsbx(&mut self, instr: Instruction) {
+        self.gpr[instr.a()] = ((self.gpr[instr.s()] as i8) as i32) as u32;
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
+        }
+    }
+
+    fn extshx(&mut self, instr: Instruction) {
+        self.gpr[instr.a()] = ((self.gpr[instr.s()] as i16) as i32) as u32;
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
+        }
+    }
+
+    fn fmrx(&mut self, instr: Instruction) {
+        self.fpr[instr.d()] = self.fpr[instr.b()];
+
+        if instr.rc() {
+            self.cr.update_cr1(self.fpr[instr.d()], &self.fpscr);
+        }
+    }
+
+    #[allow(unused_variables)]
+    fn icbi(&mut self, instr: Instruction) {
+        //println!("FixMe: icbi");
+    }
+
+    #[allow(unused_variables)]
+    fn isync(&mut self, instr: Instruction) {
+        // don't do anything
+    }
+
+    fn lbz(&mut self, instr: Instruction) {
+        let ea = if instr.a() == 0 {
+            instr.simm() as u32
+        } else {
+            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
+        };
+
+        self.gpr[instr.d()] = self.interconnect.read_u8(&self.msr, ea) as u32;
+    }
+
+    fn lbzu(&mut self, instr: Instruction) {
+        if instr.a() == 0 || instr.a() == instr.d() {
+            panic!("lbzu: invalid instruction");
+        }
+
+        let ea   = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
+
+        self.gpr[instr.d()] = self.interconnect.read_u8(&self.msr, ea) as u32;
+        self.gpr[instr.a()] = ea;
+    }
+
+    fn lfd(&mut self, instr: Instruction) {
+        let ea = if instr.a() == 0 {
+            instr.simm() as u32
+        } else {
+            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
+        };
+
+        self.fpr[instr.d()] = self.interconnect.read_u64(&self.msr, ea);
+    }
+
+    fn lfs(&mut self, instr: Instruction) {
+        let ea = if instr.a() == 0 {
+            instr.simm() as u32
+        } else {
+            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
+        };
+
+        let val = self.interconnect.read_u32(&self.msr, ea);
+
+        if !self.hid2.paired_single {
+            self.fpr[instr.d()] = convert_to_double(val);
+        } else {
+            self.fpr[instr.d()] = ((val as u64) << 32) & val as u64;
+        }
+    }
+
+    fn lha(&mut self, instr: Instruction) {
+        let ea = if instr.a() == 0 {
+            instr.simm() as u32
+        } else {
+            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
+        };
+
+        self.gpr[instr.d()] = ((self.interconnect.read_u16(&self.msr, ea) as i16) as i32) as u32;
+    }
+
+    fn lhz(&mut self, instr: Instruction) {
+        let ea = if instr.a() == 0 {
+            instr.simm() as u32
+        } else {
+            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
+        };
+
+        self.gpr[instr.d()] = self.interconnect.read_u16(&self.msr, ea) as u32;
+    }
+
+    fn lhzu(&mut self, instr: Instruction) {
+        let ea = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
+
+        self.gpr[instr.d()] = self.interconnect.read_u16(&self.msr, ea) as u32;
+        self.gpr[instr.a()] = ea;
+    }
+
+    fn lmw(&mut self, instr: Instruction) {
+        let mut ea = if instr.a() == 0 {
+            instr.simm() as u32
+        } else {
+            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
+        };
+
+        let mut r = instr.d();
+
+        while r <= 31 {
+            self.gpr[r] = self.interconnect.read_u32(&self.msr, ea);
+
+            r  += 1;
+            ea += 4;
+        }
+    }
+
+    fn lwz(&mut self, instr: Instruction) {
+        let ea = if instr.a() == 0 {
+            instr.simm() as u32
+        } else {
+            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
+        };
+
+        self.gpr[instr.d()] = self.interconnect.read_u32(&self.msr, ea);
+    }
+
+    fn lwzx(&mut self, instr: Instruction) {
+        let ea = if instr.a() == 0 {
+            self.gpr[instr.b()]
+        } else {
+            self.gpr[instr.a()].wrapping_add(self.gpr[instr.b()])
+        };
+
+        self.gpr[instr.d()] = self.interconnect.read_u32(&self.msr, ea);
+    }
+
+    fn lwzu(&mut self, instr: Instruction) {
+        let ea = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
+
+        self.gpr[instr.d()] = self.interconnect.read_u32(&self.msr, ea);
+        self.gpr[instr.a()] = ea;
+    }
+
+    fn mfmsr(&mut self, instr: Instruction) {
+        self.gpr[instr.d()] = self.msr.as_u32();
+
+        // TODO: check privilege level
+    }
+
     fn mfspr(&mut self, instr: Instruction) {
         match instr.spr() {
             Spr::LR   => self.gpr[instr.s()] = self.lr,
@@ -658,10 +661,9 @@ impl Cpu {
             _ => panic!("mfspr not implemented for {:#?}", instr.spr()) // FixMe: properly handle this case
         }
 
-        // TODO: check privelege level
+        // TODO: check privilege level
     }
 
-    // move from time base
     fn mftb(&mut self, instr: Instruction) {
         match instr.tbr() {
             Tbr::TBL => self.gpr[instr.d()] = self.tb.l(),
@@ -670,23 +672,12 @@ impl Cpu {
         }
     }
 
-    fn orx(&mut self, instr: Instruction) {
-        self.gpr[instr.a()] = self.gpr[instr.s()] | self.gpr[instr.b()];
+    fn mtmsr(&mut self, instr: Instruction) {
+        self.msr = self.gpr[instr.s()].into();
 
-        if instr.rc() {
-            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
-        }
+        // TODO: check privilege level
     }
 
-    fn norx(&mut self, instr: Instruction) {
-        self.gpr[instr.a()] = !(self.gpr[instr.s()] | self.gpr[instr.b()]);
-
-        if instr.rc() {
-            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
-        }
-    }
-
-    // move special purpose register
     fn mtspr(&mut self, instr: Instruction) {
         let spr = instr.spr();
 
@@ -695,10 +686,10 @@ impl Cpu {
             Spr::CTR => self.ctr = self.gpr[instr.s()],
             _ => {
 
-                if self.msr.privilege_level { // if user privelege level
+                if self.msr.privilege_level { // if user privilege level
                     // FixMe: properly handle this case
                     self.exception(Interrupt::Program);
-                    panic!("mtspr: user privelege level prevents setting spr {:#?}", spr);
+                    panic!("mtspr: user privilege level prevents setting spr {:#?}", spr);
                 }
 
                 match spr {
@@ -728,12 +719,100 @@ impl Cpu {
         }
     }
 
-    // data cache block invalidate
-    fn dcbi(&mut self, instr: Instruction) {
-        //println!("FixMe: dcbi");
+    fn mtsr(&mut self, instr: Instruction) {
+        self.sr[instr.sr()] = self.gpr[instr.s()];
+
+        // TODO: check privilege level -> supervisor level instruction
     }
 
-    // shift right algebraic word immediate
+    fn mulli(&mut self, instr: Instruction) {
+        self.gpr[instr.d()] = (self.gpr[instr.a()] as i32).wrapping_mul(instr.simm() as i32) as u32;
+    }
+
+    fn mullwx(&mut self, instr: Instruction) {
+        let a = self.gpr[instr.a()] as i32;
+        let b = self.gpr[instr.b()] as i32;
+
+        self.gpr[instr.d()] = (a * b) as u32;
+
+        if instr.oe() {
+            panic!("OE: mullwx");
+        }
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
+        }
+    }
+
+    fn norx(&mut self, instr: Instruction) {
+        self.gpr[instr.a()] = !(self.gpr[instr.s()] | self.gpr[instr.b()]);
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
+        }
+    }
+
+    fn orx(&mut self, instr: Instruction) {
+        self.gpr[instr.a()] = self.gpr[instr.s()] | self.gpr[instr.b()];
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
+        }
+    }
+
+    fn ori(&mut self, instr: Instruction) {
+        self.gpr[instr.a()] = self.gpr[instr.s()] | instr.uimm();
+    }
+
+    fn oris(&mut self, instr: Instruction) {
+        self.gpr[instr.a()] = self.gpr[instr.s()] | (instr.uimm() << 16);
+    }
+
+    fn rlwimix(&mut self, instr: Instruction) {
+        let m = mask(instr.mb(), instr.me());
+        let r = rotl(self.gpr[instr.s()], instr.sh());
+
+        self.gpr[instr.a()] = (r & m) | (self.gpr[instr.a()] & !m);
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
+        }
+    }
+
+    fn rlwinmx(&mut self, instr: Instruction) {
+        let mask = mask(instr.mb(), instr.me());
+
+        // FixMe: hack to step over unknown bug
+        //if self.cia == 0x81337614 {
+        //    self.gpr[instr.s()] = 32;
+        //}
+
+        self.gpr[instr.a()] = rotl(self.gpr[instr.s()], instr.sh()) & mask;
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
+        }
+    }
+
+    #[allow(unused_variables)]
+    fn sc(&mut self, instr: Instruction) {
+        //println!("FixMe: sc");
+    }
+
+    fn slwx(&mut self, instr: Instruction) {
+        let r = self.gpr[instr.b()];
+
+        self.gpr[instr.a()] = if r & 0x20 != 0 {
+            0
+        } else {
+            self.gpr[instr.s()] << (r & 0x1F)
+        };
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
+        }
+    }
+
     fn srawix(&mut self, instr: Instruction) {
         let n = instr.sh();
         let rs = self.gpr[instr.s()] as i32;
@@ -747,212 +826,84 @@ impl Cpu {
         }
     }
 
-    // extend sign half word
-    fn extshx(&mut self, instr: Instruction) {
-        self.gpr[instr.a()] = ((self.gpr[instr.s()] as i16) as i32) as u32;
+    fn srwx(&mut self, instr: Instruction) {
+        let r = self.gpr[instr.b()];
+
+        self.gpr[instr.a()] = if r & 0x20 != 0 {
+            0
+        } else {
+            self.gpr[instr.s()] >> (r & 0x1F)
+        };
 
         if instr.rc() {
             self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
         }
     }
 
-    // extend sign byte
-    fn extsbx(&mut self, instr: Instruction) {
-        self.gpr[instr.a()] = ((self.gpr[instr.s()] as i8) as i32) as u32;
-
-        if instr.rc() {
-            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
-        }
-    }
-
-    #[allow(unused_variables)]
-    // instruction cache block invalidate
-    fn icbi(&mut self, instr: Instruction) {
-        //println!("FixMe: icbi");
-    }
-
-    // load word and zero
-    fn lwz(&mut self, instr: Instruction) {
+    fn stb(&mut self, instr: Instruction) {
         let ea = if instr.a() == 0 {
             instr.simm() as u32
         } else {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
 
-        self.gpr[instr.d()] = self.interconnect.read_u32(&self.msr, ea);
+        self.interconnect.write_u8(&self.msr, ea, self.gpr[instr.d()] as u8);
     }
 
-    // load word and zero with update
-    fn lwzu(&mut self, instr: Instruction) {
+    fn stbu(&mut self, instr: Instruction) {
         let ea = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
 
-        self.gpr[instr.d()] = self.interconnect.read_u32(&self.msr, ea);
+        self.interconnect.write_u8(&self.msr, ea, self.gpr[instr.d()] as u8);
+
         self.gpr[instr.a()] = ea;
     }
 
-    // load byte and zero
-    fn lbz(&mut self, instr: Instruction) {
+    fn stfs(&mut self, instr: Instruction) {
         let ea = if instr.a() == 0 {
             instr.simm() as u32
         } else {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
 
-        self.gpr[instr.d()] = self.interconnect.read_u8(&self.msr, ea) as u32;
+        let val = convert_to_single(self.fpr[instr.s()]);
+
+        self.interconnect.write_u32(&self.msr, ea, val);
     }
 
-    // load byte and zero with update
-    fn lbzu(&mut self, instr: Instruction) {
-        if instr.a() == 0 || instr.a() == instr.d() {
-            panic!("lbzu: invalid instruction");
-        }
-
-        let ea   = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
-
-        self.gpr[instr.d()] = self.interconnect.read_u8(&self.msr, ea) as u32;
-        self.gpr[instr.a()] = ea;
-    }
-
-    // store word with update
-    fn stwu(&mut self, instr: Instruction, debugger: &mut Debugger) {
+    fn stfsu(&mut self, instr: Instruction) {
         if instr.a() == 0 {
-            panic!("stwu: invalid instruction");
+            panic!("stfsu: invalid instruction");
         }
 
-        let ea = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
+        let ea  = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
+        let val = convert_to_single(self.fpr[instr.s()]);
 
-        debugger.write_memory(self, ea);
-
-        self.interconnect.write_u32(&self.msr, ea, self.gpr[instr.s()]);
-
-        self.gpr[instr.a()] = ea; // is this conditional ???
+        self.interconnect.write_u32(&self.msr, ea, val);
     }
 
-    // store word
-    fn stw(&mut self, instr: Instruction, debugger: &mut Debugger) {
+    fn sth(&mut self, instr: Instruction) {
         let ea = if instr.a() == 0 {
             instr.simm() as u32
         } else {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
-
-        debugger.write_memory(self, ea);
-
-        self.interconnect.write_u32(&self.msr, ea, self.gpr[instr.s()]);
-    }
-
-    // store byte
-    fn stb(&mut self, instr: Instruction, debugger: &mut Debugger) {
-        let ea = if instr.a() == 0 {
-            instr.simm() as u32
-        } else {
-            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
-        };
-
-        debugger.write_memory(self, ea);
-
-        self.interconnect.write_u8(&self.msr, ea, self.gpr[instr.d()] as u8);
-    }
-
-    // store byte with update
-    fn stbu(&mut self, instr: Instruction, debugger: &mut Debugger) {
-        let ea = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
-
-        debugger.write_memory(self, ea);
-
-        self.interconnect.write_u8(&self.msr, ea, self.gpr[instr.d()] as u8);
-
-        self.gpr[instr.a()] = ea;
-    }
-
-    // store word indexed
-    fn stwx(&mut self, instr: Instruction, debugger: &mut Debugger) {
-        let ea = if instr.a() == 0 {
-            self.gpr[instr.b()]
-        } else {
-            self.gpr[instr.a()].wrapping_add(self.gpr[instr.b()])
-        };
-
-        debugger.write_memory(self, ea);
-
-        self.interconnect.write_u32(&self.msr, ea, self.gpr[instr.s()]);
-    }
-
-    // load half word and zero
-    fn lhz(&mut self, instr: Instruction) {
-        let ea = if instr.a() == 0 {
-            instr.simm() as u32
-        } else {
-            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
-        };
-
-        self.gpr[instr.d()] = self.interconnect.read_u16(&self.msr, ea) as u32;
-    }
-
-    // load half word and zero with update
-    fn lhzu(&mut self, instr: Instruction) {
-        let ea = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
-
-        self.gpr[instr.d()] = self.interconnect.read_u16(&self.msr, ea) as u32;
-        self.gpr[instr.a()] = ea;
-    }
-
-    // load half word algebraic
-    fn lha(&mut self, instr: Instruction) {
-        let ea = self.gpr[instr.a()] + (instr.simm() as i32) as u32;
-
-        self.gpr[instr.d()] = ((self.interconnect.read_u16(&self.msr, ea) as i16) as i32) as u32;
-    }
-
-    // store half word
-    fn sth(&mut self, instr: Instruction, debugger: &mut Debugger) {
-        let ea = if instr.a() == 0 {
-            instr.simm() as u32
-        } else {
-            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
-        };
-
-        debugger.write_memory(self, ea);
 
         self.interconnect.write_u16(&self.msr, ea, self.gpr[instr.s()] as u16);
     }
 
-    // store half word with update
-    fn sthu(&mut self, instr: Instruction, debugger: &mut Debugger) {
+    fn sthu(&mut self, instr: Instruction) {
         let ea = if instr.a() == 0 {
             instr.simm() as u32
         } else {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
-
-        debugger.write_memory(self, ea);
 
         self.interconnect.write_u16(&self.msr, ea, self.gpr[instr.s()] as u16);
 
         self.gpr[instr.a()] = ea;
     }
 
-
-    // load multiple word
-    fn lmw(&mut self, instr: Instruction) {
-        let mut ea = if instr.a() == 0 {
-            instr.simm() as u32
-        } else {
-            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
-        };
-
-        let mut r = instr.d();
-
-        while r <= 31 {
-            self.gpr[r] = self.interconnect.read_u32(&self.msr, ea);
-
-            r  += 1;
-            ea += 4;
-        }
-    }
-
-    // store multiple word
-    fn stmw(&mut self, instr: Instruction, debugger: &mut Debugger) {
+    fn stmw(&mut self, instr: Instruction) {
         let mut ea = if instr.a() == 0 {
             instr.simm() as u32
         } else {
@@ -962,8 +913,6 @@ impl Cpu {
         let mut r = instr.s();
 
         while r <= 31 {
-            debugger.write_memory(self, ea);
-
             self.interconnect.write_u32(&self.msr, ea, self.gpr[r]);
 
             r  += 1;
@@ -971,75 +920,59 @@ impl Cpu {
         }
     }
 
-    // load floating point single
-    fn lfs(&mut self, instr: Instruction) {
+    fn stw(&mut self, instr: Instruction) {
         let ea = if instr.a() == 0 {
             instr.simm() as u32
         } else {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
 
-        let val = self.interconnect.read_u32(&self.msr, ea);
-
-        if !self.hid2.paired_single {
-            self.fpr[instr.d()] = convert_to_double(val);
-        } else {
-            self.fpr[instr.d()] = ((val as u64) << 32) & val as u64;
-        }
+        self.interconnect.write_u32(&self.msr, ea, self.gpr[instr.s()]);
     }
 
-    // load floating point double
-    fn lfd(&mut self, instr: Instruction) {
+    fn stwx(&mut self, instr: Instruction) {
         let ea = if instr.a() == 0 {
-            instr.simm() as u32
+            self.gpr[instr.b()]
         } else {
-            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
+            self.gpr[instr.a()].wrapping_add(self.gpr[instr.b()])
         };
 
-        self.fpr[instr.d()] = self.interconnect.read_u64(&self.msr, ea);
+        self.interconnect.write_u32(&self.msr, ea, self.gpr[instr.s()]);
     }
 
-    // store floating point single
-    fn stfs(&mut self, instr: Instruction, debugger: &mut Debugger) {
-        let ea = if instr.a() == 0 {
-            instr.simm() as u32
-        } else {
-            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
-        };
-
-        let val = convert_to_single(self.fpr[instr.s()]);
-
-        debugger.write_memory(self, ea);
-
-        self.interconnect.write_u32(&self.msr, ea, val);
-    }
-
-    // store floating point single with update
-    fn stfsu(&mut self, instr: Instruction, debugger: &mut Debugger) {
+    fn stwu(&mut self, instr: Instruction) {
         if instr.a() == 0 {
-            panic!("stfsu: invalid instruction");
+            panic!("stwu: invalid instruction");
         }
 
-        let ea  = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
-        let val = convert_to_single(self.fpr[instr.s()]);
+        let ea = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
 
-        debugger.write_memory(self, ea);
+        self.interconnect.write_u32(&self.msr, ea, self.gpr[instr.s()]);
 
-        self.interconnect.write_u32(&self.msr, ea, val);
+        self.gpr[instr.a()] = ea; // is this conditional ???
     }
 
-    // floating move register (double-precision)
-    fn fmrx(&mut self, instr: Instruction) {
-        self.fpr[instr.d()] = self.fpr[instr.b()];
+    fn subfx(&mut self, instr: Instruction) {
+        self.gpr[instr.d()] = self.gpr[instr.b()].wrapping_sub(self.gpr[instr.a()]);
 
         if instr.rc() {
-            self.cr.update_cr1(self.fpr[instr.d()], &self.fpscr);
+            self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
+        }
+
+        if instr.oe() {
+            panic!("OE: subfx");
         }
     }
 
-    // system call
-    fn sc(&mut self, instr: Instruction) {
-        //println!("FixMe: sc");
+    fn subfic(&mut self, instr: Instruction) {
+        self.gpr[instr.d()] = (instr.simm() as i32).wrapping_sub(self.gpr[instr.a()] as i32) as u32;
+
+        // FixMe: update XER
+    }
+
+    #[allow(unused_variables)]
+    fn sync(&mut self, instr: Instruction) {
+        // don't do anything
     }
 }
 
@@ -1065,19 +998,6 @@ fn mask(x: u8, y: u8) -> u32 {
     } else {
         mask
     }
-}
-
-// FIXME
-fn convert_to_double(x: u32) -> u64 {
-    panic!("FixMe: convert_to_double");
-}
-
-fn convert_to_single(x: u64) -> u32 {
-    0
-}
-
-fn bon(bo: u8, n: u8) -> u8 {
-    (bo >> (4 - n)) & 1
 }
 
 impl fmt::Debug for Cpu {
