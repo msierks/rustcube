@@ -3,8 +3,7 @@ use rustyline::error::ReadlineError;
 use rustyline::Editor;
 use std::num::ParseIntError;
 
-use super::debugger::Debugger;
-use super::super::cpu::Cpu;
+use debugger::Debugger;
 
 pub struct Console {
     rl: Editor<'static>
@@ -60,7 +59,7 @@ impl Command {
         }
     }
 
-    pub fn execute(&self, debugger: &mut Debugger, cpu: &mut Cpu) {
+    pub fn execute(&self, debugger: &mut Debugger) {
         let args = self.data.trim().split(" ").collect::<Vec<&str>>();
 
         if args.len() == 0 {
@@ -73,8 +72,8 @@ impl Command {
                 "clear" => self.clear(&args, debugger),
                 "continue" | "c" => self.continue_(debugger),
                 "help" => self.help(&args),
-                "show" => self.show(&args, debugger, cpu),
-                "step" => self.step(&args, debugger),
+                "show" => self.show(&args, debugger),
+                "step" | "" => self.step(&args, debugger),
                 "watch" | "w" => self.watch_(&args, debugger),
                 _ => self.help(&args)
             }
@@ -150,7 +149,7 @@ impl Command {
         }
     }
 
-    fn show(&self, args: &Vec<&str>, debugger: &mut Debugger, cpu: &mut Cpu) {
+    fn show(&self, args: &Vec<&str>, debugger: &mut Debugger) {
         if args.len() > 1 {
 
             match args[1] {
@@ -159,15 +158,15 @@ impl Command {
                         println!("break: {:#010x}", breakpoint);
                     }
                 },
-                "cia" => println!("cia: {:#010x}", cpu.cia),
+                "cia" => println!("cia: {:#010x}", debugger.gamecube.cpu.cia),
                 "gpr" => {
-                    for i in 0..cpu.gpr.len() {
-                        if cpu.gpr[i] != 0 {
-                            println!("r{:<10} {:#010x}    {}", i, cpu.gpr[i], cpu.gpr[i]);
+                    for i in 0..debugger.gamecube.cpu.gpr.len() {
+                        if debugger.gamecube.cpu.gpr[i] != 0 {
+                            println!("r{:<10} {:#010x}    {}", i, debugger.gamecube.cpu.gpr[i], debugger.gamecube.cpu.gpr[i]);
                         }
                     }
                 },
-                "lr" => println!("lr: {:#010x}", cpu.lr),
+                "lr" => println!("lr: {:#010x}", debugger.gamecube.cpu.lr),
                 "watchpoints" | "w" => {
                     for watchpoint in &debugger.watchpoints {
                         println!("watch: {:#010x}", watchpoint);
