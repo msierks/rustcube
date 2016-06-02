@@ -158,6 +158,7 @@ impl Command {
                         println!("break: {:#010x}", breakpoint);
                     }
                 },
+                "ci" => debugger.print_instruction(),
                 "cia" => println!("cia: {:#010x}", debugger.gamecube.cpu.cia),
                 "gpr" => {
                     for i in 0..debugger.gamecube.cpu.gpr.len() {
