@@ -107,14 +107,7 @@ impl Debugger {
         }
 
         if self.step {
-        //if cia > 0x81300000 && cia < 0xFFF00000 {
-            let instr = self.gamecube.cpu.read_instruction();
-
-            let mut disassembler = Disassembler::default();
-
-            disassembler.disassemble(self, instr);
-
-            println!("{:#010x}       {: <7} {}", cia, disassembler.opcode, disassembler.operands);
+            self.print_instruction();
         }
     }
 
@@ -124,6 +117,16 @@ impl Debugger {
 
             self.resume = false;
         }
+    }
+
+    pub fn print_instruction(&mut self) {
+        let instr = self.gamecube.cpu.read_instruction();
+
+        let mut disassembler = Disassembler::default();
+
+        disassembler.disassemble(self, instr);
+
+        println!("{:#010x}       {: <7} {}", self.gamecube.cpu.cia, disassembler.opcode, disassembler.operands);
     }
 
     /*
