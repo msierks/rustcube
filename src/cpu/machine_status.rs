@@ -4,10 +4,10 @@
 #[derive(Debug)]
 pub struct MachineStatus {
     // POW
-    power_management: bool,
+    pub power_management: bool,
 
     // ILE
-    exception_little_endian: bool,
+    pub exception_little_endian: bool,
 
     // EE
     external_interrupt: bool,
@@ -49,7 +49,7 @@ pub struct MachineStatus {
     reset_recoverable: bool,
 
     // LE
-    little_endian: bool
+    pub little_endian: bool
 }
 
 impl Default for MachineStatus {

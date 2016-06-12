@@ -46,13 +46,13 @@ impl ControlRegister {
     pub fn as_u32(&self) -> u32 {
         let mut value = 0;
 
-        value ^= (self.dsp_sample_rate as u32)     <<  6;
-        value ^= (self.sample_count_reset as u32)  <<  5;
-        value ^= (self.ai_interrupt_valid as u32)  <<  4;
-        value ^= (self.ai_interrupt as u32)        <<  3;
-        value ^= (self.ai_interrupt_mask as u32)   <<  2;
-        value ^= (self.auxiliary_frequency as u32) <<  1;
-        value ^=  self.playing_status as u32;
+        value |= (self.dsp_sample_rate as u32)     <<  6;
+        value |= (self.sample_count_reset as u32)  <<  5;
+        value |= (self.ai_interrupt_valid as u32)  <<  4;
+        value |= (self.ai_interrupt as u32)        <<  3;
+        value |= (self.ai_interrupt_mask as u32)   <<  2;
+        value |= (self.auxiliary_frequency as u32) <<  1;
+        value |=  self.playing_status as u32;
 
         value
     }

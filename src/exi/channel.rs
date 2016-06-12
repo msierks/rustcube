@@ -67,12 +67,12 @@ impl Status {
             _ => 1
         };
 
-        value = value ^ ((self.connected as u32) << 13);
-        value = value ^ ((self.ext_interrupt as u32) << 12);
-        value = value ^ ((device as u32) << 7);
-        value = value ^ ((self.exi_frequency as u32) << 4);
-        value = value ^ ((self.tc_interupt as u32) << 3);
-        value = value ^ ((self.exi_interrupt as u32) << 1);
+        value |= (self.connected as u32) << 13;
+        value |= (self.ext_interrupt as u32) << 12;
+        value |= (device as u32) << 7;
+        value |= (self.exi_frequency as u32) << 4;
+        value |= (self.tc_interupt as u32) << 3;
+        value |= (self.exi_interrupt as u32) << 1;
 
         value
     }
@@ -136,20 +136,20 @@ impl Control {
     pub fn as_u32(&self) -> u32 {
         let mut value = 0;
 
-        value = value ^ ((self.transfer_length as u32) << 4);
+        value |= (self.transfer_length as u32) << 4;
 
         match self.transfer_type {
-            TransferType::READ => value = value ^ (0 << 2),
-            TransferType::WRITE => value = value ^ (1 << 2),
-            TransferType::READWRITE => value = value ^ (1 << 3)
+            TransferType::READ => value |= 0 << 2,
+            TransferType::WRITE => value |=  1 << 2,
+            TransferType::READWRITE => value |= 1 << 3
         }
 
         match self.transfer_mode {
-            TransferMode::IMM => value = value ^ (0 << 1),
-            TransferMode::DMA => value = value ^ (1 << 1)
+            TransferMode::IMM => value |= 0 << 1,
+            TransferMode::DMA => value |= 1 << 1
         };
 
-        value = value ^ (self.transfer_start as u32);
+        value |= self.transfer_start as u32;
 
         value
     }

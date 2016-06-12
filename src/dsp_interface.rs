@@ -118,18 +118,18 @@ impl ControlRegister {
     pub fn as_u16(&self) -> u16 {
         let mut value = 0;
 
-        value ^= (self.dsp_init as u16)             << 11;
-        value ^= (self.init_code as u16)            << 10;
-        value ^= (self.dma_state as u16)            <<  9;
-        value ^= (self.dsp_interrupt_mask as u16)   <<  8;
-        value ^= (self.dsp_interrupt as u16)        <<  7;
-        value ^= (self.aram_interrupt_mask as u16)  <<  6;
-        value ^= (self.aram_interrupt as u16)       <<  5;
-        value ^= (self.ai_interrupt_mask as u16)    <<  4;
-        value ^= (self.ai_interrupt as u16)         <<  3;
-        value ^= (self.dsp_halt as u16)             <<  2;
-        value ^= (self.dsp_interrupt_assert as u16) <<  1;
-        value ^=  self.dsp_reset as u16;
+        value |= (self.dsp_init as u16)             << 11;
+        value |= (self.init_code as u16)            << 10;
+        value |= (self.dma_state as u16)            <<  9;
+        value |= (self.dsp_interrupt_mask as u16)   <<  8;
+        value |= (self.dsp_interrupt as u16)        <<  7;
+        value |= (self.aram_interrupt_mask as u16)  <<  6;
+        value |= (self.aram_interrupt as u16)       <<  5;
+        value |= (self.ai_interrupt_mask as u16)    <<  4;
+        value |= (self.ai_interrupt as u16)         <<  3;
+        value |= (self.dsp_halt as u16)             <<  2;
+        value |= (self.dsp_interrupt_assert as u16) <<  1;
+        value |=  self.dsp_reset as u16;
 
         value
     }
