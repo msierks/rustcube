@@ -1,5 +1,6 @@
 use std::rc::Rc;
 use std::cell::RefCell;
+use byteorder::{ByteOrder, BigEndian};
 
 use super::device::Device;
 use super::super::memory::ram::Ram;
@@ -12,12 +13,46 @@ pub struct DeviceIpl {
     offset: u32,
     write: bool,
     bootrom: Rc<RefCell<Box<[u8; BOOTROM_SIZE]>>>,
-    sram: Sram
+    sram: [u8; 64]
+}
+
+impl DeviceIpl {
+    pub fn new(bootrom: Rc<RefCell<Box<[u8; BOOTROM_SIZE]>>>) -> DeviceIpl {
+        DeviceIpl {
+            address: 0,
+            command: 0,
+            offset: 0,
+            write: false,
+            bootrom: bootrom,
+            sram: [
+                0xFF, 0x6B, // checksum 1
+                0x00, 0x91, // checksum 2
+                0x00, 0x00, 0x00, 0x00, // ead 0
+                0x00, 0x00, 0x00, 0x00, // ead 1
+                0xFF, 0xFF, 0xFF, 0x40, // counter bias
+                0x00, // display offset h
+                0x00, // ntd
+                0x00, // language
+                0x2C, // flags
+                0x44, 0x4F, 0x4C, 0x50, 0x48, 0x49, 0x4E, 0x53, 0x4C, 0x4F, 0x54, 0x41, // flash id
+                0x44, 0x4F, 0x4C, 0x50, 0x48, 0x49, 0x4E, 0x53, 0x4C, 0x4F, 0x54, 0x42, // flash id
+                0x00, 0x00, 0x00, 0x00, // wireless keyboard id
+                0x00, 0x00, // wireless pad id
+                0x00, 0x00, // wireless pad id
+                0x00, 0x00, // wireless pad id
+                0x00, 0x00, // wireless pad id
+                0x00, // last dvd error code
+                0x00, // padding
+                0x6E, 0x6D, // flash id checksum
+                0x00, 0x00, // flash id checksum
+                0x00, 0x00  // padding
+            ]
+        }
+    }
 }
 
 impl Device for DeviceIpl {
     fn device_select(&mut self) {
-        //println!("DeviceIpl Selected");
         self.address = 0;
         self.command = 0;
         self.offset  = 0;
@@ -25,8 +60,7 @@ impl Device for DeviceIpl {
     }
 
     fn read_imm(&self, len: u8) -> u32 {
-        //println!("ExiDeviceIpl: read_imm {}", len);
-        0
+        panic!("ExiDeviceIpl: read_imm {}", len);
     }
 
     fn write_imm(&mut self, value: u32, len: u8) {
@@ -69,15 +103,17 @@ impl Device for DeviceIpl {
 
             match self.command {
                 0x200000 => { // RTC
+                    panic!("FixMe: rtc command");
                 },
                 0x200001 => { // SRAM
                     if self.write {
-                        self.sram.write(value, self.offset);
+                        //self.sram.write(value, self.offset);
                     } else {
-                        println!("FixMe: sram read not implemented");
+                        panic!("FixMe: sram read not implemented");
                     }
                 },
                 0x200100 => { // UART
+                    panic!("FixMe: uart command");
                 },
                 _ => {
                     panic!("this shouldn't happen");
@@ -89,79 +125,21 @@ impl Device for DeviceIpl {
     }
 
     fn read_dma(&self, memory: &mut Ram, address: u32, length: u32) {
-        let bootrom = **self.bootrom.borrow_mut();
+        println!("ExiDeviceIpl: read_dma address {} {:#x} {:#x}", length, address, self.offset);
 
-        memory.write_dma(address, &bootrom[self.address as usize .. (self.address + length) as usize]);
-        println!("ExiDeviceIpl: read_dma address");
+        match self.command {
+            0x200001 => {
+                memory.write_dma(address, &self.sram[0 .. length as usize]);
+            },
+            _ => {
+                let bootrom = **self.bootrom.borrow_mut();
+
+                memory.write_dma(address, &bootrom[self.address as usize .. (self.address + length) as usize]);
+            }
+        }
     }
 
     fn write_dma(&self, memory: &mut Ram, address: u32, length: u32) {
-        println!("ExiDeviceIpl: write_dma address");
-    }
-}
-
-impl DeviceIpl {
-    pub fn new(bootrom: Rc<RefCell<Box<[u8; BOOTROM_SIZE]>>>) -> DeviceIpl {
-        DeviceIpl {
-            address: 0,
-            command: 0,
-            offset: 0,
-            write: false,
-            bootrom: bootrom,
-            sram: Sram::default()
-        }
-    }
-}
-
-#[derive(Default, Debug)]
-struct Sram {
-    checksum_1: u16,
-    checksum_2: u16,
-    ead_0: u32,
-    ead_1: u32,
-    counter_bias: u32,
-    display_offset_h: u8,
-    ntd: u8,
-    language: u8,
-    flags: u8,
-    flash_id: u8,
-    wireless_kbd_id: u32,
-    wireless_pad_id: u32,
-    last_dvd_err: u8,
-    flash_id_checksum: u8
-}
-
-impl Sram {
-    pub fn write(&mut self, value: u32, offset: u32) {
-        match offset {
-            0 => {
-                self.checksum_1 = (value >> 16) as u16;
-                self.checksum_2 = (value & 0xFFFF) as u16;
-            },
-            4 => self.ead_0 = value,
-            8 => self.ead_1 = value,
-            12 => self.counter_bias = value,
-            16 => {
-                self.display_offset_h = (value >> 20) as u8;
-                self.ntd = ((value >> 16) & 0xFF) as u8;
-                self.language = ((value >> 16) & 0xFF) as u8;
-                self.flags = (value & 0xFF) as u8;
-            }
-            20 => {},
-            24 => {},
-            28 => {},
-            32 => {},
-            36 => {},
-            40 => {},
-            44 => {},
-            48 => {},
-            52 => {},
-            56 => {},
-            60 => {}
-            _ => {
-                println!("flags {:#b}", self.flags);
-                panic!("{:#?}", self);
-            }
-        }
+        panic!("ExiDeviceIpl: write_dma address");
     }
 }
