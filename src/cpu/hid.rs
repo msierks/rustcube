@@ -31,11 +31,11 @@ impl Hid2 {
     pub fn as_u32(&self) -> u32 {
         let mut value = 0;
 
-        value ^= (self.load_stored_quantized as u32) << 31;
-        value ^= (self.write_pipe as u32)            << 30;
-        value ^= (self.paired_single as u32)         << 29;
-        value ^= (self.locked_cache as u32)          << 28;
-        value ^= (self.dma_queue_length as u32)      << 24;
+        value |= (self.load_stored_quantized as u32) << 31;
+        value |= (self.write_pipe as u32)            << 30;
+        value |= (self.paired_single as u32)         << 29;
+        value |= (self.locked_cache as u32)          << 28;
+        value |= (self.dma_queue_length as u32)      << 24;
 
         value
     }
