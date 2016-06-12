@@ -111,14 +111,6 @@ impl Debugger {
         }
     }
 
-    pub fn write_memory(&mut self, addr: u32) {
-        if self.watchpoints.contains(&addr) {
-            println!("Write watchpoint triggered at {:#010x}", addr);
-
-            self.resume = false;
-        }
-    }
-
     pub fn print_instruction(&mut self) {
         let instr = self.gamecube.cpu.read_instruction();
 
@@ -128,22 +120,4 @@ impl Debugger {
 
         println!("{:#010x}       {: <7} {}", self.gamecube.cpu.cia, disassembler.opcode, disassembler.operands);
     }
-
-    /*
-    pub fn write_memory(&mut self, cpu: &mut Cpu, addr: u32) {
-        if self.watchpoints.contains(&addr) {
-            println!("Write watchpoint triggered at {:#010x}", addr);
-
-            let instr = cpu.read_instruction();
-
-            self.disassembler.disassemble(cpu, instr);
-
-            println!("{:#010x}       {: <7} {}", cpu.cia, self.disassembler.opcode, self.disassembler.operands);
-
-            self.resume = false;
-
-            self.debug(cpu);
-        }
-    }
-    */
 }

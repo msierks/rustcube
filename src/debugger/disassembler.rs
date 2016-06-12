@@ -1,17 +1,3 @@
-//0x8130220c
-
-//0x81333d2c
-
-//0x81333a24
-
-//0x813357a0
-
-// last 0x8133404c
-
-//0x8130220c
-
-// address 0x814e46c0 + 76(0x4c) = 0x814E470C
-
 use super::super::cpu::instruction::Instruction;
 use super::super::cpu::Cpu;
 use super::super::cpu::util::*;
@@ -92,7 +78,7 @@ impl Disassembler {
             35 => self.lbzu(instr),
             37 => self.stw(instr, "u"),
             36 => self.stw(instr, ""),
-            38 => self.stb(instr, debugger),
+            38 => self.stb(instr),
             39 => self.stbu(instr),
             40 => self.lhz(instr),
             41 => self.lhzu(instr),
@@ -559,10 +545,6 @@ impl Disassembler {
     fn stw(&mut self, instr: Instruction, ext: &str) {
         self.opcode = format!("stw{}", ext);
         self.operands = format!("r{},{}(r{})", instr.s(), instr.simm(), instr.a());
-
-        //let ea = cpu.gpr[instr.a()].wrapping_add(instr.simm() as u32);
-
-        // Check for memory write
     }
 
     fn stmw(&mut self, instr: Instruction) {
@@ -590,18 +572,9 @@ impl Disassembler {
         self.operands = format!("r{},{}(r{})", instr.d(), instr.uimm(), instr.a());
     }
 
-    fn stb(&mut self, instr: Instruction, debugger: &mut Debugger) {
+    fn stb(&mut self, instr: Instruction) {
         self.opcode = String::from("stb");
         self.operands = format!("r{},{}(r{})", instr.s(), instr.uimm(), instr.a());
-/*
-        let ea = if instr.a() == 0 {
-            instr.simm() as u32
-        } else {
-            debugger.gamecube.cpu.gpr[instr.a()].wrapping_add(instr.simm() as u32)
-        };
-
-        debugger.write_memory(ea);
-*/
     }
 
     fn stbu(&mut self, instr: Instruction) {
