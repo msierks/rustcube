@@ -34,7 +34,9 @@ pub struct Cpu {
     xer: IntegerExceptionRegister,
     fpscr: FloatingPointScRegister,
     gqr: [u32; NUM_GQR],
-    l2cr: u32
+    l2cr: u32,
+    srr0: u32,
+    srr1: u32,
 }
 
 impl Cpu {
@@ -56,7 +58,9 @@ impl Cpu {
             xer: IntegerExceptionRegister::default(),
             fpscr: FloatingPointScRegister::default(),
             gqr: [0; NUM_GQR],
-            l2cr: 0
+            l2cr: 0,
+            srr0: 0,
+            srr1: 0,
         };
 
         cpu.exception(Interrupt::SystemReset);
@@ -85,7 +89,8 @@ impl Cpu {
             18 => self.bx(instr),
             19 => {
                 match instr.subopcode() {
-                    16 => self.bclrx(instr),
+                     16 => self.bclrx(instr),
+                     50 => self.rfi(),
                     150 => self.isync(instr),
                     193 => self.crxor(instr),
                     528 => self.bcctrx(instr),
@@ -168,14 +173,33 @@ impl Cpu {
 
     // FixMe: handle exceptions properly
     pub fn exception(&mut self, interrupt: Interrupt) {
-        println!("{:?} exception occurred", interrupt);
+        println!("{:?} exception {:#010x}", interrupt, self.cia);
 
-        let nia = interrupt as u32;
+        match interrupt {
+            Interrupt::SystemReset => {
+                if self.msr.exception_prefix {
+                    self.cia = interrupt as u32 | 0xFFF00000
+                } else {
+                    self.cia = interrupt as u32
+                }
+            },
+            Interrupt::SystemCall => {
+                self.srr0 = self.cia + 4;
+                self.srr1 = self.msr.as_u32() & 0x87C0FFFF;
 
-        if self.msr.exception_prefix {
-            self.cia = nia | 0xFFF00000
-        } else {
-            self.cia = nia
+                self.msr = (self.msr.as_u32() & !0x04EF36).into();
+
+                self.msr.little_endian = self.msr.exception_little_endian;
+
+                if self.msr.exception_prefix {
+                    self.cia = interrupt as u32 | 0xFFF00000
+                } else {
+                    self.cia = interrupt as u32
+                }
+
+                self.nia = self.cia;
+            },
+            _ => panic!("unhandled exception")
         }
     }
 
@@ -200,7 +224,12 @@ impl Cpu {
     }
 
     fn addic_rc(&mut self, instr: Instruction) {
-        self.gpr[instr.d()] = self.gpr[instr.a()].wrapping_add((instr.simm() as i32) as u32);
+        let ra  = self.gpr[instr.a()];
+        let imm = (instr.simm() as i32) as u32;
+
+        self.gpr[instr.d()] = ra.wrapping_add(imm);
+
+        self.xer.carry = ra > !imm;
 
         self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
     }
@@ -214,9 +243,12 @@ impl Cpu {
     }
 
     fn addzex(&mut self, instr: Instruction) {
-        self.gpr[instr.d()] = self.gpr[instr.a()] + self.xer.carry as u32;
+        let carry = self.xer.carry as u32;
+        let ra    = self.gpr[instr.a()];
 
-        // FixMe: carry ???
+        self.gpr[instr.d()] = ra.wrapping_add(carry);
+
+        self.xer.carry = ra > !carry;
 
         if instr.rc() {
             self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
@@ -236,7 +268,7 @@ impl Cpu {
     }
 
     fn andcx(&mut self, instr: Instruction) {
-        self.gpr[instr.a()] = self.gpr[instr.s()] & !self.gpr[instr.b()];
+        self.gpr[instr.a()] = self.gpr[instr.s()] & (!self.gpr[instr.b()]);
 
         if instr.rc() {
             self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
@@ -425,12 +457,14 @@ impl Cpu {
 
     fn cntlzwx(&mut self, instr: Instruction) {
         let mut n = 0;
+        let mut mask = 0x80000000;
         let s = self.gpr[instr.s()];
 
         while n < 32 {
             n += 1;
+            mask >>= 1;
 
-            if s & (0x80000000 >> n) != 0 {
+            if (s & mask) != 0 {
                 break;
             }
         }
@@ -463,7 +497,15 @@ impl Cpu {
         let b = self.gpr[instr.b()] as i32;
 
         if b == 0 || (a as u32 == 0x8000_0000 && b == -1) {
-            self.gpr[instr.d()] = 0xFFFFFFFF;
+            if instr.oe() {
+                panic!("OE: divwx");
+            }
+
+            if a as u32 == 0x8000_0000 && b == 0 {
+                self.gpr[instr.d()] = 0xFFFFFFFF;
+            } else {
+                self.gpr[instr.d()] = 0;
+            }
         } else {
             self.gpr[instr.d()] = (a / b) as u32;
         }
@@ -768,6 +810,16 @@ impl Cpu {
         self.gpr[instr.a()] = self.gpr[instr.s()] | (instr.uimm() << 16);
     }
 
+    fn rfi(&mut self) {
+        let mask = 0x87C0FFFF;
+
+        self.msr = ((self.msr.as_u32() & !mask) | (self.srr1 & mask)).into();
+
+        self.msr.power_management = false;
+
+        self.nia = self.srr0 & 0xFFFFFFFE;
+    }
+
     fn rlwimix(&mut self, instr: Instruction) {
         let m = mask(instr.mb(), instr.me());
         let r = rotl(self.gpr[instr.s()], instr.sh());
@@ -782,10 +834,9 @@ impl Cpu {
     fn rlwinmx(&mut self, instr: Instruction) {
         let mask = mask(instr.mb(), instr.me());
 
-        // FixMe: hack to step over unknown bug
-        //if self.cia == 0x81337614 {
-        //    self.gpr[instr.s()] = 32;
-        //}
+        if self.cia == 0x81300524 {
+            println!("sh: {} mask: {} val: {}", instr.sh(), mask, self.gpr[instr.s()]);
+        }
 
         self.gpr[instr.a()] = rotl(self.gpr[instr.s()], instr.sh()) & mask;
 
@@ -796,7 +847,7 @@ impl Cpu {
 
     #[allow(unused_variables)]
     fn sc(&mut self, instr: Instruction) {
-        //println!("FixMe: sc");
+        self.exception(Interrupt::SystemCall);
     }
 
     fn slwx(&mut self, instr: Instruction) {
@@ -815,14 +866,20 @@ impl Cpu {
 
     fn srawix(&mut self, instr: Instruction) {
         let n = instr.sh();
-        let rs = self.gpr[instr.s()] as i32;
 
-        self.gpr[instr.a()] = (rs >> n) as u32;
+        if n != 0 {
+            let rs = self.gpr[instr.s()] as i32;
 
-        if rs < 0 && (rs << (32 - n) != 0) {
-            self.xer.carry = true;
+            self.gpr[instr.a()] = (rs >> n) as u32;
+
+            if rs < 0 && (rs << (32 - n) != 0) {
+                self.xer.carry = true;
+            } else {
+                self.xer.carry = false;
+            }
         } else {
             self.xer.carry = false;
+            self.gpr[instr.a()] = self.gpr[instr.s()];
         }
     }
 
@@ -965,9 +1022,12 @@ impl Cpu {
     }
 
     fn subfic(&mut self, instr: Instruction) {
-        self.gpr[instr.d()] = (instr.simm() as i32).wrapping_sub(self.gpr[instr.a()] as i32) as u32;
+        let ra = !self.gpr[instr.a()] as i32;
+        let imm = (instr.simm() as i32) + 1;
 
-        // FixMe: update XER
+        self.gpr[instr.d()] = ra.wrapping_add(imm) as u32;
+
+        self.xer.carry = (self.gpr[instr.a()] as i32) < ra;
     }
 
     #[allow(unused_variables)]
@@ -977,6 +1037,8 @@ impl Cpu {
 }
 
 fn rotl(x: u32, shift: u8) -> u32 {
+    let shift = shift & 31;
+
     if shift == 0 {
         x
     } else {
