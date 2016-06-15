@@ -1,4 +1,4 @@
-# rustcube [![Build Status](https://travis-ci.org/msierks/rustcube.svg?branch=master)](https://travis-ci.org/msierks/rustcube)
+# rustcube [![Build Status](https://travis-ci.org/msierks/rustcube.svg?branch=master)](https://travis-ci.org/msierks/rustcube) [![Build status](https://ci.appveyor.com/api/projects/status/ganyydat21is3coa/branch/master?svg=true)](https://ci.appveyor.com/project/msierks/rustcube/branch/master)
 
 A Gamecube emulator written in rust.
 
