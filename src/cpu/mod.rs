@@ -117,6 +117,7 @@ impl Cpu {
             31 => {
                 match instr.subopcode() {
                       0 => self.cmp(instr),
+                     11 => self.mulhwux(instr),
                      23 => self.lwzx(instr),
                      24 => self.slwx(instr),
                      26 => self.cntlzwx(instr),
@@ -777,6 +778,17 @@ impl Cpu {
         self.sr[instr.sr()] = self.gpr[instr.s()];
 
         // TODO: check privilege level -> supervisor level instruction
+    }
+
+    fn mulhwux(&mut self, instr: Instruction) {
+        let a = self.gpr[instr.a()] as u64;
+        let b = self.gpr[instr.b()] as u64;
+
+        self.gpr[instr.d()] = ((a * b) >> 32) as u32;
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
+        }
     }
 
     fn mulli(&mut self, instr: Instruction) {
