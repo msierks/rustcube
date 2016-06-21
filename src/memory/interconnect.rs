@@ -199,8 +199,6 @@ impl Interconnect {
         }
     }
 
-    // FixMe: add dma read/write....will probably always be u16 and u32
-
     // FixMe: would be great to move this into exi device ipl
     // load ipl into bootrom and decrypt
     pub fn load_ipl<P: AsRef<Path>>(&mut self, path: P) {
@@ -247,7 +245,7 @@ fn descrambler(data: &mut[u8]) {
         let v0 = v & 1;
 
         x ^= (t1 ^ v0) as u8;
-        x ^= ((u0 | u1)) as u8;
+        x ^= (u0 | u1) as u8;
         x ^= ((t0 ^ u1 ^ v0) & (t0 ^ u0)) as u8;
 
         if t0 == u0 {

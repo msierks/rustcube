@@ -1,6 +1,5 @@
 use std::rc::Rc;
 use std::cell::RefCell;
-use byteorder::{ByteOrder, BigEndian};
 
 use super::device::Device;
 use super::super::memory::ram::Ram;
@@ -60,7 +59,13 @@ impl Device for DeviceIpl {
     }
 
     fn read_imm(&self, len: u8) -> u32 {
-        panic!("ExiDeviceIpl: read_imm {}", len);
+        match self.command {
+            0x200000 => {
+                println!("FixMe: read imm RTC");
+                0
+            },
+            _ => panic!("ExiDeviceIpl: unhandled read_imm {} {}", self.command, len)
+        }
     }
 
     fn write_imm(&mut self, value: u32, len: u8) {
@@ -139,7 +144,7 @@ impl Device for DeviceIpl {
         }
     }
 
-    fn write_dma(&self, memory: &mut Ram, address: u32, length: u32) {
+    fn write_dma(&self, _: &mut Ram, _: u32, _: u32) {
         panic!("ExiDeviceIpl: write_dma address");
     }
 }

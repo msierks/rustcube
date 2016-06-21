@@ -20,7 +20,6 @@ impl Device for DeviceDummy {
     #[allow(unused_variables)]
     fn read_imm(&self, len: u8) -> u32 {
         panic!("EXIDUMMY: read_imm");
-        0
     }
 
     #[allow(unused_variables)]
