@@ -16,7 +16,7 @@ impl Device for DeviceAd16 {
         0x04120000 // FixMe: always returns AD16 EXI ID
     }
 
-    fn write_imm(&mut self, value: u32, len: u8) {
+    fn write_imm(&mut self, value: u32, _: u8) {
         match value {
             0x00000000 => println!("AD16: get ID command"),
             0x01000000 => println!("AD16: init"),
@@ -30,11 +30,11 @@ impl Device for DeviceAd16 {
         }
     }
 
-    fn read_dma(&self, memory: &mut Ram, address: u32, length: u32) {
+    fn read_dma(&self, _: &mut Ram, _: u32, _: u32) {
         println!("ExiDeviceAd16: read_dma");
     }
 
-    fn write_dma(&self, memory: &mut Ram, address: u32, length: u32) {
+    fn write_dma(&self, _: &mut Ram, _: u32, _: u32) {
         println!("ExiDeviceAd16: write_dma");
     }
 }

@@ -49,6 +49,9 @@ pub struct Cpu {
     l2cr: u32,
     srr0: u32,
     srr1: u32,
+    pmc1: u32,
+    mmcr0: u32,
+    dec: u32,
 }
 
 impl Cpu {
@@ -73,6 +76,9 @@ impl Cpu {
             l2cr: 0,
             srr0: 0,
             srr1: 0,
+            pmc1: 0,
+            mmcr0: 0,
+            dec: 0,
         };
 
         cpu.exception(Interrupt::SystemReset);
@@ -93,6 +99,7 @@ impl Cpu {
              8 => self.subfic(instr),
             10 => self.cmpli(instr),
             11 => self.cmpi(instr),
+            12 => self.addic(instr),
             13 => self.addic_rc(instr),
             14 => self.addi(instr),
             15 => self.addis(instr),
@@ -113,10 +120,13 @@ impl Cpu {
             21 => self.rlwinmx(instr),
             24 => self.ori(instr),
             25 => self.oris(instr),
+            27 => self.xoris(instr),
             28 => self.andi_rc(instr),
             31 => {
                 match instr.subopcode() {
                       0 => self.cmp(instr),
+                      8 => self.subfcx(instr),
+                     10 => self.addcx(instr),
                      11 => self.mulhwux(instr),
                      23 => self.lwzx(instr),
                      24 => self.slwx(instr),
@@ -127,13 +137,18 @@ impl Cpu {
                      60 => self.andcx(instr),
                      83 => self.mfmsr(instr),
                      86 => self.dcbf(instr),
+                     87 => self.lbzx(instr),
+                    104 => self.negx(instr),
                     124 => self.norx(instr),
+                    136 => self.subfex(instr),
+                    138 => self.addex(instr),
                     146 => self.mtmsr(instr),
                     151 => self.stwx(instr),
                     202 => self.addzex(instr),
                     210 => self.mtsr(instr),
                     235 => self.mullwx(instr),
                     266 => self.addx(instr),
+                    316 => self.xorx(instr),
                     339 => self.mfspr(instr),
                     371 => self.mftb(instr),
                     444 => self.orx(instr),
@@ -143,6 +158,7 @@ impl Cpu {
                     491 => self.divwx(instr),
                     536 => self.srwx(instr),
                     598 => self.sync(instr),
+                    792 => self.srawx(instr),
                     824 => self.srawix(instr),
                     922 => self.extshx(instr),
                     954 => self.extsbx(instr),
@@ -169,9 +185,11 @@ impl Cpu {
             50 => self.lfd(instr),
             52 => self.stfs(instr),
             53 => self.stfsu(instr),
+            54 => self.stfd(instr),
             63 => {
                 match instr.subopcode() {
-                    72 => self.fmrx(instr),
+                     72 => self.fmrx(instr),
+                    136 => self.fnabsx(instr),
                     _   => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.subopcode())
                 }
             },
@@ -224,7 +242,41 @@ impl Cpu {
         }
 
         if instr.oe() {
-            panic!("OE: subfx");
+            panic!("OE: addx");
+        }
+    }
+
+    fn addcx(&mut self, instr: Instruction) {
+        let a = self.gpr[instr.a()];
+        let b = self.gpr[instr.b()];
+
+        self.gpr[instr.d()] = a.wrapping_add(b);
+
+        self.xer.carry = a > !b;
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
+        }
+
+        if instr.oe() {
+            panic!("OE: addcx");
+        }
+    }
+
+    fn addex(&mut self, instr: Instruction) {
+        let a = self.gpr[instr.a()];
+        let b = self.gpr[instr.b()];
+
+        self.gpr[instr.d()] = a.wrapping_add(b).wrapping_add(self.xer.carry as u32);
+
+        // FixMe: update carry
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
+        }
+
+        if instr.oe() {
+            panic!("OE: addex");
         }
     }
 
@@ -234,6 +286,15 @@ impl Cpu {
         } else {
             self.gpr[instr.d()] = self.gpr[instr.a()].wrapping_add((instr.simm() as i32) as u32);
         }
+    }
+
+    fn addic(&mut self, instr: Instruction) {
+        let ra  = self.gpr[instr.a()];
+        let imm = (instr.simm() as i32) as u32;
+
+        self.gpr[instr.d()] = ra.wrapping_add(imm);
+
+        self.xer.carry = ra > !imm;
     }
 
     fn addic_rc(&mut self, instr: Instruction) {
@@ -571,6 +632,14 @@ impl Cpu {
         }
     }
 
+    fn fnabsx(&mut self, instr: Instruction) {
+        self.fpr[instr.d()] = self.fpr[instr.b()] | (1 << 63);
+
+        if instr.rc() {
+            self.cr.update_cr1(self.fpr[instr.d()], &self.fpscr);
+        }
+    }
+
     #[allow(unused_variables)]
     fn icbi(&mut self, instr: Instruction) {
         //println!("FixMe: icbi");
@@ -600,6 +669,16 @@ impl Cpu {
 
         self.gpr[instr.d()] = self.interconnect.read_u8(&self.msr, ea) as u32;
         self.gpr[instr.a()] = ea;
+    }
+
+    fn lbzx(&mut self, instr: Instruction) {
+        let ea = if instr.a() == 0 {
+            self.gpr[instr.b()]
+        } else {
+            self.gpr[instr.a()].wrapping_add(self.gpr[instr.b()])
+        };
+
+        self.gpr[instr.d()] = self.interconnect.read_u8(&self.msr, ea) as u32;
     }
 
     fn lfd(&mut self, instr: Instruction) {
@@ -711,8 +790,9 @@ impl Cpu {
             Spr::CTR  => self.gpr[instr.s()] = self.ctr,
             Spr::HID0 => self.gpr[instr.s()] = self.hid0,
             Spr::HID2 => self.gpr[instr.s()] = self.hid2.as_u32(),
-            Spr::GQR0   => self.gpr[instr.s()] = self.gqr[0],
-            Spr::L2CR   => self.gpr[instr.s()] = self.l2cr,
+            Spr::GQR0 => self.gpr[instr.s()] = self.gqr[0],
+            Spr::L2CR => self.gpr[instr.s()] = self.l2cr,
+            Spr::PMC1 => self.gpr[instr.s()] = self.pmc1,
             _ => panic!("mfspr not implemented for {:#?}", instr.spr()) // FixMe: properly handle this case
         }
 
@@ -768,7 +848,10 @@ impl Cpu {
                     Spr::HID2   => self.hid2 = self.gpr[instr.s()].into(),
                     Spr::GQR0   => self.gqr[0] = self.gpr[instr.s()],
                     Spr::L2CR   => self.l2cr = self.gpr[instr.s()],
-                    _ => panic!("mtspr not implemented for {:#?}", spr)
+                    Spr::PMC1   => self.pmc1 = self.gpr[instr.s()],
+                    Spr::MMCR0  => self.mmcr0 = self.gpr[instr.s()],
+                    Spr::DEC    => self.dec = self.gpr[instr.s()],
+                    _ => panic!("mtspr not implemented for {:#?} {:#x}", spr, self.gpr[instr.s()])
                 }
             }
         }
@@ -799,11 +882,21 @@ impl Cpu {
         let a = self.gpr[instr.a()] as i32;
         let b = self.gpr[instr.b()] as i32;
 
-        self.gpr[instr.d()] = (a * b) as u32;
+        self.gpr[instr.d()] = a.wrapping_mul(b) as u32;
 
         if instr.oe() {
             panic!("OE: mullwx");
         }
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
+        }
+    }
+
+    fn negx(&mut self, instr: Instruction) {
+        self.gpr[instr.d()] = !(self.gpr[instr.a()]) + 1;
+
+        // FixMe: ???
 
         if instr.rc() {
             self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
@@ -858,10 +951,6 @@ impl Cpu {
     fn rlwinmx(&mut self, instr: Instruction) {
         let mask = mask(instr.mb(), instr.me());
 
-        if self.cia == 0x81300524 {
-            println!("sh: {} mask: {} val: {}", instr.sh(), mask, self.gpr[instr.s()]);
-        }
-
         self.gpr[instr.a()] = rotl(self.gpr[instr.s()], instr.sh()) & mask;
 
         if instr.rc() {
@@ -888,6 +977,41 @@ impl Cpu {
         }
     }
 
+    fn srawx(&mut self, instr: Instruction) {
+        let rb = self.gpr[instr.b()];
+
+        if rb & 0x20 != 0 {
+            if self.gpr[instr.s()] & 0x80000000 != 0 {
+                self.gpr[instr.a()] = 0xFFFFFFFF;
+                self.xer.carry = true;
+            } else {
+                self.gpr[instr.a()] = 0;
+                self.xer.carry = false;
+            }
+        } else {
+            let n = rb & 0x1F;
+
+            if n != 0 {
+                let rs = self.gpr[instr.s()] as i32;
+
+                self.gpr[instr.a()] = (rs >> n) as u32;
+
+                if rs < 0 && (rs << (32 - n) != 0) {
+                    self.xer.carry = true;
+                } else {
+                    self.xer.carry = false;
+                }
+            } else {
+                self.gpr[instr.a()] = self.gpr[instr.s()];
+                self.xer.carry = false;
+            }
+        }
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
+        }
+    }
+
     fn srawix(&mut self, instr: Instruction) {
         let n = instr.sh();
 
@@ -902,8 +1026,8 @@ impl Cpu {
                 self.xer.carry = false;
             }
         } else {
-            self.xer.carry = false;
             self.gpr[instr.a()] = self.gpr[instr.s()];
+            self.xer.carry = false;
         }
     }
 
@@ -937,6 +1061,16 @@ impl Cpu {
         self.interconnect.write_u8(&self.msr, ea, self.gpr[instr.d()] as u8);
 
         self.gpr[instr.a()] = ea;
+    }
+
+    fn stfd(&mut self, instr: Instruction) {
+        let ea = if instr.a() == 0 {
+            instr.simm() as u32
+        } else {
+            self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
+        };
+
+        self.interconnect.write_u64(&self.msr, ea, self.fpr[instr.s()]);
     }
 
     fn stfs(&mut self, instr: Instruction) {
@@ -1045,18 +1179,62 @@ impl Cpu {
         }
     }
 
+    fn subfcx(&mut self, instr: Instruction) {
+        let ra = !self.gpr[instr.a()];
+        let rb = self.gpr[instr.b()] + 1;
+
+        self.gpr[instr.d()] = ra.wrapping_add(rb);
+
+        self.xer.carry = (self.gpr[instr.a()]) < ra; // FixMe: ???
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
+        }
+
+        if instr.oe() {
+            panic!("OE: subfcx");
+        }
+    }
+
+    fn subfex(&mut self, instr: Instruction) {
+        let ra = !self.gpr[instr.a()];
+        self.gpr[instr.b()] + self.xer.carry as u32;
+
+        self.xer.carry = (self.gpr[instr.a()]) < ra; // FixMe: ???
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.d()], &self.xer);
+        }
+
+        if instr.oe() {
+            panic!("OE: subfex");
+        }
+    }
+
     fn subfic(&mut self, instr: Instruction) {
         let ra = !self.gpr[instr.a()] as i32;
         let imm = (instr.simm() as i32) + 1;
 
         self.gpr[instr.d()] = ra.wrapping_add(imm) as u32;
 
-        self.xer.carry = (self.gpr[instr.a()] as i32) < ra;
+        self.xer.carry = (self.gpr[instr.a()] as i32) < ra; // FixMe: ???
     }
 
     #[allow(unused_variables)]
     fn sync(&mut self, instr: Instruction) {
         // don't do anything
+    }
+
+    fn xorx(&mut self, instr: Instruction) {
+        self.gpr[instr.a()] = self.gpr[instr.s()] ^ self.gpr[instr.b()];
+
+        if instr.rc() {
+            self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
+        }
+    }
+
+    fn xoris(&mut self, instr: Instruction) {
+        self.gpr[instr.a()] = self.gpr[instr.s()] ^ (instr.uimm() << 16)
     }
 }
 
