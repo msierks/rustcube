@@ -7,6 +7,7 @@ use std::rc::Rc;
 
 use super::ram::Ram;
 use super::super::audio_interface::AudioInterface;
+use super::super::command_processor::CommandProcessor;
 use super::super::dsp_interface::DspInterface;
 use super::super::dvd_interface::DvdInterface;
 use super::super::exi::Exi;
@@ -14,6 +15,7 @@ use super::super::cpu::instruction::Instruction;
 use super::super::cpu::mmu::Mmu;
 use super::super::cpu::machine_status::MachineStatus;
 use super::super::memory_interface::MemoryInterface;
+use super::super::pixel_engine::PixelEngine;
 use super::super::processor_interface::ProcessorInterface;
 use super::super::serial_interface::SerialInterface;
 use super::super::video_interface::VideoInterface;
@@ -24,8 +26,8 @@ const BOOTROM_SIZE: usize = 0x0200000; // 2 MB
 pub enum Address {
     Ram,
     EmbeddedFramebuffer,
-    CommandProcessor,
-    PixelEngine,
+    CommandProcessor(u32),
+    PixelEngine(u32),
     VideoInterface(u32),
     ProcessorInterface(u32),
     MemoryInterface,
@@ -42,8 +44,8 @@ fn map(address: u32) -> Address {
     match address {
         0x00000000 ... 0x017FFFFF => Address::Ram,
         0x08000000 ... 0x0BFFFFFF => Address::EmbeddedFramebuffer,
-        0x0C000000 ... 0x0C000FFF => Address::CommandProcessor,
-        0x0C001000 ... 0x0C001FFF => Address::PixelEngine,
+        0x0C000000 ... 0x0C000FFF => Address::CommandProcessor(address - 0x0C000000),
+        0x0C001000 ... 0x0C001FFF => Address::PixelEngine(address - 0x0C001000),
         0x0C002000 ... 0x0C002FFF => Address::VideoInterface(address - 0x0C002000),
         0x0C003000 ... 0x0C003FFF => Address::ProcessorInterface(address - 0x0C003000),
         0x0C004000 ... 0x0C004FFF => Address::MemoryInterface,
@@ -65,11 +67,13 @@ fn map(address: u32) -> Address {
 pub struct Interconnect {
     ai: AudioInterface,
     bootrom: Rc<RefCell<Box<[u8; BOOTROM_SIZE]>>>,
+    cp: CommandProcessor,
     dsp: DspInterface,
     dvd: DvdInterface,
     exi: Exi,
     pub mmu: Mmu,
     mi: MemoryInterface,
+    pe: PixelEngine,
     pi: ProcessorInterface,
     ram: Ram,
     si: SerialInterface,
@@ -83,12 +87,14 @@ impl Interconnect {
 
         Interconnect {
             ai: AudioInterface::default(),
+            cp: CommandProcessor::new(),
             dsp: DspInterface::default(),
             dvd: DvdInterface::default(),
             exi: Exi::new(bootrom.clone()),
             bootrom: bootrom,
             mmu: Mmu::new(),
             mi: MemoryInterface::new(),
+            pe: PixelEngine::new(),
             pi: ProcessorInterface::new(),
             ram: Ram::new(),
             si: SerialInterface::new(),
@@ -126,6 +132,7 @@ impl Interconnect {
             Address::VideoInterface(offset) => self.vi.read_u16(offset),
             Address::DspInterface(offset) => self.dsp.read_u16(offset),
             Address::Bootrom(offset) => BigEndian::read_u16(&self.bootrom.borrow()[offset as usize ..]),
+            Address::PixelEngine(offset) => self.pe.read_u16(offset),
             _ => panic!("read_u16 not implemented for {:#?} address {:#x}", map(addr), addr)
         }
     }
@@ -159,6 +166,7 @@ impl Interconnect {
 
         match map(addr) {
             Address::Ram => self.ram.write_u8(addr, val),
+            Address::PiFifo => println!("STUB: write PiFifo {:#x} {:#x}", addr, val),
             _ => panic!("write_u8 not implemented for {:#?} address {:#x}", map(addr), addr)
         }
     }
@@ -171,6 +179,8 @@ impl Interconnect {
             Address::VideoInterface(offset) => self.vi.write_u16(offset, val),
             Address::MemoryInterface => println!("FixMe: memory interface"),
             Address::DspInterface(offset) => self.dsp.write_u16(offset, val),
+            Address::CommandProcessor(offset) => self.cp.write_u16(offset, val),
+            Address::PixelEngine(offset) => self.pe.write_u16(offset, val),
             _ => panic!("write_u16 not implemented for {:#?} address {:#x}", map(addr), addr)
         }
     }
@@ -186,6 +196,7 @@ impl Interconnect {
             Address::SerialInterface => self.si.write_u32(addr, val),
             Address::ExpansionInterface(channel, register) => self.exi.write(channel, register, val, &mut self.ram),
             Address::AudioInterface(offset) => self.ai.write_u32(offset, val),
+            Address::PiFifo => println!("STUB: write PiFifo {:#x} {:#x}", addr, val),
             _ => panic!("write_u32 not implemented for {:#?} address {:#x}", map(addr), addr)
         }
     }
