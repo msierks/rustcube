@@ -1,6 +1,6 @@
 # rustcube [![Build Status](https://travis-ci.org/msierks/rustcube.svg?branch=master)](https://travis-ci.org/msierks/rustcube) [![Build status](https://ci.appveyor.com/api/projects/status/ganyydat21is3coa/branch/master?svg=true)](https://ci.appveyor.com/project/msierks/rustcube/branch/master)
 
-A Gamecube emulator written in the Rust programming language. Work is in progress to boot the Gamecube BIOS.
+A Gamecube emulator in the Rust programming language. Work is in progress to boot the Gamecube BIOS.
 
 ## Build and Run
 
