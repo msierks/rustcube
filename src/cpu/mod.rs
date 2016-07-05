@@ -107,13 +107,13 @@ impl Cpu {
             17 => self.sc(instr),
             18 => self.bx(instr),
             19 => {
-                match instr.subopcode() {
+                match instr.ext_opcode_x() {
                      16 => self.bclrx(instr),
                      50 => self.rfi(),
                     150 => self.isync(instr),
                     193 => self.crxor(instr),
                     528 => self.bcctrx(instr),
-                    _ => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.subopcode())
+                    _ => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.ext_opcode_x())
                 }
             },
             20 => self.rlwimix(instr),
@@ -123,7 +123,7 @@ impl Cpu {
             27 => self.xoris(instr),
             28 => self.andi_rc(instr),
             31 => {
-                match instr.subopcode() {
+                match instr.ext_opcode_x() {
                       0 => self.cmp(instr),
                       8 => self.subfcx(instr),
                      10 => self.addcx(instr),
@@ -163,7 +163,7 @@ impl Cpu {
                     922 => self.extshx(instr),
                     954 => self.extsbx(instr),
                     982 => self.icbi(instr),
-                    _   => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.subopcode())
+                    _   => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.ext_opcode_x())
                 }
             },
             32 => self.lwz(instr),
@@ -186,14 +186,28 @@ impl Cpu {
             52 => self.stfs(instr),
             53 => self.stfsu(instr),
             54 => self.stfd(instr),
-            63 => {
-                match instr.subopcode() {
-                     72 => self.fmrx(instr),
-                    136 => self.fnabsx(instr),
-                    _   => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.subopcode())
+            56 => self.psq_l(instr),
+            59 => {
+                match instr.ext_opcode_a() {
+                    18 => self.fdivsx(instr),
+                    20 => self.fsubsx(instr),
+                    21 => self.faddsx(instr),
+                    25 => self.fmulsx(instr),
+                    _  => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.ext_opcode_a())
                 }
             },
-            _  => panic!("Unrecognized instruction {} {} {}, cia {:#x}", instr.0, instr.opcode(), instr.subopcode(), self.cia)
+            60 => self.psq_st(instr),
+            63 => {
+                match instr.ext_opcode_x() {
+                      0 => self.fcmpu(instr),
+                     32 => self.fcmpo(instr),
+                     40 => self.fnegx(instr),
+                     72 => self.fmrx(instr),
+                    136 => self.fnabsx(instr),
+                    _   => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.ext_opcode_x())
+                }
+            },
+            _  => panic!("Unrecognized instruction {} {}, cia {:#x}", instr.0, instr.opcode(), self.cia)
         }
 
         self.cia = self.nia;
@@ -624,6 +638,22 @@ impl Cpu {
         }
     }
 
+    fn faddsx(&mut self, instr: Instruction) {
+        println!("FixMe: faddsx");
+    }
+
+    fn fcmpo(&mut self, instr: Instruction) {
+        println!("FixMe: fcmpo");
+    }
+
+    fn fcmpu(&mut self, instr: Instruction) {
+        println!("FixMe: fcmpu");
+    }
+
+    fn fdivsx(&mut self, instr: Instruction) {
+        println!("FixMe: fdivsx");
+    }
+
     fn fmrx(&mut self, instr: Instruction) {
         self.fpr[instr.d()] = self.fpr[instr.b()];
 
@@ -632,12 +662,24 @@ impl Cpu {
         }
     }
 
+    fn fmulsx(&mut self, instr: Instruction) {
+        println!("FixMe: fmulsx");
+    }
+
     fn fnabsx(&mut self, instr: Instruction) {
         self.fpr[instr.d()] = self.fpr[instr.b()] | (1 << 63);
 
         if instr.rc() {
             self.cr.update_cr1(self.fpr[instr.d()], &self.fpscr);
         }
+    }
+
+    fn fnegx(&mut self, instr: Instruction) {
+        println!("FixMe: fnegx");
+    }
+
+    fn fsubsx(&mut self, instr: Instruction) {
+        println!("FixMe: fsubsx");
     }
 
     #[allow(unused_variables)]
@@ -851,6 +893,7 @@ impl Cpu {
                     Spr::PMC1   => self.pmc1 = self.gpr[instr.s()],
                     Spr::MMCR0  => self.mmcr0 = self.gpr[instr.s()],
                     Spr::DEC    => self.dec = self.gpr[instr.s()],
+                    Spr::WPAR   => println!("Write Gather Pipe: {:#x}", self.gpr[instr.s()]),
                     _ => panic!("mtspr not implemented for {:#?} {:#x}", spr, self.gpr[instr.s()])
                 }
             }
@@ -925,6 +968,14 @@ impl Cpu {
 
     fn oris(&mut self, instr: Instruction) {
         self.gpr[instr.a()] = self.gpr[instr.s()] | (instr.uimm() << 16);
+    }
+
+    fn psq_l(&mut self, instr: Instruction) {
+        println!("FixMe: psq_l");
+    }
+
+    fn psq_st(&mut self, instr: Instruction) {
+        println!("FixMe: psq_st");
     }
 
     fn rfi(&mut self) {
