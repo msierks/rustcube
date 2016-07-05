@@ -24,13 +24,13 @@ impl Disassembler {
             17 => self.sc(),
             18 => self.bx(&debugger.gamecube.cpu, instr),
             19 => {
-                match instr.subopcode() {
+                match instr.ext_opcode_x() {
                     16 => self.bclrx(instr),
                     150 => self.sync("i"),
                     193 => self.crxor(instr),
                     528 => self.bcctrx(instr),
                     _ => {
-                        self.opcode = format!("unrecognized opcode {}:{}", instr.opcode(), instr.subopcode());
+                        self.opcode = format!("unrecognized opcode {}:{}", instr.opcode(), instr.ext_opcode_x());
                         self.operands = String::new();
                     }
                 }
@@ -41,7 +41,7 @@ impl Disassembler {
             25 => self.oris(instr),
             28 => self.andi(instr),
             31 => {
-                match instr.subopcode() {
+                match instr.ext_opcode_x() {
                       0 => self.cmp(instr),
                      23 => self.lwzx(instr),
                      24 => self.slwx(instr),
@@ -67,7 +67,7 @@ impl Disassembler {
                     922 => self.extshx(instr),
                     982 => self.cbi("i", instr),
                     _   => {
-                        self.opcode = format!("unrecognized opcode {}:{}", instr.opcode(), instr.subopcode());
+                        self.opcode = format!("unrecognized opcode {}:{}", instr.opcode(), instr.ext_opcode_x());
                         self.operands = String::new();
                     }
                 }
@@ -90,10 +90,10 @@ impl Disassembler {
             52 => self.stfs(instr),
             53 => self.stfsu(instr),
             63 => {
-                match instr.subopcode() {
+                match instr.ext_opcode_x() {
                     72 => self.fmrx(instr),
                     _   => {
-                        self.opcode = format!("unrecognized opcode {}:{}", instr.opcode(), instr.subopcode());
+                        self.opcode = format!("unrecognized opcode {}:{}", instr.opcode(), instr.ext_opcode_x());
                         self.operands = String::new();
                     }
                 }

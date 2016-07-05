@@ -13,7 +13,12 @@ impl Instruction {
     }
 
     #[inline(always)]
-    pub fn subopcode(&self) -> u16 {
+    pub fn ext_opcode_a(&self) -> u8 {
+        ((self.0 >> 1) & 0b1_1111) as u8
+    }
+
+    #[inline(always)]
+    pub fn ext_opcode_x(&self) -> u16 {
         ((self.0 >> 1) & 0b11_1111_1111) as u16
     }
 
