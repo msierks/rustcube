@@ -34,10 +34,10 @@ impl Mmu {
       // MSRIR | MSRDR = 1
       // (Vs & ~MSRPR) | (Vp & MSRPR) = 1
 
-      bat.bepi = ((value >> 17) & 0b111_1111_1111_1111) as u16;
-      bat.bl   = ((value >> 2) & 0b111_1111_1111) as u16;
-      bat.vs   = ((value >> 1) & 0b1) != 0;
-      bat.vp   = (value & 0b1) != 0;
+      bat.bepi = ((value >> 17) & 0x7FFF) as u16;
+      bat.bl   = ((value >> 2) & 0x7FF) as u16;
+      bat.vs   = ((value >> 1) & 1) != 0;
+      bat.vp   = (value & 1) != 0;
    }
 
    pub fn write_dbatu(&mut self, index: usize, value: u32) {
@@ -47,10 +47,10 @@ impl Mmu {
       // MSRIR | MSRDR = 1
       // (Vs & ~MSRPR) | (Vp & MSRPR) = 1
 
-      bat.bepi = ((value >> 17) & 0b111_1111_1111_1111) as u16;
-      bat.bl   = ((value >> 2) & 0b111_1111_1111) as u16;
-      bat.vs   = ((value >> 1) & 0b1) != 0;
-      bat.vp   = (value & 0b1) != 0;
+      bat.bepi = ((value >> 17) & 0x7FFF) as u16;
+      bat.bl   = ((value >> 2) & 0x7FF) as u16;
+      bat.vs   = ((value >> 1) & 1) != 0;
+      bat.vp   = (value & 1) != 0;
    }
 
    pub fn write_ibatl(&mut self, index: usize, value:u32) {
@@ -58,9 +58,9 @@ impl Mmu {
 
       // FixMe: validate BAT value
 
-      bat.brpn = (value >> 17 & 0b111_1111_1111_1111) as u16;
-      bat.wimg = (value >> 3 & 0b1_1111) as u8;
-      bat.pp   = (value & 0b11) as u8;
+      bat.brpn = (value >> 17 & 0x7FFF) as u16;
+      bat.wimg = (value >> 3 & 0x1F) as u8;
+      bat.pp   = (value & 3) as u8;
    }
 
    pub fn write_dbatl(&mut self, index: usize, value:u32) {
@@ -68,9 +68,9 @@ impl Mmu {
 
       // FixMe: validate BAT value
 
-      bat.brpn = (value >> 17 & 0b111_1111_1111_1111) as u16;
-      bat.wimg = (value >> 3 & 0b1_1111) as u8;
-      bat.pp   = (value & 0b11) as u8;
+      bat.brpn = (value >> 17 & 0x7FFF) as u16;
+      bat.wimg = (value >> 3 & 0x1F) as u8;
+      bat.pp   = (value & 3) as u8;
    }
 
    pub fn translate_instr_address(&self, msr: &MachineStatus, ea: u32) -> u32 {
@@ -104,7 +104,7 @@ impl Mmu {
 
          panic!("FixMe: perform address translation with Segment Register {:#x}", ea);
 
-      } else { // read address translation mode
+      } else { // real addressing mode
          ea
       }
    }
