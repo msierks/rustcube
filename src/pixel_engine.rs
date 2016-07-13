@@ -17,4 +17,3 @@ impl PixelEngine {
         println!("WRITE PE reg {:#x} {:#x}", register, val);
     }
 }
-

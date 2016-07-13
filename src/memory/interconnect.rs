@@ -13,7 +13,7 @@ use super::super::dvd_interface::DvdInterface;
 use super::super::exi::Exi;
 use super::super::cpu::instruction::Instruction;
 use super::super::cpu::mmu::Mmu;
-use super::super::cpu::machine_status::MachineStatus;
+use super::super::cpu::msr::Msr;
 use super::super::memory_interface::MemoryInterface;
 use super::super::pixel_engine::PixelEngine;
 use super::super::processor_interface::ProcessorInterface;
@@ -102,7 +102,7 @@ impl Interconnect {
         }
     }
 
-    pub fn read_instruction(&self, msr: &MachineStatus, cia: u32) -> Instruction {
+    pub fn read_instruction(&self, msr: &Msr, cia: u32) -> Instruction {
         let addr = self.mmu.translate_instr_address(msr, cia);
 
         let val = match map(addr) {
@@ -114,7 +114,7 @@ impl Interconnect {
         Instruction(val)
     }
 
-    pub fn read_u8(&self, msr: &MachineStatus, addr: u32) -> u8 {
+    pub fn read_u8(&self, msr: &Msr, addr: u32) -> u8 {
         let addr = self.mmu.translate_data_address(msr, addr);
 
         match map(addr) {
@@ -124,7 +124,7 @@ impl Interconnect {
         }
     }
 
-    pub fn read_u16(&mut self, msr: &MachineStatus, addr: u32) -> u16 {
+    pub fn read_u16(&mut self, msr: &Msr, addr: u32) -> u16 {
         let addr = self.mmu.translate_data_address(msr, addr);
 
         match map(addr) {
@@ -137,7 +137,7 @@ impl Interconnect {
         }
     }
 
-    pub fn read_u32(&self, msr: &MachineStatus, addr: u32) -> u32 {
+    pub fn read_u32(&self, msr: &Msr, addr: u32) -> u32 {
         let addr = self.mmu.translate_data_address(msr, addr);
 
         match map(addr) {
@@ -151,7 +151,7 @@ impl Interconnect {
         }
     }
 
-    pub fn read_u64(&self, msr: &MachineStatus, addr: u32) -> u64 {
+    pub fn read_u64(&self, msr: &Msr, addr: u32) -> u64 {
         let addr = self.mmu.translate_data_address(msr, addr);
 
         match map(addr) {
@@ -161,7 +161,7 @@ impl Interconnect {
         }
     }
 
-    pub fn write_u8(&mut self, msr: &MachineStatus, addr: u32, val: u8) {
+    pub fn write_u8(&mut self, msr: &Msr, addr: u32, val: u8) {
         let addr = self.mmu.translate_data_address(msr, addr);
 
         match map(addr) {
@@ -171,7 +171,7 @@ impl Interconnect {
         }
     }
 
-    pub fn write_u16(&mut self, msr: &MachineStatus, addr: u32, val: u16) {
+    pub fn write_u16(&mut self, msr: &Msr, addr: u32, val: u16) {
         let addr = self.mmu.translate_data_address(msr, addr);
 
         match map(addr) {
@@ -185,13 +185,16 @@ impl Interconnect {
         }
     }
 
-    pub fn write_u32(&mut self, msr: &MachineStatus, addr: u32, val: u32) {
+    pub fn write_u32(&mut self, msr: &Msr, addr: u32, val: u32) {
         let addr = self.mmu.translate_data_address(msr, addr);
 
         match map(addr) {
             Address::Ram => self.ram.write_u32(addr, val),
             Address::ProcessorInterface(offset) => self.pi.write_u32(offset, val),
-            Address::DspInterface(offset) => self.dsp.write_u32(offset, val),
+            Address::DspInterface(offset) => {
+                self.dsp.write_u16(offset, (val >> 16) as u16);
+                self.dsp.write_u16(offset + 2, val as u16);
+            },
             Address::DvdInterface(offset) => self.dvd.write_u32(offset, val),
             Address::SerialInterface => self.si.write_u32(addr, val),
             Address::ExpansionInterface(channel, register) => self.exi.write(channel, register, val, &mut self.ram),
@@ -201,7 +204,7 @@ impl Interconnect {
         }
     }
 
-    pub fn write_u64(&mut self, msr: &MachineStatus, addr: u32, val: u64) {
+    pub fn write_u64(&mut self, msr: &Msr, addr: u32, val: u64) {
         let addr = self.mmu.translate_data_address(msr, addr);
 
         match map(addr) {

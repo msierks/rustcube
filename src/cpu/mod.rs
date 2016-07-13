@@ -1,25 +1,27 @@
-mod condition_register;
-mod floating_point_sc_register;
+
+mod cr;
+mod exception;
+mod fpscr;
 mod hid;
-pub mod instruction;
-mod integer_exception_register;
-mod interrupt;
-pub mod mmu;
-pub mod machine_status;
 mod spr;
-mod time_base_register;
+mod tbr;
+mod xer;
+
+pub mod instruction;
+pub mod mmu;
+pub mod msr;
 pub mod util;
 
 use std::fmt;
 
-use self::condition_register::ConditionRegister;
-use self::floating_point_sc_register::FloatingPointScRegister;
+use self::cr::Cr;
+use self::exception::Exception;
+use self::fpscr::Fpscr;
 use self::hid::Hid2;
-use self::interrupt::Interrupt;
-use self::integer_exception_register::IntegerExceptionRegister;
+use self::xer::Xer;
 use self::instruction::Instruction;
-use self::machine_status::MachineStatus;
-use self::time_base_register::{TimeBaseRegister,Tbr};
+use self::msr::Msr;
+use self::tbr::{Tbr, TBR};
 use self::spr::Spr;
 use self::util::*;
 use super::memory::Interconnect;
@@ -30,28 +32,50 @@ const NUM_GQR: usize =  8;
 const NUM_SR : usize = 16;
 
 pub struct Cpu {
+    /// Global Interconnect
     pub interconnect: Interconnect,
+    /// Current Instruction Address
     pub cia: u32,
+    /// Next Instruction Address
     nia: u32,
-    ctr: u32,
-    fpr: [u64; NUM_FPR],
+    /// General-Purpose Registers
     pub gpr: [u32; NUM_GPR],
-    pub msr: MachineStatus,
-    sr: [u32; NUM_SR],
-    cr: ConditionRegister,
+    /// Floating-Point Registers    
+    fpr: [u64; NUM_FPR],
+    /// Condition Register
+    cr: Cr,
+    /// Floating-Point Status and Control Register
+    fpscr: Fpscr,
+    /// Integer Exception Register
+    xer: Xer,
+    /// Link Register
     pub lr: u32,
-    tb: TimeBaseRegister,
-    hid0: u32,
-    hid2: Hid2,
-    xer: IntegerExceptionRegister,
-    fpscr: FloatingPointScRegister,
-    gqr: [u32; NUM_GQR],
-    l2cr: u32,
+    /// Count Register
+    ctr: u32,
+    /// Time Base Registers
+    tb: Tbr,
+    /// Machine State Register
+    pub msr: Msr,
+    /// Segment Registers
+    sr: [u32; NUM_SR],
+    /// Machine Status Save/Restore Register 0
     srr0: u32,
+    /// Machine Status Save/Restore Register 1
     srr1: u32,
-    pmc1: u32,
-    mmcr0: u32,
+    /// Decrementor Register
     dec: u32,
+    /// Hardware Implementation-Dependent Register 0
+    hid0: u32,
+    /// Hardware Implementation-Dependent Register 1
+    hid2: Hid2,
+    /// Graphics Quantization Registers
+    gqr: [u32; NUM_GQR],
+    /// L2 Cache Control Register
+    l2cr: u32,
+    /// Monitor Mode Control Register
+    mmcr0: u32,
+    /// Performance Monitor Counter Register 1
+    pmc1: u32,
 }
 
 impl Cpu {
@@ -60,28 +84,28 @@ impl Cpu {
             interconnect: interconnect,
             cia: 0,
             nia: 0,
-            ctr: 0,
-            fpr: [0; NUM_FPR],
             gpr: [0; NUM_GPR],
-            msr: MachineStatus::default(),
-            sr: [0; NUM_SR],
-            cr: ConditionRegister::default(),
+            fpr: [0; NUM_FPR],
+            cr: Cr::default(),
+            fpscr: Fpscr::default(),
+            xer: Xer::default(),
             lr: 0,
-            tb: TimeBaseRegister::default(),
-            hid0: 0,
-            hid2: Hid2::default(),
-            xer: IntegerExceptionRegister::default(),
-            fpscr: FloatingPointScRegister::default(),
-            gqr: [0; NUM_GQR],
-            l2cr: 0,
+            ctr: 0,
+            tb: Tbr::default(),
+            msr: Msr::default(),
+            sr: [0; NUM_SR],
             srr0: 0,
             srr1: 0,
-            pmc1: 0,
-            mmcr0: 0,
             dec: 0,
+            hid0: 0,
+            hid2: Hid2::default(),
+            gqr: [0; NUM_GQR],
+            l2cr: 0,
+            mmcr0: 0,
+            pmc1: 0,
         };
 
-        cpu.exception(Interrupt::SystemReset);
+        cpu.exception(Exception::SystemReset);
         cpu
     }
 
@@ -128,6 +152,7 @@ impl Cpu {
                       8 => self.subfcx(instr),
                      10 => self.addcx(instr),
                      11 => self.mulhwux(instr),
+                     19 => self.mfcr(instr),
                      23 => self.lwzx(instr),
                      24 => self.slwx(instr),
                      26 => self.cntlzwx(instr),
@@ -217,18 +242,18 @@ impl Cpu {
     }
 
     // FixMe: handle exceptions properly
-    pub fn exception(&mut self, interrupt: Interrupt) {
-        println!("{:?} exception {:#010x}", interrupt, self.cia);
+    pub fn exception(&mut self, exception: Exception) {
+        println!("{:?} exception {:#010x}", exception, self.cia);
 
-        match interrupt {
-            Interrupt::SystemReset => {
+        match exception {
+            Exception::SystemReset => {
                 if self.msr.exception_prefix {
-                    self.cia = interrupt as u32 | 0xFFF00000
+                    self.cia = exception as u32 | 0xFFF00000
                 } else {
-                    self.cia = interrupt as u32
+                    self.cia = exception as u32
                 }
             },
-            Interrupt::SystemCall => {
+            Exception::SystemCall => {
                 self.srr0 = self.cia + 4;
                 self.srr1 = self.msr.as_u32() & 0x87C0FFFF;
 
@@ -237,9 +262,9 @@ impl Cpu {
                 self.msr.little_endian = self.msr.exception_little_endian;
 
                 if self.msr.exception_prefix {
-                    self.cia = interrupt as u32 | 0xFFF00000
+                    self.cia = exception as u32 | 0xFFF00000
                 } else {
-                    self.cia = interrupt as u32
+                    self.cia = exception as u32
                 }
 
                 self.nia = self.cia;
@@ -820,6 +845,10 @@ impl Cpu {
         self.gpr[instr.a()] = ea;
     }
 
+    fn mfcr(&mut self, instr: Instruction) {
+        println!("FixMe: mfcr");
+    }
+
     fn mfmsr(&mut self, instr: Instruction) {
         self.gpr[instr.d()] = self.msr.as_u32();
 
@@ -833,8 +862,16 @@ impl Cpu {
             Spr::HID0 => self.gpr[instr.s()] = self.hid0,
             Spr::HID2 => self.gpr[instr.s()] = self.hid2.as_u32(),
             Spr::GQR0 => self.gpr[instr.s()] = self.gqr[0],
+            Spr::GQR1 => self.gpr[instr.s()] = self.gqr[1],
+            Spr::GQR2 => self.gpr[instr.s()] = self.gqr[2],
+            Spr::GQR3 => self.gpr[instr.s()] = self.gqr[3],
+            Spr::GQR4 => self.gpr[instr.s()] = self.gqr[4],
+            Spr::GQR5 => self.gpr[instr.s()] = self.gqr[5],
+            Spr::GQR6 => self.gpr[instr.s()] = self.gqr[6],
+            Spr::GQR7 => self.gpr[instr.s()] = self.gqr[7],
             Spr::L2CR => self.gpr[instr.s()] = self.l2cr,
             Spr::PMC1 => self.gpr[instr.s()] = self.pmc1,
+            Spr::XER  => self.gpr[instr.s()] = self.xer.as_u32(),
             _ => panic!("mfspr not implemented for {:#?}", instr.spr()) // FixMe: properly handle this case
         }
 
@@ -843,9 +880,9 @@ impl Cpu {
 
     fn mftb(&mut self, instr: Instruction) {
         match instr.tbr() {
-            Tbr::TBL => self.gpr[instr.d()] = self.tb.l(),
-            Tbr::TBU => self.gpr[instr.d()] = self.tb.u(),
-            Tbr::UNKNOWN => panic!("mftb unknown tbr {:#?}", instr.tbr()) // FixMe: properly handle this case
+            TBR::TBL => self.gpr[instr.d()] = self.tb.l(),
+            TBR::TBU => self.gpr[instr.d()] = self.tb.u(),
+            TBR::UNKNOWN => panic!("mftb unknown tbr {:#?}", instr.tbr()) // FixMe: properly handle this case
         }
     }
 
@@ -865,7 +902,7 @@ impl Cpu {
 
                 if self.msr.privilege_level { // if user privilege level
                     // FixMe: properly handle this case
-                    self.exception(Interrupt::Program);
+                    self.exception(Exception::Program);
                     panic!("mtspr: user privilege level prevents setting spr {:#?}", spr);
                 }
 
@@ -1011,7 +1048,7 @@ impl Cpu {
 
     #[allow(unused_variables)]
     fn sc(&mut self, instr: Instruction) {
-        self.exception(Interrupt::SystemCall);
+        self.exception(Exception::SystemCall);
     }
 
     fn slwx(&mut self, instr: Instruction) {

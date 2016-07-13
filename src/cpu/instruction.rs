@@ -2,7 +2,7 @@ use std::fmt;
 use num::FromPrimitive;
 
 use super::spr::Spr;
-use super::time_base_register::Tbr;
+use super::tbr::TBR;
 
 pub struct Instruction(pub u32);
 
@@ -129,9 +129,9 @@ impl Instruction {
         Spr::from_u32(n).unwrap_or_else(|| Spr::UNKNOWN)
     }
 
-    pub fn tbr(&self) -> Tbr {
+    pub fn tbr(&self) -> TBR {
         let n = ((self.0 >> 6) & 0x3E0) | ((self.0 >> 16) & 0x1F);
-        Tbr::from_u32(n).unwrap_or_else(|| Tbr::UNKNOWN)
+        TBR::from_u32(n).unwrap_or_else(|| TBR::UNKNOWN)
     }
 }
 

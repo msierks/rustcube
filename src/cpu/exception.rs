@@ -1,7 +1,7 @@
 
 #[derive(Debug)]
 #[allow(dead_code)]
-pub enum Interrupt {
+pub enum Exception {
     SystemReset                  = 0x00100,
     MachineCheck                 = 0x00200,
     DataStorage                  = 0x00300,

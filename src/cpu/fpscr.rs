@@ -1,6 +1,8 @@
 
+// Floating-Point Status and Control Register
+
 #[derive(Default, Debug)]
-pub struct FloatingPointScRegister {
+pub struct Fpscr {
 
     // FX
     fp_exception: bool,
@@ -43,3 +45,5 @@ pub struct FloatingPointScRegister {
     // NI
     // RN
 }
+
+

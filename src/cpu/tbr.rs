@@ -1,11 +1,13 @@
 
+// Time Base Register (TBR)
+
 // DUMB timer
 
 // TODO: put some thought into this
 
 enum_from_primitive! {
     #[derive(Debug)]
-    pub enum Tbr {
+    pub enum TBR {
         TBL = 268,
         TBU = 269,
         UNKNOWN = -1
@@ -13,11 +15,11 @@ enum_from_primitive! {
 }
 
 #[derive(Default, Debug)]
-pub struct TimeBaseRegister {
+pub struct Tbr {
     tbr: u64
 }
 
-impl TimeBaseRegister {
+impl Tbr {
 
     // advance that time
     pub fn advance(&mut self) {
