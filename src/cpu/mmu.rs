@@ -1,5 +1,5 @@
 
-use super::machine_status::MachineStatus;
+use super::msr::Msr;
 
 #[derive(Default, Clone, Copy, Debug)]
 struct Bat {
@@ -73,15 +73,15 @@ impl Mmu {
       bat.pp   = (value & 3) as u8;
    }
 
-   pub fn translate_instr_address(&self, msr: &MachineStatus, ea: u32) -> u32 {
+   pub fn translate_instr_address(&self, msr: &Msr, ea: u32) -> u32 {
       self.translate(&self.ibat, msr, ea)
    }
 
-   pub fn translate_data_address(&self, msr: &MachineStatus, ea: u32) -> u32 {
+   pub fn translate_data_address(&self, msr: &Msr, ea: u32) -> u32 {
       self.translate(&self.dbat, msr, ea)
    }
 
-   fn translate(&self, bats: &[Bat; 4], msr: &MachineStatus, ea: u32) -> u32 {
+   fn translate(&self, bats: &[Bat; 4], msr: &Msr, ea: u32) -> u32 {
       if msr.data_address_translation { // block address translation mode (BAT)
 
          for x in 0..bats.len() {

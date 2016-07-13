@@ -2,7 +2,7 @@
 // Machine Status Register (MSR)
 
 #[derive(Debug)]
-pub struct MachineStatus {
+pub struct Msr {
     // POW
     pub power_management: bool,
 
@@ -52,9 +52,9 @@ pub struct MachineStatus {
     pub little_endian: bool
 }
 
-impl Default for MachineStatus {
-    fn default() -> MachineStatus {
-        MachineStatus {
+impl Default for Msr {
+    fn default() -> Msr {
+        Msr {
             power_management:           false,
             exception_little_endian:    false,
             external_interrupt:         false,
@@ -75,7 +75,7 @@ impl Default for MachineStatus {
     }
 }
 
-impl MachineStatus {
+impl Msr {
     pub fn as_u32(&self) -> u32 {
         let mut value = 0;
 
@@ -100,9 +100,9 @@ impl MachineStatus {
     }
 }
 
-impl From<u32> for MachineStatus {
+impl From<u32> for Msr {
     fn from(value: u32) -> Self {
-        MachineStatus {
+        Msr {
             power_management:           (value & (1 << 18)) != 0,
             exception_little_endian:    (value & (1 << 16)) != 0,
             external_interrupt:         (value & (1 << 15)) != 0,
@@ -125,18 +125,18 @@ impl From<u32> for MachineStatus {
 
 #[cfg(test)]
 mod test {
-    use super::MachineStatus;
+    use super::Msr;
 
     #[test]
     fn default() {
-        let msr = MachineStatus::default();
+        let msr = Msr::default();
 
         assert!(msr.exception_prefix); // exception prefix enabled by default
     }
 
     #[test]
     fn u32_conversion() {
-        let msr: MachineStatus = 0x55555.into();
+        let msr: Msr = 0x55555.into();
 
         assert!(msr.power_management);
         assert!(msr.exception_little_endian);
@@ -157,7 +157,7 @@ mod test {
 
         assert_eq!(0x55555, msr.as_u32());
 
-        let msr: MachineStatus = 0xAA22.into();
+        let msr: Msr = 0xAA22.into();
 
         assert!(!msr.power_management);
         assert!(!msr.exception_little_endian);

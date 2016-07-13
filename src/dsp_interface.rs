@@ -76,14 +76,6 @@ impl DspInterface {
             _ => panic!("unrecognized dsp register {:#x}", register)
         }
     }
-
-    pub fn write_u32(&mut self, register: u32, val: u32) {
-        let high = ((val >> 16) & 0xFFFF) as u16;
-        let low  = (val & 0xFFFF) as u16;
-
-        self.write_u16(register, high);
-        self.write_u16(register + 2, low);
-    }
 }
 
 #[derive(Debug, Default)]

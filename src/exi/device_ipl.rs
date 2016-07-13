@@ -130,8 +130,6 @@ impl Device for DeviceIpl {
     }
 
     fn read_dma(&self, memory: &mut Ram, address: u32, length: u32) {
-        println!("ExiDeviceIpl: read_dma address {} {:#x} {:#x}", length, address, self.offset);
-
         match self.command {
             0x200001 => {
                 memory.write_dma(address, &self.sram[0 .. length as usize]);

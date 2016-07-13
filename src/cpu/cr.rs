@@ -1,15 +1,17 @@
 
-use super::floating_point_sc_register::FloatingPointScRegister;
-use super::integer_exception_register::IntegerExceptionRegister;
+// Condition Register (CR)
+
+use super::fpscr::Fpscr;
+use super::xer::Xer;
 
 const NUM_CR : usize = 8;
 
 #[derive(Default, Debug)]
-pub struct ConditionRegister {
+pub struct Cr {
     value: [u8; NUM_CR]
 }
 
-impl ConditionRegister {
+impl Cr {
 
     pub fn set_field(&mut self, index: usize, value: u8) {
         self.value[index] = value;
@@ -27,7 +29,7 @@ impl ConditionRegister {
         self.value[n] &= value;
     }
 
-    pub fn update_cr0(&mut self, r: u32, xer: &IntegerExceptionRegister) {
+    pub fn update_cr0(&mut self, r: u32, xer: &Xer) {
         if r == 0 {
             self.value[0] = 2; // EQ
         } else if (r & 0x80000000) != 0 {
@@ -39,7 +41,7 @@ impl ConditionRegister {
         self.value[0] |= xer.summary_overflow as u8;
     }
 
-    pub fn update_cr1(&mut self, r: u64, xer: &FloatingPointScRegister) {
+    pub fn update_cr1(&mut self, r: u64, fpscr: &Fpscr) {
         println!("FixMe: update_cr1");
     }
 
