@@ -6,7 +6,7 @@ rust:
 notifications:
   email:
   - msierks117@gmail.com
-sudo: false
+sudo: required
 cache: cargo
 before_script:
 - rustc --version
