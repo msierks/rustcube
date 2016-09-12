@@ -1,31 +1,12 @@
-extern crate byteorder;
+
 extern crate getopts;
-extern crate memmap;
-extern crate num;
-extern crate rustyline;
+extern crate rustcube;
 
-#[macro_use]
-extern crate enum_primitive;
+use rustcube::gamecube::Gamecube;
+use rustcube::debugger::Debugger;
 
-mod audio_interface;
-mod command_processor;
-mod cpu;
-mod debugger;
-mod dsp_interface;
-mod dvd_interface;
-mod exi;
-mod gamecube;
-mod memory;
-mod memory_interface;
-mod pixel_engine;
-mod processor_interface;
-mod serial_interface;
-mod video_interface;
-
-use debugger::Debugger;
-use gamecube::Gamecube;
-use getopts::Options;
 use std::env;
+use getopts::Options;
 
 fn print_usage(program: &str, opts: Options) {
     let brief = format!("Usage: {} [options] IPL_FILE", program);

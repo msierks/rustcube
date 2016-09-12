@@ -4,6 +4,10 @@ version = "0.1.0"
 authors = ["Michael Sierks <msierks@117@gmail.com>"]
 license = "MIT/Apache-2.0"
 
+[[bin]]
+name = "rustcube"
+doc = false
+
 [dependencies]
 byteorder = "0.4"
 enum_primitive = "0.1.0"
