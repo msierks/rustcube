@@ -1,18 +1,30 @@
 language: rust
 rust:
-  - stable
-  - beta
-  - nightly
+- stable
+- beta
+- nightly
 notifications:
   email:
-    - msierks117@gmail.com
-sudo: false
+  - msierks117@gmail.com
+sudo: required
 cache: cargo
 before_script:
-  - rustc --version
-  - cargo --version
+- rustc --version
+- cargo --version
 script:
-  - cargo test
+- cargo test
 branches:
   only:
-    - master
+  - master
+after_success: |
+  [ $TRAVIS_RUST_VERSION = stable ] &&
+  [ $TRAVIS_BRANCH = master ] &&
+  [ $TRAVIS_PULL_REQUEST = false ] &&
+  cargo doc &&
+  echo "<meta http-equiv=refresh content=0;url=`echo $TRAVIS_REPO_SLUG | cut -d '/' -f 2`/index.html>" > target/doc/index.html &&
+  sudo pip install ghp-import &&
+  ghp-import -n target/doc &&
+  git push -fq https://${GH_TOKEN}@github.com/${TRAVIS_REPO_SLUG}.git gh-pages
+env:
+  global:
+    secure: BFBib72mD8almy94TwaCbjAubvgF0ic6U2PE8bw1KBek5+t8tiNNuPbCRT4iRm1m3zgznDcnaOsjz2OuhUwNIMq2e7ZWu0dw5cLyN3MVpmADSgbh5d3Sp2okuyWqpvzXRtHzYPUkPMnb0qSHI3Pne2cMkNoIVslTjndOrt8hoFxDrF0J8EbK8XM+MGmK0XLiEbbhiLfgUvR0abN7dpBxyJ6rl9B8kSyEHoln89Ot8lANL2P9JK2kZEwNjUZL/ZcNmR9sr/TrVsH7CE0foKY80LWbyBvxnhqpjmV2S+zr+gxmDWTn/HQxQyFu9QL/Hn/YMCpCwIskmYc7acG/Z/PEv4vNEPvQAKeZ8pfTDY1IbjSh3vSA8R3m8oi8ALMs2M3atlcrnaFquk4v0SGWAcr58PHOf6ebJDZ8k+F/uIfMRGUIQPmpT+s+S3TLTPc+kvmERLCbs96BfGx2Kam63rQg8tpj29tdUKsYMD3J1KuOxaFIVOS+TzWEPHSbRGCiJGuOMv18KtYzSvRSXSs1CfPue0PGDHjKqT9qf2iQflKLaEUs0drNWHaNjyliXPVPEPCj88Q8TfjcMzQwclpgGIswWJYftoSzgkars4BtXk95mpJf6DaWu9/IopleOCGjG7q2dqm4I4MO/FtspxduzWIPIbwE9is46N/7baztVAJdb+8=
