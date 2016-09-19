@@ -14,6 +14,8 @@ use super::super::exi::Exi;
 use super::super::cpu::instruction::Instruction;
 use super::super::cpu::mmu::Mmu;
 use super::super::cpu::msr::Msr;
+
+use super::super::gp_fifo::GPFifo;
 use super::super::memory_interface::MemoryInterface;
 use super::super::pixel_engine::PixelEngine;
 use super::super::processor_interface::ProcessorInterface;
@@ -36,7 +38,7 @@ pub enum Address {
     SerialInterface,
     ExpansionInterface(u32, u32),
     AudioInterface(u32),
-    PiFifo,
+    GPFifo,
     Bootrom(u32)
 }
 
@@ -58,7 +60,7 @@ fn map(address: u32) -> Address {
             Address::ExpansionInterface(channel, register)
         },
         0x0C006C00 ... 0x0C006C20 => Address::AudioInterface(address - 0x0C006C00),
-        0x0C008000 ... 0x0C008FFF => Address::PiFifo,
+        0x0C008000 => Address::GPFifo,
         0xFFF00000 ... 0xFFFFFFFF => Address::Bootrom(address - 0xFFF00000),
         _ => panic!("Unrecognized physical address: {:#x}", address)
     }
@@ -71,6 +73,7 @@ pub struct Interconnect {
     dsp: DspInterface,
     dvd: DvdInterface,
     exi: Exi,
+    gp: GPFifo,
     pub mmu: Mmu,
     mi: MemoryInterface,
     pe: PixelEngine,
@@ -92,6 +95,7 @@ impl Interconnect {
             dvd: DvdInterface::default(),
             exi: Exi::new(bootrom.clone()),
             bootrom: bootrom,
+            gp: GPFifo::new(),
             mmu: Mmu::new(),
             mi: MemoryInterface::new(),
             pe: PixelEngine::new(),
@@ -166,7 +170,7 @@ impl Interconnect {
 
         match map(addr) {
             Address::Ram => self.ram.write_u8(addr, val),
-            Address::PiFifo => println!("STUB: write PiFifo {:#x} {:#x}", addr, val),
+            Address::GPFifo => self.gp.write_u8(val),
             _ => panic!("write_u8 not implemented for {:#?} address {:#x}", map(addr), addr)
         }
     }
@@ -199,7 +203,7 @@ impl Interconnect {
             Address::SerialInterface => self.si.write_u32(addr, val),
             Address::ExpansionInterface(channel, register) => self.exi.write(channel, register, val, &mut self.ram),
             Address::AudioInterface(offset) => self.ai.write_u32(offset, val),
-            Address::PiFifo => println!("STUB: write PiFifo {:#x} {:#x}", addr, val),
+            Address::GPFifo => self.gp.write_u32(val),
             _ => panic!("write_u32 not implemented for {:#?} address {:#x}", map(addr), addr)
         }
     }

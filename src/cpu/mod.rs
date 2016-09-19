@@ -872,6 +872,7 @@ impl Cpu {
             Spr::L2CR => self.gpr[instr.s()] = self.l2cr,
             Spr::PMC1 => self.gpr[instr.s()] = self.pmc1,
             Spr::XER  => self.gpr[instr.s()] = self.xer.as_u32(),
+            Spr::DEC  => self.gpr[instr.s()] = self.dec, // FixMe: if bit 0 changes from 0 to 1, then signal DEC exception
             _ => panic!("mfspr not implemented for {:#?}", instr.spr()) // FixMe: properly handle this case
         }
 
@@ -930,7 +931,10 @@ impl Cpu {
                     Spr::PMC1   => self.pmc1 = self.gpr[instr.s()],
                     Spr::MMCR0  => self.mmcr0 = self.gpr[instr.s()],
                     Spr::DEC    => self.dec = self.gpr[instr.s()],
-                    Spr::WPAR   => println!("Write Gather Pipe: {:#x}", self.gpr[instr.s()]),
+                    Spr::WPAR   => {
+                        assert!(self.gpr[instr.s()] == 0x0C008000, "write gather pipe address {:#010x}", self.gpr[instr.s()]);
+                        println!("FixMe: reset gather pipe...");
+                    },
                     _ => panic!("mtspr not implemented for {:#?} {:#x}", spr, self.gpr[instr.s()])
                 }
             }
