@@ -15,6 +15,7 @@ mod dsp_interface;
 mod dvd_interface;
 mod exi;
 pub mod gamecube;
+mod gp_fifo;
 mod memory;
 mod memory_interface;
 mod pixel_engine;
