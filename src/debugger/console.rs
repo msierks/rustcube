@@ -6,7 +6,7 @@ use std::num::ParseIntError;
 use debugger::Debugger;
 
 pub struct Console {
-    rl: Editor<'static>
+    rl: Editor<()>
 }
 
 impl Console {
