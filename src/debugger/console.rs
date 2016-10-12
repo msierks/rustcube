@@ -10,8 +10,6 @@ pub struct Console {
 }
 
 impl Console {
-    // FixMe: handle arrow key control chars, command history, etc
-
     pub fn new() -> Console {
         Console {
             rl: Editor::new()
