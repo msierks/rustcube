@@ -1,9 +1,11 @@
+
 use std::process;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
 use std::num::ParseIntError;
 
-use debugger::Debugger;
+use debugger::ConsoleDebugger;
+use super::super::cpu::Cpu;
 
 pub struct Console {
     rl: Editor<()>
@@ -57,7 +59,7 @@ impl Command {
         }
     }
 
-    pub fn execute(&self, debugger: &mut Debugger) {
+    pub fn execute(&self, debugger: &mut ConsoleDebugger, cpu: &mut Cpu) {
         let args = self.data.trim().split(" ").collect::<Vec<&str>>();
 
         if args.len() == 0 {
@@ -68,9 +70,10 @@ impl Command {
                 "advance" => self.advance(&args, debugger),
                 "break" | "b" => self.break_(&args, debugger),
                 "clear" => self.clear(&args, debugger),
-                "continue" | "c" => self.continue_(debugger),
+                "continue" | "c" => debugger.continue_(),
+                "examine" | "x" => println!("FixMe: implement examine memory functionality"),
                 "help" => self.help(&args),
-                "show" => self.show(&args, debugger),
+                "show" => self.show(&args, debugger, cpu),
                 "step" | "" => self.step(&args, debugger),
                 "watch" | "w" => self.watch_(&args, debugger),
                 _ => self.help(&args)
@@ -79,7 +82,7 @@ impl Command {
         }
     }
 
-    fn advance(&self, args: &Vec<&str>, debugger: &mut Debugger) {
+    fn advance(&self, args: &Vec<&str>, debugger: &mut ConsoleDebugger) {
         if args.len() > 1 {
             match parse_hex_str(&args[1]) {
                 Ok(v) => debugger.set_advance(v),
@@ -91,7 +94,7 @@ impl Command {
         println!("FixMe: continue running till given location.");
     }
 
-    fn break_(&self, args: &Vec<&str>, debugger: &mut Debugger) {
+    fn break_(&self, args: &Vec<&str>, debugger: &mut ConsoleDebugger) {
         if args.len() > 1 {
             match parse_hex_str(&args[1]) {
                 Ok(v) => debugger.add_breakpoint(v),
@@ -102,7 +105,7 @@ impl Command {
         }
     }
 
-    fn watch_(&self, args: &Vec<&str>, debugger: &mut Debugger) {
+    fn watch_(&self, args: &Vec<&str>, debugger: &mut ConsoleDebugger) {
         if args.len() > 1 {
             match parse_hex_str(&args[1]) {
                 Ok(v) => debugger.add_watchpoint(v),
@@ -113,7 +116,7 @@ impl Command {
         }
     }
 
-    fn clear(&self, args: &Vec<&str>, debugger: &mut Debugger) {
+    fn clear(&self, args: &Vec<&str>, debugger: &mut ConsoleDebugger) {
         if args.len() > 1 {
             match parse_hex_str(&args[1]) {
                 Ok(v) => {
@@ -127,10 +130,6 @@ impl Command {
         }
     }
 
-    fn continue_(&self, debugger: &mut Debugger) {
-        debugger.continue_();
-    }
-
     fn help(&self, args: &Vec<&str>) {
         if args.len() < 2 {
             println!("List of available commands:\n");
@@ -138,6 +137,7 @@ impl Command {
             println!("break    - set a breakpoint");
             println!("clear    - delete a breakpoint");
             println!("continue - continue running program");
+            println!("examine  - show memory value");
             println!("show     - show things about program");
             println!("step     - step a single instruction");
             println!("watch    - set a watchpoint for written value\n");
@@ -147,7 +147,7 @@ impl Command {
         }
     }
 
-    fn show(&self, args: &Vec<&str>, debugger: &mut Debugger) {
+    fn show(&self, args: &Vec<&str>, debugger: &mut ConsoleDebugger, cpu: &mut Cpu) {
         if args.len() > 1 {
 
             match args[1] {
@@ -156,16 +156,16 @@ impl Command {
                         println!("break: {:#010x}", breakpoint);
                     }
                 },
-                "ci" => debugger.print_instruction(),
-                "cia" => println!("cia: {:#010x}", debugger.gamecube.cpu.cia),
+                "ci" => debugger.print_instruction(cpu),
+                "cia" => println!("cia: {:#010x}", cpu.cia),
                 "gpr" => {
-                    for i in 0..debugger.gamecube.cpu.gpr.len() {
-                        if debugger.gamecube.cpu.gpr[i] != 0 {
-                            println!("r{:<10} {:#010x}    {}", i, debugger.gamecube.cpu.gpr[i], debugger.gamecube.cpu.gpr[i]);
+                    for i in 0..cpu.gpr.len() {
+                        if cpu.gpr[i] != 0 {
+                            println!("r{:<10} {:#010x}    {}", i, cpu.gpr[i], cpu.gpr[i]);
                         }
                     }
                 },
-                "lr" => println!("lr: {:#010x}", debugger.gamecube.cpu.lr),
+                "lr" => println!("lr: {:#010x}", cpu.lr),
                 "watchpoints" | "w" => {
                     for watchpoint in &debugger.watchpoints {
                         println!("watch: {:#010x}", watchpoint);
@@ -179,7 +179,7 @@ impl Command {
         }
     }
 
-    fn step(&self, args: &Vec<&str>, debugger: &mut Debugger) {
+    fn step(&self, args: &Vec<&str>, debugger: &mut ConsoleDebugger) {
         if args.len() > 1 {
             match u32::from_str_radix(&args[1], 10) {
                 Ok(v) => debugger.set_step(v),

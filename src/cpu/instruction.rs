@@ -69,8 +69,21 @@ impl Instruction {
     }
 
     #[inline(always)]
+    pub fn uimm_1(&self) -> u16 {
+        (self.0 & 0xFFF) as u16
+    }
+
+    pub fn i(&self) -> usize {
+        ((self.0 >> 12) & 0x7) as usize
+    }
+
+    pub fn w(&self) -> bool {
+        ((self.0 >> 15) & 1) == 1
+    }
+
+    #[inline(always)]
     pub fn li(&self) -> u32 {
-        ((self.0 >> 2) & 0xFFFFFF)
+        (self.0 >> 2) & 0xFFFFFF
     }
 
     #[inline(always)]

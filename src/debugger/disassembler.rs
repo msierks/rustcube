@@ -1,7 +1,7 @@
+
 use super::super::cpu::instruction::Instruction;
 use super::super::cpu::Cpu;
 use super::super::cpu::util::*;
-use debugger::Debugger;
 
 #[derive(Default)]
 pub struct Disassembler {
@@ -11,7 +11,7 @@ pub struct Disassembler {
 
 impl Disassembler {
 
-    pub fn disassemble(&mut self, debugger: &mut Debugger, instr:  Instruction) {
+    pub fn disassemble(&mut self, cpu: &mut Cpu, instr:  Instruction) {
         match instr.opcode() {
              7 => self.mulli(instr),
              8 => self.subfic(instr),
@@ -20,9 +20,9 @@ impl Disassembler {
             13 => self.addi(instr, "c."),
             14 => self.addi(instr, ""),
             15 => self.addi(instr, "s"),
-            16 => self.bcx(&debugger.gamecube.cpu, instr),
+            16 => self.bcx(cpu, instr),
             17 => self.sc(),
-            18 => self.bx(&debugger.gamecube.cpu, instr),
+            18 => self.bx(cpu, instr),
             19 => {
                 match instr.ext_opcode_x() {
                     16 => self.bclrx(instr),

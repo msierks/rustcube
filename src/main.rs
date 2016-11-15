@@ -3,7 +3,7 @@ extern crate getopts;
 extern crate rustcube;
 
 use rustcube::gamecube::Gamecube;
-use rustcube::debugger::Debugger;
+use rustcube::debugger::{ConsoleDebugger,DummyDebugger};
 
 use std::env;
 use getopts::Options;
@@ -43,10 +43,8 @@ fn main() {
     gamecube.load_ipl(ipl_file_name);
 
     if matches.opt_present("d") {
-        let mut debugger = Debugger::new(gamecube);
-
-        debugger.run();
+        gamecube.run(&mut ConsoleDebugger::new());
     } else {
-        gamecube.run();
+        gamecube.run(&mut DummyDebugger::new());
     }
 }
