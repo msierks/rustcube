@@ -2,6 +2,7 @@
 mod cr;
 mod exception;
 mod fpscr;
+mod gqr;
 mod hid;
 mod spr;
 mod tbr;
@@ -17,6 +18,7 @@ use std::fmt;
 use self::cr::Cr;
 use self::exception::Exception;
 use self::fpscr::Fpscr;
+use self::gqr::Gqr;
 use self::hid::Hid2;
 use self::xer::Xer;
 use self::instruction::Instruction;
@@ -24,6 +26,7 @@ use self::msr::Msr;
 use self::tbr::{Tbr, TBR};
 use self::spr::Spr;
 use self::util::*;
+use super::debugger::Debugger;
 use super::memory::Interconnect;
 
 const NUM_FPR: usize = 32;
@@ -113,10 +116,12 @@ impl Cpu {
         self.interconnect.read_instruction(&self.msr, self.cia)
     }
 
-    pub fn run_instruction(&mut self) {
+    pub fn run_instruction(&mut self, debugger: &mut Debugger) {
         let instr = self.read_instruction();
 
         self.nia = self.cia + 4;
+
+        debugger.nia_change(self);
 
         match instr.opcode() {
              7 => self.mulli(instr),
@@ -168,7 +173,7 @@ impl Cpu {
                     136 => self.subfex(instr),
                     138 => self.addex(instr),
                     146 => self.mtmsr(instr),
-                    151 => self.stwx(instr),
+                    151 => self.stwx(instr, debugger),
                     202 => self.addzex(instr),
                     210 => self.mtsr(instr),
                     235 => self.mullwx(instr),
@@ -195,22 +200,22 @@ impl Cpu {
             33 => self.lwzu(instr),
             34 => self.lbz(instr),
             35 => self.lbzu(instr),
-            36 => self.stw(instr),
-            37 => self.stwu(instr),
-            38 => self.stb(instr),
-            39 => self.stbu(instr),
+            36 => self.stw(instr, debugger),
+            37 => self.stwu(instr, debugger),
+            38 => self.stb(instr, debugger),
+            39 => self.stbu(instr, debugger),
             40 => self.lhz(instr),
             41 => self.lhzu(instr),
             42 => self.lha(instr),
-            44 => self.sth(instr),
-            45 => self.sthu(instr),
+            44 => self.sth(instr, debugger),
+            45 => self.sthu(instr, debugger),
             46 => self.lmw(instr),
-            47 => self.stmw(instr),
+            47 => self.stmw(instr, debugger),
             48 => self.lfs(instr),
             50 => self.lfd(instr),
-            52 => self.stfs(instr),
-            53 => self.stfsu(instr),
-            54 => self.stfd(instr),
+            52 => self.stfs(instr, debugger),
+            53 => self.stfsu(instr, debugger),
+            54 => self.stfd(instr, debugger),
             56 => self.psq_l(instr),
             59 => {
                 match instr.ext_opcode_a() {
@@ -675,7 +680,7 @@ impl Cpu {
         println!("FixMe: fcmpu");
     }
 
-    fn fdivsx(&mut self, instr: Instruction) {
+    fn fdivsx(&mut self, _: Instruction) {
         println!("FixMe: fdivsx");
     }
 
@@ -687,7 +692,7 @@ impl Cpu {
         }
     }
 
-    fn fmulsx(&mut self, instr: Instruction) {
+    fn fmulsx(&mut self, _: Instruction) {
         println!("FixMe: fmulsx");
     }
 
@@ -699,11 +704,11 @@ impl Cpu {
         }
     }
 
-    fn fnegx(&mut self, instr: Instruction) {
+    fn fnegx(&mut self, _: Instruction) {
         println!("FixMe: fnegx");
     }
 
-    fn fsubsx(&mut self, instr: Instruction) {
+    fn fsubsx(&mut self, _: Instruction) {
         println!("FixMe: fsubsx");
     }
 
@@ -845,7 +850,7 @@ impl Cpu {
         self.gpr[instr.a()] = ea;
     }
 
-    fn mfcr(&mut self, instr: Instruction) {
+    fn mfcr(&mut self, _: Instruction) {
         println!("FixMe: mfcr");
     }
 
@@ -1012,11 +1017,73 @@ impl Cpu {
     }
 
     fn psq_l(&mut self, instr: Instruction) {
-        println!("FixMe: psq_l");
+        if !self.hid2.paired_single || !self.hid2.load_stored_quantized {
+            panic!("FixMe: GoTo illegal instruction handler");
+        }
+
+        let ea = if instr.a() == 0 {
+            sign_ext_12(instr.uimm_1()) as u32
+        } else {
+            self.gpr[instr.a()].wrapping_add(sign_ext_12(instr.uimm_1()) as u32)
+        };
+
+        let gqr = Gqr(self.gqr[instr.i()]);
+
+        match gqr.ld_type() {
+            0 => {
+                if instr.w() {
+                    let value = self.interconnect.read_u32(&self.msr, ea);
+
+                    let ps0 = value;
+                    let ps1 = 1.0;
+
+                    self.fpr[instr.d()] = ((ps0 as u64) << 32) | (ps1 as u64);
+                } else {
+                    let value = (
+                        self.interconnect.read_u32(&self.msr, ea),
+                        self.interconnect.read_u32(&self.msr, ea + 4)
+                    );
+
+                    self.fpr[instr.d()] = ((value.0 as u64) << 32) | (value.1 as u64);
+                }
+            },
+            4 | 6 =>  panic!("FixMe:..."),
+            5 | 7 =>  panic!("FixMe:..."),
+            _ => panic!("unrecognized ld_type")
+        }
+
+        println!("FixMe: psq_l {:#x} {:#x}", ea, self.interconnect.mmu.translate_data_address(&self.msr, ea));
     }
 
     fn psq_st(&mut self, instr: Instruction) {
-        println!("FixMe: psq_st");
+        if !self.hid2.paired_single || !self.hid2.load_stored_quantized {
+            panic!("FixMe: GoTo illegal instruction handler");
+        }
+
+        let ea = if instr.a() == 0 {
+            sign_ext_12(instr.uimm_1()) as u32
+        } else {
+            self.gpr[instr.a()].wrapping_add(sign_ext_12(instr.uimm_1()) as u32)
+        };
+
+        let gqr = Gqr(self.gqr[instr.i()]);
+
+        match gqr.st_type() {
+            0 => { // single-precision floating-point (no-conversion)
+                if instr.w() {
+                    println!("FixMe: write single fp number");
+                    //MEM(EA,c) ← quantized(frS(ps0),stt,sts)
+                } else {
+                    println!("{:#b}", instr.0);
+                    println!("FixMe: write pair fp number");
+                    //MEM(EA,c) ← quantized(frS(ps0),stt,sts)
+                    //MEM(EA+c,c) ← quantized(frS(ps1),stt,sts)
+                }
+            },
+            4 | 6 => panic!("FixMe:..."), // unsigned 8 bit integer | signed 8 bit integer
+            5 | 7 => panic!("FixMe:..."), // unsigned 16 bit integer | signed 16 bit integer
+            _ => panic!("unrecognized st_type")
+        }
     }
 
     fn rfi(&mut self) {
@@ -1137,7 +1204,7 @@ impl Cpu {
         }
     }
 
-    fn stb(&mut self, instr: Instruction) {
+    fn stb(&mut self, instr: Instruction, debugger: &mut Debugger) {
         let ea = if instr.a() == 0 {
             instr.simm() as u32
         } else {
@@ -1145,17 +1212,21 @@ impl Cpu {
         };
 
         self.interconnect.write_u8(&self.msr, ea, self.gpr[instr.d()] as u8);
+
+        debugger.memory_write(self, ea);
     }
 
-    fn stbu(&mut self, instr: Instruction) {
+    fn stbu(&mut self, instr: Instruction, debugger: &mut Debugger) {
         let ea = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
 
         self.interconnect.write_u8(&self.msr, ea, self.gpr[instr.d()] as u8);
 
+        debugger.memory_write(self, ea);
+
         self.gpr[instr.a()] = ea;
     }
 
-    fn stfd(&mut self, instr: Instruction) {
+    fn stfd(&mut self, instr: Instruction, debugger: &mut Debugger) {
         let ea = if instr.a() == 0 {
             instr.simm() as u32
         } else {
@@ -1163,9 +1234,11 @@ impl Cpu {
         };
 
         self.interconnect.write_u64(&self.msr, ea, self.fpr[instr.s()]);
+
+        debugger.memory_write(self, ea);
     }
 
-    fn stfs(&mut self, instr: Instruction) {
+    fn stfs(&mut self, instr: Instruction, debugger: &mut Debugger) {
         let ea = if instr.a() == 0 {
             instr.simm() as u32
         } else {
@@ -1175,9 +1248,11 @@ impl Cpu {
         let val = convert_to_single(self.fpr[instr.s()]);
 
         self.interconnect.write_u32(&self.msr, ea, val);
+
+        debugger.memory_write(self, ea);
     }
 
-    fn stfsu(&mut self, instr: Instruction) {
+    fn stfsu(&mut self, instr: Instruction, debugger: &mut Debugger) {
         if instr.a() == 0 {
             panic!("stfsu: invalid instruction");
         }
@@ -1186,9 +1261,11 @@ impl Cpu {
         let val = convert_to_single(self.fpr[instr.s()]);
 
         self.interconnect.write_u32(&self.msr, ea, val);
+
+        debugger.memory_write(self, ea);
     }
 
-    fn sth(&mut self, instr: Instruction) {
+    fn sth(&mut self, instr: Instruction, debugger: &mut Debugger) {
         let ea = if instr.a() == 0 {
             instr.simm() as u32
         } else {
@@ -1196,9 +1273,11 @@ impl Cpu {
         };
 
         self.interconnect.write_u16(&self.msr, ea, self.gpr[instr.s()] as u16);
+
+        debugger.memory_write(self, ea);
     }
 
-    fn sthu(&mut self, instr: Instruction) {
+    fn sthu(&mut self, instr: Instruction, debugger: &mut Debugger) {
         let ea = if instr.a() == 0 {
             instr.simm() as u32
         } else {
@@ -1206,11 +1285,13 @@ impl Cpu {
         };
 
         self.interconnect.write_u16(&self.msr, ea, self.gpr[instr.s()] as u16);
+
+        debugger.memory_write(self, ea);
 
         self.gpr[instr.a()] = ea;
     }
 
-    fn stmw(&mut self, instr: Instruction) {
+    fn stmw(&mut self, instr: Instruction, debugger: &mut Debugger) {
         let mut ea = if instr.a() == 0 {
             instr.simm() as u32
         } else {
@@ -1222,12 +1303,14 @@ impl Cpu {
         while r <= 31 {
             self.interconnect.write_u32(&self.msr, ea, self.gpr[r]);
 
+            debugger.memory_write(self, ea);
+
             r  += 1;
             ea += 4;
         }
     }
 
-    fn stw(&mut self, instr: Instruction) {
+    fn stw(&mut self, instr: Instruction, debugger: &mut Debugger) {
         let ea = if instr.a() == 0 {
             instr.simm() as u32
         } else {
@@ -1235,9 +1318,11 @@ impl Cpu {
         };
 
         self.interconnect.write_u32(&self.msr, ea, self.gpr[instr.s()]);
+
+        debugger.memory_write(self, ea);
     }
 
-    fn stwx(&mut self, instr: Instruction) {
+    fn stwx(&mut self, instr: Instruction, debugger: &mut Debugger) {
         let ea = if instr.a() == 0 {
             self.gpr[instr.b()]
         } else {
@@ -1245,9 +1330,11 @@ impl Cpu {
         };
 
         self.interconnect.write_u32(&self.msr, ea, self.gpr[instr.s()]);
+
+        debugger.memory_write(self, ea);
     }
 
-    fn stwu(&mut self, instr: Instruction) {
+    fn stwu(&mut self, instr: Instruction, debugger: &mut Debugger) {
         if instr.a() == 0 {
             panic!("stwu: invalid instruction");
         }
@@ -1255,6 +1342,8 @@ impl Cpu {
         let ea = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
 
         self.interconnect.write_u32(&self.msr, ea, self.gpr[instr.s()]);
+
+        debugger.memory_write(self, ea);
 
         self.gpr[instr.a()] = ea; // is this conditional ???
     }

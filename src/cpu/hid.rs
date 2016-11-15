@@ -3,7 +3,7 @@
 pub struct Hid2 {
 
     // LSQE
-    load_stored_quantized: bool,
+    pub load_stored_quantized: bool,
 
     // WPE
     write_pipe: bool,

@@ -3,47 +3,67 @@ mod disassembler;
 
 use self::console::Console;
 use self::disassembler::Disassembler;
-use super::gamecube::Gamecube;
+use super::cpu::Cpu;
 
-pub struct Debugger {
+pub trait Debugger {
+    fn nia_change(&mut self, cpu: &mut Cpu);
+    fn memory_write(&mut self, cpu: &mut Cpu, addr: u32);
+}
+
+pub struct DummyDebugger;
+
+impl DummyDebugger {
+    pub fn new() -> DummyDebugger {
+        DummyDebugger
+    }
+}
+
+impl Debugger for DummyDebugger {
+    fn nia_change(&mut self, _: &mut Cpu) {}
+    fn memory_write(&mut self, _: &mut Cpu, _: u32) {}
+}
+
+pub struct ConsoleDebugger {
     console: Console,
-    pub gamecube: Gamecube,
     resume: bool,
     step: bool,
     step_count: u32,
     advance: u32,
     pub breakpoints: Vec<u32>,
-    pub watchpoints: Vec<u32>
+    pub watchpoints: Vec<u32>,
 }
 
-impl Debugger {
-    pub fn new(gamecube: Gamecube) -> Debugger {
-        Debugger {
-            console: Console::new(),
-            gamecube: gamecube,
+impl ConsoleDebugger {
+    pub fn new() -> ConsoleDebugger {
+        let mut console = Console::new();
+
+        console.intro();
+
+        ConsoleDebugger {
+            console: console,
             resume: false,
             step: false,
             step_count: 0,
             advance: 0,
             breakpoints: Vec::new(),
-            watchpoints: Vec::new()
+            watchpoints: Vec::new(),
         }
     }
 
-    // loop over cia and get next instruction
-    pub fn run(&mut self) {
-        self.console.intro();
-
-        loop {
-            while !self.resume {
-                let command = self.console.read();
-
-                command.execute(self);
+    pub fn debug(&mut self, cpu: &mut Cpu) {
+        if self.step {
+            if self.step_count > 0 {
+                self.step_count -= 1;
+                self.print_instruction(cpu);
+            } else {
+                self.step_count = 0;
+                self.step = false;
+                self.resume = false;
             }
+        }
 
-            self.set_cia();
-
-            self.gamecube.cpu.run_instruction();
+        while !self.resume {
+            self.console.read().execute(self, cpu);
         }
     }
 
@@ -68,7 +88,6 @@ impl Debugger {
     }
 
     pub fn continue_(&mut self) {
-        self.step = false;
         self.resume = true;
     }
 
@@ -85,39 +104,39 @@ impl Debugger {
         self.resume = true;
     }
 
-    pub fn set_cia(&mut self) {
-        let cia = self.gamecube.cpu.cia;
-
-        if self.step {
-            if self.step_count > 0 {
-                self.step_count -= 1;
-            } else {
-                self.step_count = 0;
-                self.step = false;
-            }
-        }
-
-        if self.advance == 0 {
-            if (self.step && self.step_count == 0) || self.breakpoints.contains(&cia) {
-                self.resume = false;
-            }
-        } else if self.advance == cia {
-            self.advance = 0;
-            self.resume = false
-        }
-
-        if self.step {
-            self.print_instruction();
-        }
-    }
-
-    pub fn print_instruction(&mut self) {
-        let instr = self.gamecube.cpu.read_instruction();
+    pub fn print_instruction(&mut self, cpu: &mut Cpu) {
+        let instr = cpu.read_instruction();
 
         let mut disassembler = Disassembler::default();
 
-        disassembler.disassemble(self, instr);
+        disassembler.disassemble(cpu, instr);
 
-        println!("{:#010x}       {: <7} {}", self.gamecube.cpu.cia, disassembler.opcode, disassembler.operands);
+        println!("{:#010x}       {: <7} {}", cpu.cia, disassembler.opcode, disassembler.operands);
+    }
+}
+
+impl Debugger for ConsoleDebugger {
+    fn nia_change(&mut self, cpu: &mut Cpu) {
+        if self.breakpoints.contains(&cpu.cia) {
+            self.resume = false;
+            println!("break {:#010x}", cpu.cia);
+        }
+
+        if self.advance == cpu.cia {
+            self.advance = 0;
+            self.resume = false;
+            println!("advance {:#010x}", cpu.cia);
+        }
+
+        self.debug(cpu);
+    }
+
+    fn memory_write(&mut self, cpu: &mut Cpu, addr: u32) {
+        if self.watchpoints.contains(&addr) {
+            self.resume = false;
+            println!("watch {:#010x}", addr);
+        }
+
+        self.debug(cpu);
     }
 }
