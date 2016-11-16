@@ -8,10 +8,14 @@ const RESET_CODE:         u32 = 0x24;
 const REVISION:           u32 = 0x2C;
 const UNKNOWN:            u32 = 0x30;
 
+#[derive(Debug)]
 pub struct ProcessorInterface {
     interrupt_mask: u32,
-    reset_code: u32,
-    revision: u32
+    revision: u32,
+    pub fifo_base_start: u32,
+    pub fifo_base_end: u32,
+    pub fifo_write_pointer: u32,
+    reset_code: u32
 }
 
 impl ProcessorInterface {
@@ -19,8 +23,11 @@ impl ProcessorInterface {
     pub fn new() -> ProcessorInterface {
         ProcessorInterface {
             interrupt_mask: 0,
-            reset_code: 0,
-            revision: 0x246500B1 // revision C
+            revision: 0x246500B1, // revision C
+            fifo_base_start: 0,
+            fifo_base_end: 0,
+            fifo_write_pointer: 0,
+            reset_code: 0
         }
     }
  
@@ -36,9 +43,9 @@ impl ProcessorInterface {
         match register {
             INTERRUPT_CAUSE => panic!("PI: Interrupt {}", val),
             INTERRUPT_MASK => self.interrupt_mask = val,
-            FIFO_BASE_START => println!("FixMe: pi write: FIFO_BASE_START {}", val),
-            FIFO_BASE_END => println!("FixMe: pi write: FIFO_BASE_END {}", val),
-            FIFO_WRITE_POINTER => println!("FixMe: pi write: FIFO_WRITE_POINTER {}", val),
+            FIFO_BASE_START => self.fifo_base_start = val,
+            FIFO_BASE_END => self.fifo_base_end = val,
+            FIFO_WRITE_POINTER => self.fifo_write_pointer = val,
             RESET_CODE => self.reset_code = val,
             UNKNOWN => {}, // ignore value written to unknown reg
             _ => panic!("unrecognized pi register {:#x} {:#x}", register, val)

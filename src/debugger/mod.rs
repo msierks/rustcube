@@ -119,13 +119,13 @@ impl Debugger for ConsoleDebugger {
     fn nia_change(&mut self, cpu: &mut Cpu) {
         if self.breakpoints.contains(&cpu.cia) {
             self.resume = false;
-            println!("break {:#010x}", cpu.cia);
+            println!("breakpoint {:#010x}", cpu.cia);
         }
 
         if self.advance == cpu.cia {
             self.advance = 0;
             self.resume = false;
-            println!("advance {:#010x}", cpu.cia);
+            println!("advanced {:#010x}", cpu.cia);
         }
 
         self.debug(cpu);
@@ -134,7 +134,7 @@ impl Debugger for ConsoleDebugger {
     fn memory_write(&mut self, cpu: &mut Cpu, addr: u32) {
         if self.watchpoints.contains(&addr) {
             self.resume = false;
-            println!("watch {:#010x}", addr);
+            println!("watchpoint {:#010x}", addr);
         }
 
         self.debug(cpu);
