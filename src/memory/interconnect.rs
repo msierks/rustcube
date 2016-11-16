@@ -86,6 +86,7 @@ pub struct Interconnect {
 impl Interconnect {
 
     pub fn new() -> Interconnect {
+
         let bootrom = Rc::new(RefCell::new(Box::new([0; BOOTROM_SIZE])));
 
         Interconnect {
@@ -170,7 +171,7 @@ impl Interconnect {
 
         match map(addr) {
             Address::Ram => self.ram.write_u8(addr, val),
-            Address::GPFifo => self.gp.write_u8(val),
+            Address::GPFifo => self.gp.write_u8(val, &mut self.pi, &mut self.ram),
             _ => panic!("write_u8 not implemented for {:#?} address {:#x}", map(addr), addr)
         }
     }
@@ -203,7 +204,7 @@ impl Interconnect {
             Address::SerialInterface => self.si.write_u32(addr, val),
             Address::ExpansionInterface(channel, register) => self.exi.write(channel, register, val, &mut self.ram),
             Address::AudioInterface(offset) => self.ai.write_u32(offset, val),
-            Address::GPFifo => self.gp.write_u32(val),
+            Address::GPFifo => self.gp.write_u32(val, &mut self.pi, &mut self.ram),
             _ => panic!("write_u32 not implemented for {:#?} address {:#x}", map(addr), addr)
         }
     }
@@ -213,6 +214,7 @@ impl Interconnect {
 
         match map(addr) {
             Address::Ram => self.ram.write_u64(addr, val),
+            Address::GPFifo => self.gp.write_u64(val, &mut self.pi, &mut self.ram),
             _ => panic!("write_u64 not implemented for {:#?} address {:#x}", map(addr), addr)
         }
     }

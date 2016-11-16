@@ -71,7 +71,7 @@ impl Command {
                 "break" | "b" => self.break_(&args, debugger),
                 "clear" => self.clear(&args, debugger),
                 "continue" | "c" => debugger.continue_(),
-                "examine" | "x" => println!("FixMe: implement examine memory functionality"),
+                "examine" | "x" => self.examine(&args, cpu),
                 "help" => self.help(&args),
                 "show" => self.show(&args, debugger, cpu),
                 "step" | "" => self.step(&args, debugger),
@@ -98,6 +98,17 @@ impl Command {
         if args.len() > 1 {
             match parse_hex_str(&args[1]) {
                 Ok(v) => debugger.add_breakpoint(v),
+                Err(e) => println!("Error: {}", e)
+            }
+        } else {
+            println!("Missing required argument.");
+        }
+    }
+
+    fn examine(&self, args: &Vec<&str>, cpu: &mut Cpu) {
+        if args.len() > 1 {
+            match parse_hex_str(&args[1]) {
+                Ok(v) => println!("{:#010x}: {:#010x}", v, cpu.interconnect.read_u16(&cpu.msr, v)),
                 Err(e) => println!("Error: {}", e)
             }
         } else {

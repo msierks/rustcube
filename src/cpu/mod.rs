@@ -1051,8 +1051,6 @@ impl Cpu {
             5 | 7 =>  panic!("FixMe:..."),
             _ => panic!("unrecognized ld_type")
         }
-
-        println!("FixMe: psq_l {:#x} {:#x}", ea, self.interconnect.mmu.translate_data_address(&self.msr, ea));
     }
 
     fn psq_st(&mut self, instr: Instruction) {
@@ -1071,13 +1069,11 @@ impl Cpu {
         match gqr.st_type() {
             0 => { // single-precision floating-point (no-conversion)
                 if instr.w() {
-                    println!("FixMe: write single fp number");
-                    //MEM(EA,c) ← quantized(frS(ps0),stt,sts)
+                    let ps0 = (self.fpr[instr.d()] >> 32) as u32;
+
+                    self.interconnect.write_u32(&self.msr, ea, ps0);
                 } else {
-                    println!("{:#b}", instr.0);
-                    println!("FixMe: write pair fp number");
-                    //MEM(EA,c) ← quantized(frS(ps0),stt,sts)
-                    //MEM(EA+c,c) ← quantized(frS(ps1),stt,sts)
+                    self.interconnect.write_u64(&self.msr, ea, self.fpr[instr.d()]);
                 }
             },
             4 | 6 => panic!("FixMe:..."), // unsigned 8 bit integer | signed 8 bit integer
