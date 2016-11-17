@@ -1,6 +1,10 @@
 mod console;
 mod disassembler;
 
+#[cfg(unix)] use std::sync;
+#[cfg(unix)] use std::sync::atomic;
+#[cfg(unix)] use nix::sys::signal;
+
 use self::console::Console;
 use self::disassembler::Disassembler;
 use super::cpu::Cpu;
@@ -39,6 +43,8 @@ impl ConsoleDebugger {
 
         console.intro();
 
+        install_sigint_handler();
+
         ConsoleDebugger {
             console: console,
             resume: false,
@@ -65,6 +71,18 @@ impl ConsoleDebugger {
         while !self.resume {
             self.console.read().execute(self, cpu);
         }
+    }
+
+    // check if a SIGINT signal has been received
+    #[cfg(unix)]
+    pub fn sigint(&self) -> bool {
+        SIGINT.compare_and_swap(true, false, atomic::Ordering::SeqCst)
+    }
+
+    // This function is only included when foo is not defined
+    #[cfg(not(unix))]
+    pub fn sigint(&self) -> bool {
+        false
     }
 
     pub fn add_breakpoint(&mut self, addr: u32) {
@@ -117,6 +135,10 @@ impl ConsoleDebugger {
 
 impl Debugger for ConsoleDebugger {
     fn nia_change(&mut self, cpu: &mut Cpu) {
+        if self.sigint() {
+            self.resume = false;
+        }
+
         if self.breakpoints.contains(&cpu.cia) {
             self.resume = false;
             println!("breakpoint {:#010x}", cpu.cia);
@@ -139,4 +161,28 @@ impl Debugger for ConsoleDebugger {
 
         self.debug(cpu);
     }
+}
+
+#[cfg(unix)]
+static SIGINT_ONCE: sync::Once = sync::ONCE_INIT;
+#[cfg(unix)]
+static SIGINT: atomic::AtomicBool = atomic::ATOMIC_BOOL_INIT;
+
+#[cfg(unix)]
+fn install_sigint_handler() {
+    SIGINT_ONCE.call_once(|| unsafe {
+        let sigint = signal::SigAction::new(signal::SigHandler::Handler(sigint_handler),
+                                            signal::SaFlag::empty(),
+                                            signal::SigSet::empty());
+        let _ = signal::sigaction(signal::SIGINT, &sigint);
+    });
+}
+
+#[cfg(not(unix))]
+fn install_sigint_handler() {
+}
+
+#[cfg(unix)]
+extern "C" fn sigint_handler(_: signal::SigNum) {
+    SIGINT.store(true, atomic::Ordering::SeqCst);
 }

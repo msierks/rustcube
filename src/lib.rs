@@ -1,6 +1,8 @@
 extern crate byteorder;
 extern crate getopts;
 extern crate memmap;
+#[cfg(unix)]
+extern crate nix;
 extern crate num;
 extern crate rustyline;
 
