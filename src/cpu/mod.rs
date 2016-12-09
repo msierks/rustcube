@@ -1094,7 +1094,7 @@ impl Cpu {
 
     fn rlwimix(&mut self, instr: Instruction) {
         let m = mask(instr.mb(), instr.me());
-        let r = rotl(self.gpr[instr.s()], instr.sh());
+        let r = self.gpr[instr.s()].rotate_left(instr.sh() as u32);
 
         self.gpr[instr.a()] = (r & m) | (self.gpr[instr.a()] & !m);
 
@@ -1106,7 +1106,7 @@ impl Cpu {
     fn rlwinmx(&mut self, instr: Instruction) {
         let mask = mask(instr.mb(), instr.me());
 
-        self.gpr[instr.a()] = rotl(self.gpr[instr.s()], instr.sh()) & mask;
+        self.gpr[instr.a()] = (self.gpr[instr.s()].rotate_left(instr.sh() as u32)) & mask;
 
         if instr.rc() {
             self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
@@ -1412,16 +1412,6 @@ impl Cpu {
 
     fn xoris(&mut self, instr: Instruction) {
         self.gpr[instr.a()] = self.gpr[instr.s()] ^ (instr.uimm() << 16)
-    }
-}
-
-fn rotl(x: u32, shift: u8) -> u32 {
-    let shift = shift & 31;
-
-    if shift == 0 {
-        x
-    } else {
-        (x << shift) | (x >> (32 - shift))
     }
 }
 
