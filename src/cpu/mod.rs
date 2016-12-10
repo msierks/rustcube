@@ -850,8 +850,8 @@ impl Cpu {
         self.gpr[instr.a()] = ea;
     }
 
-    fn mfcr(&mut self, _: Instruction) {
-        println!("FixMe: mfcr");
+    fn mfcr(&mut self, instr: Instruction) {
+        self.gpr[instr.d()] = self.cr.as_u32();
     }
 
     fn mfmsr(&mut self, instr: Instruction) {
