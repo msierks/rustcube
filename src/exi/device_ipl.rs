@@ -12,7 +12,8 @@ pub struct DeviceIpl {
     offset: u32,
     write: bool,
     bootrom: Rc<RefCell<Box<[u8; BOOTROM_SIZE]>>>,
-    sram: [u8; 64]
+    sram: [u8; 64],
+    uart: String
 }
 
 impl DeviceIpl {
@@ -45,7 +46,8 @@ impl DeviceIpl {
                 0x6E, 0x6D, // flash id checksum
                 0x00, 0x00, // flash id checksum
                 0x00, 0x00  // padding
-            ]
+            ],
+            uart: String::new()
         }
     }
 }
@@ -64,7 +66,11 @@ impl Device for DeviceIpl {
                 println!("FixMe: read imm RTC");
                 0
             },
-            _ => panic!("ExiDeviceIpl: unhandled read_imm {} {}", self.command, len)
+            0x200100 => {
+                //println!("FixMe: read imm UART");
+                0
+            }
+            _ => panic!("ExiDeviceIpl: unhandled read_imm {:#x} {}", self.command, len)
         }
     }
 
@@ -85,6 +91,8 @@ impl Device for DeviceIpl {
                 },
                 0x200100 => {
                     device_name = "UART";
+
+                    self.address = value >> 6;
                 },
                 _ => {
                     device_name = "MaskROM";
@@ -103,7 +111,7 @@ impl Device for DeviceIpl {
                 "read"
             };
 
-            println!("ExpansionInterface: {} {} {:#010x}", device_name, write_str, value);
+            //println!("ExpansionInterface: {} {} {:#010x}", device_name, write_str, value);
         } else {
 
             match self.command {
@@ -118,7 +126,19 @@ impl Device for DeviceIpl {
                     }
                 },
                 0x200100 => { // UART
-                    panic!("FixMe: uart command");
+                    if self.write {
+                        let byte = ((value >> 24) as u8) as char;
+
+                        if byte != '\0' {
+                            self.uart.push(byte);
+                        }
+
+                        if byte == '\r' {
+                            println!("UART: {}", self.uart);
+
+                            self.uart.clear();
+                        }
+                    }
                 },
                 _ => {
                     panic!("this shouldn't happen");
