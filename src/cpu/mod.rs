@@ -1313,7 +1313,13 @@ impl Cpu {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
 
-        self.interconnect.write_u32(&self.msr, ea, self.gpr[instr.s()]);
+        // TODO: remove this at some point
+        // enable devkit mode
+        if self.cia == 0x813004c4 {
+            self.interconnect.write_u32(&self.msr, ea, 0x10000006);
+        } else {
+            self.interconnect.write_u32(&self.msr, ea, self.gpr[instr.s()]);
+        }
 
         debugger.memory_write(self, ea);
     }
