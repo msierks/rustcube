@@ -13,6 +13,21 @@ pub struct Cr {
 
 impl Cr {
 
+    pub fn as_u32(&self) -> u32 {
+        let mut value = 0;
+
+        value |=  self.value[7] as u32;
+        value |= (self.value[6] as u32) << 4;
+        value |= (self.value[5] as u32) << 8;
+        value |= (self.value[4] as u32) << 12;
+        value |= (self.value[3] as u32) << 16;
+        value |= (self.value[2] as u32) << 20;
+        value |= (self.value[1] as u32) << 24;
+        value |= (self.value[0] as u32) << 28;
+
+        value
+    }
+
     pub fn set_field(&mut self, index: usize, value: u8) {
         self.value[index] = value;
     }
