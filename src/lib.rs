@@ -18,6 +18,7 @@ mod dvd_interface;
 mod exi;
 pub mod gamecube;
 mod gp_fifo;
+mod interconnect;
 mod memory;
 mod memory_interface;
 mod pixel_engine;

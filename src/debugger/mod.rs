@@ -8,10 +8,11 @@ mod disassembler;
 use self::console::Console;
 use self::disassembler::Disassembler;
 use super::cpu::Cpu;
+use super::interconnect::Interconnect;
 
 pub trait Debugger {
-    fn nia_change(&mut self, cpu: &mut Cpu);
-    fn memory_write(&mut self, cpu: &mut Cpu, addr: u32);
+    fn nia_change(&mut self, cpu: &mut Cpu, interconnect: &mut Interconnect);
+    fn memory_write(&mut self, cpu: &mut Cpu, interconnect: &mut Interconnect, addr: u32);
 }
 
 pub struct DummyDebugger;
@@ -23,8 +24,8 @@ impl DummyDebugger {
 }
 
 impl Debugger for DummyDebugger {
-    fn nia_change(&mut self, _: &mut Cpu) {}
-    fn memory_write(&mut self, _: &mut Cpu, _: u32) {}
+    fn nia_change(&mut self, _: &mut Cpu, _: &mut Interconnect) {}
+    fn memory_write(&mut self, _: &mut Cpu, _: &mut Interconnect, _: u32) {}
 }
 
 pub struct ConsoleDebugger {
@@ -56,11 +57,11 @@ impl ConsoleDebugger {
         }
     }
 
-    pub fn debug(&mut self, cpu: &mut Cpu) {
+    pub fn debug(&mut self, cpu: &mut Cpu, interconnect: &mut Interconnect) {
         if self.step {
             if self.step_count > 0 {
                 self.step_count -= 1;
-                self.print_instruction(cpu);
+                self.print_instruction(cpu, interconnect);
             } else {
                 self.step_count = 0;
                 self.step = false;
@@ -69,7 +70,7 @@ impl ConsoleDebugger {
         }
 
         while !self.resume {
-            self.console.read().execute(self, cpu);
+            self.console.read().execute(self, cpu, interconnect);
         }
     }
 
@@ -122,8 +123,8 @@ impl ConsoleDebugger {
         self.resume = true;
     }
 
-    pub fn print_instruction(&mut self, cpu: &mut Cpu) {
-        let instr = cpu.read_instruction();
+    pub fn print_instruction(&mut self, cpu: &mut Cpu, interconnect: &mut Interconnect) {
+        let instr = cpu.read_instruction(interconnect);
 
         let mut disassembler = Disassembler::default();
 
@@ -134,7 +135,7 @@ impl ConsoleDebugger {
 }
 
 impl Debugger for ConsoleDebugger {
-    fn nia_change(&mut self, cpu: &mut Cpu) {
+    fn nia_change(&mut self, cpu: &mut Cpu, interconnect: &mut Interconnect) {
         if self.sigint() {
             self.resume = false;
         }
@@ -150,16 +151,16 @@ impl Debugger for ConsoleDebugger {
             println!("advanced {:#010x}", cpu.cia);
         }
 
-        self.debug(cpu);
+        self.debug(cpu, interconnect);
     }
 
-    fn memory_write(&mut self, cpu: &mut Cpu, addr: u32) {
+    fn memory_write(&mut self, cpu: &mut Cpu, interconnect: &mut Interconnect, addr: u32) {
         if self.watchpoints.contains(&addr) {
             self.resume = false;
             println!("watchpoint {:#010x}", addr);
         }
 
-        self.debug(cpu);
+        self.debug(cpu, interconnect);
     }
 }
 

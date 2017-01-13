@@ -1,5 +1,5 @@
 
-use super::super::memory::ram::Ram;
+use super::super::memory::Ram;
 
 pub trait Device {
     fn device_select(&mut self);

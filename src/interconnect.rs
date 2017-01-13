@@ -1,26 +1,23 @@
+
 use byteorder::{ByteOrder, BigEndian};
 use std::cell::RefCell;
-use std::fs;
-use std::path::Path;
-use std::io::Read;
 use std::rc::Rc;
 
-use super::ram::Ram;
-use super::super::audio_interface::AudioInterface;
-use super::super::command_processor::CommandProcessor;
-use super::super::dsp_interface::DspInterface;
-use super::super::dvd_interface::DvdInterface;
-use super::super::exi::Exi;
-use super::super::cpu::instruction::Instruction;
-use super::super::cpu::mmu::Mmu;
-use super::super::cpu::msr::Msr;
-
-use super::super::gp_fifo::GPFifo;
-use super::super::memory_interface::MemoryInterface;
-use super::super::pixel_engine::PixelEngine;
-use super::super::processor_interface::ProcessorInterface;
-use super::super::serial_interface::SerialInterface;
-use super::super::video_interface::VideoInterface;
+use audio_interface::AudioInterface;
+use command_processor::CommandProcessor;
+use dsp_interface::DspInterface;
+use dvd_interface::DvdInterface;
+use exi::Exi;
+use cpu::instruction::Instruction;
+use cpu::mmu::Mmu;
+use cpu::msr::Msr;
+use gp_fifo::GPFifo;
+use memory::Ram;
+use memory_interface::MemoryInterface;
+use pixel_engine::PixelEngine;
+use processor_interface::ProcessorInterface;
+use serial_interface::SerialInterface;
+use video_interface::VideoInterface;
 
 const BOOTROM_SIZE: usize = 0x0200000; // 2 MB
 
@@ -32,10 +29,10 @@ pub enum Address {
     PixelEngine(u32),
     VideoInterface(u32),
     ProcessorInterface(u32),
-    MemoryInterface,
+    MemoryInterface(u32),
     DspInterface(u32),
     DvdInterface(u32),
-    SerialInterface,
+    SerialInterface(u32),
     ExpansionInterface(u32, u32),
     AudioInterface(u32),
     GPFifo,
@@ -50,10 +47,10 @@ fn map(address: u32) -> Address {
         0x0C001000 ... 0x0C001FFF => Address::PixelEngine(address - 0x0C001000),
         0x0C002000 ... 0x0C002FFF => Address::VideoInterface(address - 0x0C002000),
         0x0C003000 ... 0x0C003FFF => Address::ProcessorInterface(address - 0x0C003000),
-        0x0C004000 ... 0x0C004FFF => Address::MemoryInterface,
+        0x0C004000 ... 0x0C004FFF => Address::MemoryInterface(address - 0x0C004000),
         0x0C005000 ... 0x0C005200 => Address::DspInterface(address - 0x0C005000),
         0x0C006000 ... 0x0C0063FF => Address::DvdInterface(address - 0x0C006000),
-        0x0C006400 ... 0x0C0067FF => Address::SerialInterface,
+        0x0C006400 ... 0x0C0067FF => Address::SerialInterface(address - 0x0C006400),
         0x0C006800 ... 0x0C0068FF => {
             let channel  = (address - 0x0C006800) / 0x14;
             let register = (address - 0x0C006800) % 0x14;
@@ -68,7 +65,7 @@ fn map(address: u32) -> Address {
 
 pub struct Interconnect {
     ai: AudioInterface,
-    bootrom: Rc<RefCell<Box<[u8; BOOTROM_SIZE]>>>,
+    pub bootrom: Rc<RefCell<Box<[u8; BOOTROM_SIZE]>>>,
     cp: CommandProcessor,
     dsp: DspInterface,
     dvd: DvdInterface,
@@ -148,7 +145,7 @@ impl Interconnect {
         match map(addr) {
             Address::Ram => self.ram.read_u32(addr),
             Address::ProcessorInterface(offset) => self.pi.read_u32(offset),
-            Address::SerialInterface => self.si.read_u32(addr),
+            Address::SerialInterface(offset) => self.si.read_u32(offset),
             Address::ExpansionInterface(channel, register) => self.exi.read(channel, register),
             Address::Bootrom(offset) => BigEndian::read_u32(&self.bootrom.borrow()[offset as usize ..]),
             Address::AudioInterface(offset) => self.ai.read_u32(offset),
@@ -182,7 +179,7 @@ impl Interconnect {
         match map(addr) {
             Address::Ram => self.ram.write_u16(addr, val),
             Address::VideoInterface(offset) => self.vi.write_u16(offset, val),
-            Address::MemoryInterface => println!("FixMe: memory interface"),
+            Address::MemoryInterface(_) => println!("FixMe: memory interface"),
             Address::DspInterface(offset) => self.dsp.write_u16(offset, val),
             Address::CommandProcessor(offset) => self.cp.write_u16(offset, val),
             Address::PixelEngine(offset) => self.pe.write_u16(offset, val),
@@ -201,7 +198,7 @@ impl Interconnect {
                 self.dsp.write_u16(offset + 2, val as u16);
             },
             Address::DvdInterface(offset) => self.dvd.write_u32(offset, val),
-            Address::SerialInterface => self.si.write_u32(addr, val),
+            Address::SerialInterface(offset) => self.si.write_u32(offset, val),
             Address::ExpansionInterface(channel, register) => self.exi.write(channel, register, val, &mut self.ram),
             Address::AudioInterface(offset) => self.ai.write_u32(offset, val),
             Address::GPFifo => self.gp.write_u32(val, &mut self.pi, &mut self.ram),
@@ -216,83 +213,6 @@ impl Interconnect {
             Address::Ram => self.ram.write_u64(addr, val),
             Address::GPFifo => self.gp.write_u64(val, &mut self.pi, &mut self.ram),
             _ => panic!("write_u64 not implemented for {:#?} address {:#x}", map(addr), addr)
-        }
-    }
-
-    // FixMe: would be great to move this into exi device ipl
-    // load ipl into bootrom and decrypt
-    pub fn load_ipl<P: AsRef<Path>>(&mut self, path: P) {
-        let mut file = match fs::File::open(path) {
-            Ok(v) => v,
-            Err(e) => {
-                panic!("{}", e);
-            }
-        };
-
-        let mut bootrom = self.bootrom.borrow_mut();
-
-        match file.read_exact(&mut **bootrom) {
-            Ok(_) => {},
-            Err(e) => {
-                panic!("{}", e);
-            }
-        };
-
-        descrambler(&mut bootrom[0x100..0x15ee40]);
-    }
-}
-
-// bootrom descrambler reversed by segher
-// Copyright 2008 Segher Boessenkool <segher@kernel.crashing.org>
-fn descrambler(data: &mut[u8]) {
-    let size = data.len();
-    let mut acc :u8 = 0;
-    let mut nacc:u8 = 0;
-
-    let mut t:u16 = 0x2953;
-    let mut u:u16 = 0xd9c2;
-    let mut v:u16 = 0x3ff1;
-
-    let mut x:u8 = 1;
-
-    let mut it = 0;
-
-    while it < size {
-        let t0 = t & 1;
-        let t1 = (t >> 1) & 1;
-        let u0 = u & 1;
-        let u1 = (u >> 1) & 1;
-        let v0 = v & 1;
-
-        x ^= (t1 ^ v0) as u8;
-        x ^= (u0 | u1) as u8;
-        x ^= ((t0 ^ u1 ^ v0) & (t0 ^ u0)) as u8;
-
-        if t0 == u0 {
-            v >>= 1;
-            if v0 != 0 {
-                v ^= 0xb3d0;
-            }
-        }
-
-        if t0 == 0 {
-            u >>= 1;
-            if u0 != 0 {
-                u ^= 0xfb10;
-            }
-        }
-
-        t >>= 1;
-        if t0 != 0 {
-            t ^= 0xa740;
-        }
-
-        nacc+=1;
-        acc = (2*acc as u16 + x as u16) as u8;
-        if nacc == 8 {
-            data[it as usize] ^= acc;
-            it+=1;
-            nacc = 0;
         }
     }
 }

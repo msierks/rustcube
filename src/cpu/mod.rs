@@ -25,7 +25,7 @@ use self::tbr::{Tbr, TBR};
 use self::spr::Spr;
 use self::util::*;
 use super::debugger::Debugger;
-use super::memory::Interconnect;
+use interconnect::Interconnect;
 
 const NUM_FPR: usize = 32;
 const NUM_GPR: usize = 32;
@@ -52,8 +52,6 @@ pub enum Exception {
 }
 
 pub struct Cpu {
-    /// Global Interconnect
-    pub interconnect: Interconnect,
     /// Current Instruction Address
     pub cia: u32,
     /// Next Instruction Address
@@ -107,9 +105,8 @@ include!("cpu_system.rs");
 
 impl Cpu {
 
-    pub fn new(interconnect: Interconnect) -> Cpu {
+    pub fn new() -> Cpu {
         let mut cpu = Cpu {
-            interconnect: interconnect,
             cia: 0,
             nia: 0,
             gpr: [0; NUM_GPR],
@@ -137,16 +134,16 @@ impl Cpu {
         cpu
     }
 
-    pub fn read_instruction(&mut self) -> Instruction {
-        self.interconnect.read_instruction(&self.msr, self.cia)
+    pub fn read_instruction(&mut self, interconnect: &mut Interconnect) -> Instruction {
+        interconnect.read_instruction(&self.msr, self.cia)
     }
 
-    pub fn run_instruction(&mut self, debugger: &mut Debugger) {
-        let instr = self.read_instruction();
+    pub fn run_instruction(&mut self, interconnect: &mut Interconnect, debugger: &mut Debugger) {
+        let instr = self.read_instruction(interconnect);
 
         self.nia = self.cia + 4;
 
-        debugger.nia_change(self);
+        debugger.nia_change(self, interconnect);
 
         match instr.opcode() {
              7 => self.mulli(instr),
@@ -183,7 +180,7 @@ impl Cpu {
                      10 => self.addcx(instr),
                      11 => self.mulhwux(instr),
                      19 => self.mfcr(instr),
-                     23 => self.lwzx(instr),
+                     23 => self.lwzx(instr, interconnect),
                      24 => self.slwx(instr),
                      26 => self.cntlzwx(instr),
                      28 => self.andx(instr),
@@ -192,13 +189,13 @@ impl Cpu {
                      60 => self.andcx(instr),
                      83 => self.mfmsr(instr),
                      86 => self.dcbf(instr),
-                     87 => self.lbzx(instr),
+                     87 => self.lbzx(instr, interconnect),
                     104 => self.negx(instr),
                     124 => self.norx(instr),
                     136 => self.subfex(instr),
                     138 => self.addex(instr),
                     146 => self.mtmsr(instr),
-                    151 => self.stwx(instr, debugger),
+                    151 => self.stwx(instr, interconnect, debugger),
                     200 => self.subfzex(instr),
                     202 => self.addzex(instr),
                     210 => self.mtsr(instr),
@@ -209,7 +206,7 @@ impl Cpu {
                     371 => self.mftb(instr),
                     444 => self.orx(instr),
                     459 => self.divwux(instr),
-                    467 => self.mtspr(instr),
+                    467 => self.mtspr(instr, interconnect),
                     470 => self.dcbi(instr),
                     491 => self.divwx(instr),
                     536 => self.srwx(instr),
@@ -222,27 +219,27 @@ impl Cpu {
                     _   => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.ext_opcode_x())
                 }
             },
-            32 => self.lwz(instr),
-            33 => self.lwzu(instr),
-            34 => self.lbz(instr),
-            35 => self.lbzu(instr),
-            36 => self.stw(instr, debugger),
-            37 => self.stwu(instr, debugger),
-            38 => self.stb(instr, debugger),
-            39 => self.stbu(instr, debugger),
-            40 => self.lhz(instr),
-            41 => self.lhzu(instr),
-            42 => self.lha(instr),
-            44 => self.sth(instr, debugger),
-            45 => self.sthu(instr, debugger),
-            46 => self.lmw(instr),
-            47 => self.stmw(instr, debugger),
-            48 => self.lfs(instr),
-            50 => self.lfd(instr),
-            52 => self.stfs(instr, debugger),
-            53 => self.stfsu(instr, debugger),
-            54 => self.stfd(instr, debugger),
-            56 => self.psq_l(instr),
+            32 => self.lwz(instr, interconnect),
+            33 => self.lwzu(instr, interconnect),
+            34 => self.lbz(instr, interconnect),
+            35 => self.lbzu(instr, interconnect),
+            36 => self.stw(instr, interconnect, debugger),
+            37 => self.stwu(instr, interconnect, debugger),
+            38 => self.stb(instr, interconnect, debugger),
+            39 => self.stbu(instr, interconnect, debugger),
+            40 => self.lhz(instr, interconnect),
+            41 => self.lhzu(instr, interconnect ),
+            42 => self.lha(instr, interconnect),
+            44 => self.sth(instr, interconnect, debugger),
+            45 => self.sthu(instr, interconnect, debugger),
+            46 => self.lmw(instr, interconnect),
+            47 => self.stmw(instr, interconnect, debugger),
+            48 => self.lfs(instr, interconnect),
+            50 => self.lfd(instr, interconnect),
+            52 => self.stfs(instr, interconnect, debugger),
+            53 => self.stfsu(instr, interconnect, debugger),
+            54 => self.stfd(instr, interconnect, debugger),
+            56 => self.psq_l(instr, interconnect),
             59 => {
                 match instr.ext_opcode_a() {
                     18 => self.fdivsx(instr),
@@ -252,7 +249,7 @@ impl Cpu {
                     _  => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.ext_opcode_a())
                 }
             },
-            60 => self.psq_st(instr),
+            60 => self.psq_st(instr, interconnect),
             63 => {
                 match instr.ext_opcode_x() {
                       0 => self.fcmpu(instr),
