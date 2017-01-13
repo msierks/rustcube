@@ -6,6 +6,7 @@ use std::num::ParseIntError;
 
 use debugger::ConsoleDebugger;
 use super::super::cpu::Cpu;
+use super::super::interconnect::Interconnect;
 
 pub struct Console {
     rl: Editor<()>
@@ -59,7 +60,7 @@ impl Command {
         }
     }
 
-    pub fn execute(&self, debugger: &mut ConsoleDebugger, cpu: &mut Cpu) {
+    pub fn execute(&self, debugger: &mut ConsoleDebugger, cpu: &mut Cpu, interconnect: &mut Interconnect) {
         let args = self.data.trim().split(" ").collect::<Vec<&str>>();
 
         if args.len() == 0 {
@@ -71,9 +72,9 @@ impl Command {
                 "break" | "b" => self.break_(&args, debugger),
                 "clear" => self.clear(&args, debugger),
                 "continue" | "c" => debugger.continue_(),
-                "examine" | "x" => self.examine(&args, cpu),
+                "examine" | "x" => self.examine(&args, cpu, interconnect),
                 "help" => self.help(&args),
-                "show" => self.show(&args, debugger, cpu),
+                "show" => self.show(&args, debugger, cpu, interconnect),
                 "step" | "" => self.step(&args, debugger),
                 "watch" | "w" => self.watch_(&args, debugger),
                 _ => self.help(&args)
@@ -105,10 +106,10 @@ impl Command {
         }
     }
 
-    fn examine(&self, args: &Vec<&str>, cpu: &mut Cpu) {
+    fn examine(&self, args: &Vec<&str>, cpu: &mut Cpu, interconnect: &mut Interconnect) {
         if args.len() > 1 {
             match parse_hex_str(&args[1]) {
-                Ok(v) => println!("{:#010x}: {:#010x}", v, cpu.interconnect.read_u16(&cpu.msr, v)),
+                Ok(v) => println!("{:#010x}: {:#010x}", v, interconnect.read_u16(&cpu.msr, v)),
                 Err(e) => println!("Error: {}", e)
             }
         } else {
@@ -158,7 +159,7 @@ impl Command {
         }
     }
 
-    fn show(&self, args: &Vec<&str>, debugger: &mut ConsoleDebugger, cpu: &mut Cpu) {
+    fn show(&self, args: &Vec<&str>, debugger: &mut ConsoleDebugger, cpu: &mut Cpu, interconnect: &mut Interconnect) {
         if args.len() > 1 {
 
             match args[1] {
@@ -167,7 +168,7 @@ impl Command {
                         println!("break: {:#010x}", breakpoint);
                     }
                 },
-                "ci" => debugger.print_instruction(cpu),
+                "ci" => debugger.print_instruction(cpu, interconnect),
                 "cia" => println!("cia: {:#010x}", cpu.cia),
                 "gpr" => {
                     for i in 0..cpu.gpr.len() {

@@ -2,7 +2,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 use super::device::Device;
-use super::super::memory::ram::Ram;
+use super::super::memory::Ram;
 
 pub const BOOTROM_SIZE: usize = 0x0200000; // 2 MB
 

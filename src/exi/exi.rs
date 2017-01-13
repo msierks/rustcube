@@ -5,7 +5,7 @@ use super::channel::{Channel, TransferMode, TransferType};
 use super::device::DeviceDummy;
 use super::device_ipl::{DeviceIpl, BOOTROM_SIZE};
 use super::device_ad16::DeviceAd16;
-use super::super::memory::ram::Ram;
+use super::super::memory::Ram;
 
 const NUM_CHANNELS: usize = 3;
 

@@ -1,6 +1,6 @@
 
 use super::device::Device;
-use super::super::memory::ram::Ram;
+use super::super::memory::Ram;
 
 // AD16
 

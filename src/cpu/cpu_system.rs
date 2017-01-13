@@ -55,7 +55,7 @@ impl Cpu {
         // TODO: check privilege level
     }
 
-    fn mtspr(&mut self, instr: Instruction) {
+    fn mtspr(&mut self, instr: Instruction, interconnect: &mut Interconnect) {
         let spr = instr.spr();
 
         match spr {
@@ -70,22 +70,22 @@ impl Cpu {
                 }
 
                 match spr {
-                    Spr::IBAT0U => self.interconnect.mmu.write_ibatu(0, self.gpr[instr.s()]),
-                    Spr::IBAT0L => self.interconnect.mmu.write_ibatl(0, self.gpr[instr.s()]),
-                    Spr::IBAT1U => self.interconnect.mmu.write_ibatu(1, self.gpr[instr.s()]),
-                    Spr::IBAT1L => self.interconnect.mmu.write_ibatl(1, self.gpr[instr.s()]),
-                    Spr::IBAT2U => self.interconnect.mmu.write_ibatu(2, self.gpr[instr.s()]),
-                    Spr::IBAT2L => self.interconnect.mmu.write_ibatl(2, self.gpr[instr.s()]),
-                    Spr::IBAT3U => self.interconnect.mmu.write_ibatu(3, self.gpr[instr.s()]),
-                    Spr::IBAT3L => self.interconnect.mmu.write_ibatl(3, self.gpr[instr.s()]),
-                    Spr::DBAT0U => self.interconnect.mmu.write_dbatu(0, self.gpr[instr.s()]),
-                    Spr::DBAT0L => self.interconnect.mmu.write_dbatl(0, self.gpr[instr.s()]),
-                    Spr::DBAT1U => self.interconnect.mmu.write_dbatu(1, self.gpr[instr.s()]),
-                    Spr::DBAT1L => self.interconnect.mmu.write_dbatl(1, self.gpr[instr.s()]),
-                    Spr::DBAT2U => self.interconnect.mmu.write_dbatu(2, self.gpr[instr.s()]),
-                    Spr::DBAT2L => self.interconnect.mmu.write_dbatl(2, self.gpr[instr.s()]),
-                    Spr::DBAT3U => self.interconnect.mmu.write_dbatu(3, self.gpr[instr.s()]),
-                    Spr::DBAT3L => self.interconnect.mmu.write_dbatl(3, self.gpr[instr.s()]),
+                    Spr::IBAT0U => interconnect.mmu.write_ibatu(0, self.gpr[instr.s()]),
+                    Spr::IBAT0L => interconnect.mmu.write_ibatl(0, self.gpr[instr.s()]),
+                    Spr::IBAT1U => interconnect.mmu.write_ibatu(1, self.gpr[instr.s()]),
+                    Spr::IBAT1L => interconnect.mmu.write_ibatl(1, self.gpr[instr.s()]),
+                    Spr::IBAT2U => interconnect.mmu.write_ibatu(2, self.gpr[instr.s()]),
+                    Spr::IBAT2L => interconnect.mmu.write_ibatl(2, self.gpr[instr.s()]),
+                    Spr::IBAT3U => interconnect.mmu.write_ibatu(3, self.gpr[instr.s()]),
+                    Spr::IBAT3L => interconnect.mmu.write_ibatl(3, self.gpr[instr.s()]),
+                    Spr::DBAT0U => interconnect.mmu.write_dbatu(0, self.gpr[instr.s()]),
+                    Spr::DBAT0L => interconnect.mmu.write_dbatl(0, self.gpr[instr.s()]),
+                    Spr::DBAT1U => interconnect.mmu.write_dbatu(1, self.gpr[instr.s()]),
+                    Spr::DBAT1L => interconnect.mmu.write_dbatl(1, self.gpr[instr.s()]),
+                    Spr::DBAT2U => interconnect.mmu.write_dbatu(2, self.gpr[instr.s()]),
+                    Spr::DBAT2L => interconnect.mmu.write_dbatl(2, self.gpr[instr.s()]),
+                    Spr::DBAT3U => interconnect.mmu.write_dbatu(3, self.gpr[instr.s()]),
+                    Spr::DBAT3L => interconnect.mmu.write_dbatl(3, self.gpr[instr.s()]),
                     Spr::HID0   => self.hid0 = self.gpr[instr.s()],
                     Spr::HID2   => self.hid2 = self.gpr[instr.s()].into(),
                     Spr::GQR0   => self.gqr[0] = self.gpr[instr.s()],

@@ -1,7 +1,7 @@
 use byteorder::{ByteOrder, BigEndian};
 use std::mem;
 
-use super::memory::ram::Ram;
+use super::memory::Ram;
 use super::processor_interface::ProcessorInterface;
 
 const GATHER_PIPE_SIZE: usize = 128;
