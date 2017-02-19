@@ -6,6 +6,7 @@ use rustcube::gamecube::Gamecube;
 use rustcube::debugger::{ConsoleDebugger,DummyDebugger};
 
 use std::env;
+use std::path::Path;
 use getopts::Options;
 
 fn print_usage(program: &str, opts: Options) {
@@ -31,8 +32,8 @@ fn main() {
         return;
     }
 
-    let ipl_file_name = if !matches.free.is_empty() {
-        matches.free[0].clone()
+    let file_name = if !matches.free.is_empty() {
+        Path::new(matches.free[0].as_str())
     } else {
         print_usage(&program, opts);
         return;
@@ -40,7 +41,16 @@ fn main() {
 
     let mut gamecube = Gamecube::new();
 
-    gamecube.load_ipl(ipl_file_name);
+    match file_name.extension() {
+        Some(ext) => {
+            if ext == "dol" {
+                gamecube.load_dol(file_name);
+            } else { // assume ipl
+                gamecube.load_ipl(file_name);
+            }
+        },
+        None => gamecube.load_ipl(file_name)
+    }
 
     if matches.opt_present("d") {
         gamecube.run(&mut ConsoleDebugger::new());

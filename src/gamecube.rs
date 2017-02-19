@@ -5,6 +5,7 @@ use std::io::Read;
 use super::cpu::Cpu;
 use super::interconnect::Interconnect;
 use super::debugger::Debugger;
+use dol::Dol;
 
 pub struct Gamecube {
     pub cpu: Cpu,
@@ -17,6 +18,16 @@ impl Gamecube {
             cpu: Cpu::new(),
             interconnect: Interconnect::new()
         }
+    }
+
+    pub fn load_dol<P: AsRef<Path>>(&mut self, path: P) {
+        let dol = Dol::open(path).unwrap();
+
+        self.emulate_bs2();
+
+        dol.load(&mut self.cpu, &mut self.interconnect);
+
+        self.cpu.cia = dol.get_entry_point();
     }
 
     // load ipl into bootrom and decrypt
@@ -44,6 +55,23 @@ impl Gamecube {
         loop {
             self.cpu.run_instruction(&mut self.interconnect, debugger);
         }
+    }
+
+    pub fn emulate_bs2(&mut self) {
+        self.cpu.msr = 0x00002030.into();
+
+        self.interconnect.mmu.write_ibatu(0, 0x80001fff); // Spr::IBAT0U
+        self.interconnect.mmu.write_ibatl(0, 0x00000002); // Spr::IBAT0L
+        self.interconnect.mmu.write_ibatu(3, 0xfff0001f); // Spr::IBAT3U
+        self.interconnect.mmu.write_ibatl(3, 0xfff00001); // Spr::IBAT3L
+        self.interconnect.mmu.write_dbatu(0, 0x80001fff); // Spr::DBAT0U
+        self.interconnect.mmu.write_dbatl(0, 0x00000002); // Spr::DBAT0L
+        self.interconnect.mmu.write_dbatu(1, 0xc0001fff); // Spr::DBAT1U
+        self.interconnect.mmu.write_dbatl(1, 0x0000002a); // Spr::DBAT1L
+        self.interconnect.mmu.write_dbatu(3, 0xfff0001f); // Spr::DBAT3U
+        self.interconnect.mmu.write_dbatl(3, 0xfff00001); // Spr::DBAT3L
+
+        self.interconnect.write_u32(&self.cpu.msr, 0x80000034, 0x817FE8C0); // ArenaHi
     }
 }
 
