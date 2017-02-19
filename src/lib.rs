@@ -13,6 +13,7 @@ mod audio_interface;
 mod command_processor;
 mod cpu;
 pub mod debugger;
+mod dol;
 mod dsp_interface;
 mod dvd_interface;
 mod exi;

@@ -215,4 +215,13 @@ impl Interconnect {
             _ => panic!("write_u64 not implemented for {:#?} address {:#x}", map(addr), addr)
         }
     }
+
+    pub fn write(&mut self, msr: &Msr, addr: u32, data: &[u8]) {
+        let addr = self.mmu.translate_data_address(msr, addr);
+
+        match map(addr) {
+            Address::Ram => self.ram.write_dma(addr, data),
+            _ => panic!("write_u64 not implemented for {:#?} address {:#x}", map(addr), addr)
+        }
+    }
 }
