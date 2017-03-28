@@ -4,14 +4,19 @@ A Gamecube emulator in the Rust programming language. Work is in progress to boo
 
 [Documentation](http://msierks.github.io/rustcube/rustcube/)
 
+## Screenshot
+![screenshot](media/screenshot.png)
+
 ## Build and Run
 
-Rustcube is built with [Cargo, the Rust package manager](https://www.rust-lang.org/). Currently a Gamecube BIOS(IPL.bin) is required to boot the emulator. The BIOS I have been testing with has a SHA-1 of `015808f637a984acde6a06efa7546e278293c6ee`.
+Rustcube is built with [Cargo, the Rust package manager](https://www.rust-lang.org/).
+
+Currently, Rustcube takes a single argument to run. This can be the Gamecube bios(IPL.bin), The one I've been testing with has a SHA-1 of `015808f637a984acde6a06efa7546e278293c6ee`. You could also use a [DOL](http://www.emulator-zone.com/doc.php/gamecube/) file.
 
 You can build and run the emulator with:
 
 ```
-cargo run --release -- /path/to/IPL.bin
+cargo build --release && ./target/release/rustcube <PathToIPL/DOL>
 ```
 
 You'll want to use the `--release` flag to turn optimizations on, otherwise it will run slowly. 
