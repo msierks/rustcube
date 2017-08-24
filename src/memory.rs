@@ -63,7 +63,7 @@ impl Ram {
 
     pub fn write_u8(&mut self, addr: u32, val: u8) {
         let buf = [val];
-        let mut data = unsafe { self.data.as_mut_slice() };
+        let data = unsafe { self.data.as_mut_slice() };
 
         match {&mut data[addr as usize ..]}.write(&buf) {
             Ok(_) => {}
@@ -73,7 +73,7 @@ impl Ram {
 
     pub fn write_u16(&mut self, addr: u32, val: u16) {
         let mut buf  = [0u8; 2];
-        let mut data = unsafe { self.data.as_mut_slice() };
+        let data = unsafe { self.data.as_mut_slice() };
 
         BigEndian::write_u16(&mut buf, val);
 
@@ -85,7 +85,7 @@ impl Ram {
 
     pub fn write_u32(&mut self, addr: u32, val: u32) {
         let mut buf  = [0u8; 4];
-        let mut data = unsafe { self.data.as_mut_slice() };
+        let data = unsafe { self.data.as_mut_slice() };
 
         BigEndian::write_u32(&mut buf, val);
 
@@ -97,7 +97,7 @@ impl Ram {
 
     pub fn write_u64(&mut self, addr: u32, val: u64) {
         let mut buf  = [0u8; 8];
-        let mut data = unsafe { self.data.as_mut_slice() };
+        let data = unsafe { self.data.as_mut_slice() };
 
         BigEndian::write_u64(&mut buf, val);
 
@@ -108,7 +108,7 @@ impl Ram {
     }
 
     pub fn write_dma(&mut self, addr: u32, buf: &[u8]) {
-        let mut data = unsafe { self.data.as_mut_slice() };
+        let data = unsafe { self.data.as_mut_slice() };
 
         match {&mut data[addr as usize ..]}.write(buf) {
             Ok(_) => {}

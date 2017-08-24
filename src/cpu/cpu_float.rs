@@ -1,14 +1,14 @@
 
 impl Cpu {
-    fn faddsx(&mut self, instr: Instruction) {
+    fn faddsx(&mut self, _: Instruction) {
         println!("FixMe: faddsx");
     }
 
-    fn fcmpo(&mut self, instr: Instruction) {
+    fn fcmpo(&mut self, _: Instruction) {
         println!("FixMe: fcmpo");
     }
 
-    fn fcmpu(&mut self, instr: Instruction) {
+    fn fcmpu(&mut self, _: Instruction) {
         println!("FixMe: fcmpu");
     }
 
@@ -28,6 +28,10 @@ impl Cpu {
         println!("FixMe: fmulsx");
     }
 
+    fn fmulx(&mut self, _instr: Instruction) {
+        println!("FixMe: fmulx");
+    }
+
     fn fnabsx(&mut self, instr: Instruction) {
         self.fpr[instr.d()] = self.fpr[instr.b()] | (1 << 63);
 
@@ -40,7 +44,31 @@ impl Cpu {
         println!("FixMe: fnegx");
     }
 
+    fn frspx(&mut self, _instr: Instruction) {
+        println!("FixMe: frspx");
+    }
+
     fn fsubsx(&mut self, _: Instruction) {
         println!("FixMe: fsubsx");
+    }
+
+    fn fsubx(&mut self, instr: Instruction) {
+        println!("FixMe: fsubx");
+
+        if instr.rc() {
+            panic!("RC: fsubx");
+        }
+    }
+
+    fn mtfsb1x(&mut self, instr: Instruction) {
+        self.fpscr.set_bit(instr.crbd(), true);
+
+        if instr.rc() {
+            panic!("RC: mtfsb1x");
+        }
+    }
+
+    fn mtfsfx(&mut self, _: Instruction) {
+        println!("FixMe: mtfsfx");
     }
 }

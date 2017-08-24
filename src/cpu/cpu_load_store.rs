@@ -123,6 +123,10 @@ impl Cpu {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
         };
 
+        if self.cia == 0x80040f78 {
+            println!("lwz EA: {:#010x}", ea);
+        }
+
         self.gpr[instr.d()] = interconnect.read_u32(&self.msr, ea);
     }
 
@@ -214,6 +218,18 @@ impl Cpu {
             instr.simm() as u32
         } else {
             self.gpr[instr.a()].wrapping_add(instr.simm() as u32)
+        };
+
+        interconnect.write_u8(&self.msr, ea, self.gpr[instr.d()] as u8);
+
+        debugger.memory_write(self, interconnect, ea);
+    }
+
+    fn stbx(&mut self, instr: Instruction, interconnect: &mut Interconnect, debugger: &mut Debugger) {
+        let ea = if instr.a() == 0 {
+            self.gpr[instr.a()]
+        } else {
+            self.gpr[instr.a()].wrapping_add(self.gpr[instr.b()])
         };
 
         interconnect.write_u8(&self.msr, ea, self.gpr[instr.d()] as u8);

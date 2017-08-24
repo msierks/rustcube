@@ -90,10 +90,18 @@ pub struct Cpu {
     gqr: [u32; NUM_GQR],
     /// L2 Cache Control Register
     l2cr: u32,
-    /// Monitor Mode Control Register
+    /// Monitor Mode Control Register 0
     mmcr0: u32,
+    /// Monitor Mode Control Register 1
+    mmcr1: u32,
     /// Performance Monitor Counter Register 1
     pmc1: u32,
+    /// Performance Monitor Counter Register 2
+    pmc2: u32,
+    /// Performance Monitor Counter Register 3
+    pmc3: u32,
+    /// Performance Monitor Counter Register 4
+    pmc4: u32,
 }
 
 include!("cpu_branch.rs");
@@ -127,7 +135,11 @@ impl Cpu {
             gqr: [0; NUM_GQR],
             l2cr: 0,
             mmcr0: 0,
+            mmcr1: 0,
             pmc1: 0,
+            pmc2: 0,
+            pmc3: 0,
+            pmc4: 0,
         };
 
         cpu.exception(Exception::SystemReset);
@@ -146,6 +158,7 @@ impl Cpu {
         debugger.nia_change(self, interconnect);
 
         match instr.opcode() {
+             3 => self.twi(instr),
              7 => self.mulli(instr),
              8 => self.subfic(instr),
             10 => self.cmpli(instr),
@@ -199,6 +212,7 @@ impl Cpu {
                     200 => self.subfzex(instr),
                     202 => self.addzex(instr),
                     210 => self.mtsr(instr),
+                    215 => self.stbx(instr, interconnect, debugger),
                     235 => self.mullwx(instr),
                     266 => self.addx(instr),
                     316 => self.xorx(instr),
@@ -253,10 +267,15 @@ impl Cpu {
             63 => {
                 match instr.ext_opcode_x() {
                       0 => self.fcmpu(instr),
+                     12 => self.frspx(instr),
+                     20 => self.fsubx(instr),
+                     25 => self.fmulx(instr),
                      32 => self.fcmpo(instr),
+                     38 => self.mtfsb1x(instr),
                      40 => self.fnegx(instr),
                      72 => self.fmrx(instr),
                     136 => self.fnabsx(instr),
+                    711 => self.mtfsfx(instr),
                     _   => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.ext_opcode_x())
                 }
             },

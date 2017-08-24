@@ -4,12 +4,12 @@ pub fn bon(bo: u8, n: u8) -> u8 {
 }
 
 // FIXME
-pub fn convert_to_double(x: u32) -> u64 {
+pub fn convert_to_double(_x: u32) -> u64 {
     panic!("FixMe: convert_to_double");
 }
 
 // FIXME
-pub fn convert_to_single(x: u64) -> u32 {
+pub fn convert_to_single(_x: u64) -> u32 {
     0
 }
 

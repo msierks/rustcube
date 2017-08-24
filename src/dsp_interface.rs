@@ -44,7 +44,10 @@ impl DspInterface {
             CONTROL_STATUS => self.control_register.as_u16(),
             AR_SIZE => self.ar_size,
             AR_REFRESH => self.ar_refresh,
-            _ => panic!("unrecognized dsp register {:#x}", register)
+            _ => {
+                println!("Warn: unrecognized dsp register {:#x}", register);
+                0
+            }
         }
     }
 
@@ -73,7 +76,7 @@ impl DspInterface {
                 self.mailbox_high = 0x8000;
                 self.ar_dma_size_low = val;
             },
-            _ => panic!("unrecognized dsp register {:#x}", register)
+            _ => println!("Warn: unrecognized dsp register {:#x}", register)
         }
     }
 }

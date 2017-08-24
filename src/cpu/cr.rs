@@ -56,7 +56,7 @@ impl Cr {
         self.value[0] |= xer.summary_overflow as u8;
     }
 
-    pub fn update_cr1(&mut self, r: u64, fpscr: &Fpscr) {
+    pub fn update_cr1(&mut self, _r: u64, _fpscr: &Fpscr) {
         println!("FixMe: update_cr1");
     }
 

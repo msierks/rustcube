@@ -9,6 +9,7 @@ pub struct AudioInterface {
 impl AudioInterface {
 
     pub fn read_u32(&self, register: u32) -> u32 {
+        println!("Read: AI {:#x}", register);
         match register {
             CONTROL_STATUS => self.control_register.as_u32(),
             _ => panic!("unrecognized ai register {:#x}", register)

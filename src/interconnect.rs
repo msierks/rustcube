@@ -13,7 +13,7 @@ use cpu::mmu::Mmu;
 use cpu::msr::Msr;
 use gp_fifo::GPFifo;
 use memory::Ram;
-use memory_interface::MemoryInterface;
+//use memory_interface::MemoryInterface;
 use pixel_engine::PixelEngine;
 use processor_interface::ProcessorInterface;
 use serial_interface::SerialInterface;
@@ -51,7 +51,7 @@ fn map(address: u32) -> Address {
         0x0C005000 ... 0x0C005200 => Address::DspInterface(address - 0x0C005000),
         0x0C006000 ... 0x0C0063FF => Address::DvdInterface(address - 0x0C006000),
         0x0C006400 ... 0x0C0067FF => Address::SerialInterface(address - 0x0C006400),
-        0x0C006800 ... 0x0C0068FF => {
+        0x0C006800 ... 0x0C006938 => {
             let channel  = (address - 0x0C006800) / 0x14;
             let register = (address - 0x0C006800) % 0x14;
             Address::ExpansionInterface(channel, register)
@@ -72,7 +72,7 @@ pub struct Interconnect {
     exi: Exi,
     gp: GPFifo,
     pub mmu: Mmu,
-    mi: MemoryInterface,
+    //mi: MemoryInterface,
     pe: PixelEngine,
     pi: ProcessorInterface,
     ram: Ram,
@@ -95,7 +95,7 @@ impl Interconnect {
             bootrom: bootrom,
             gp: GPFifo::new(),
             mmu: Mmu::new(),
-            mi: MemoryInterface::new(),
+            //mi: MemoryInterface::new(),
             pe: PixelEngine::new(),
             pi: ProcessorInterface::new(),
             ram: Ram::new(),
@@ -198,6 +198,7 @@ impl Interconnect {
                 self.dsp.write_u16(offset, (val >> 16) as u16);
                 self.dsp.write_u16(offset + 2, val as u16);
             },
+            Address::CommandProcessor(offset) => self.cp.write_u32(offset, val),
             Address::DvdInterface(offset) => self.dvd.write_u32(offset, val),
             Address::SerialInterface(offset) => self.si.write_u32(offset, val),
             Address::ExpansionInterface(channel, register) => self.exi.write(channel, register, val, &mut self.ram),

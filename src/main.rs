@@ -9,7 +9,7 @@ use std::env;
 use std::path::Path;
 use getopts::Options;
 
-fn print_usage(program: &str, opts: Options) {
+fn print_usage(program: &str, opts: &Options) {
     let brief = format!("Usage: {} [options] IPL_FILE", program);
     print!("{}", opts.usage(&brief));
 }
@@ -28,14 +28,14 @@ fn main() {
     };
 
     if matches.opt_present("h") {
-        print_usage(&program, opts);
+        print_usage(&program, &opts);
         return;
     }
 
     let file_name = if !matches.free.is_empty() {
         Path::new(matches.free[0].as_str())
     } else {
-        print_usage(&program, opts);
+        print_usage(&program, &opts);
         return;
     };
 

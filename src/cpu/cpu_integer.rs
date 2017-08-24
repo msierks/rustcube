@@ -18,7 +18,7 @@ fn mask(x: u8, y: u8) -> u32 {
 impl Cpu {
     fn addi(&mut self, instr: Instruction) {
         if instr.a() == 0 {
-            self.gpr[instr.d()] = instr.simm() as u32;
+            self.gpr[instr.d()] = (instr.simm() as i32) as u32;
         } else {
             self.gpr[instr.d()] = self.gpr[instr.a()].wrapping_add((instr.simm() as i32) as u32);
         }

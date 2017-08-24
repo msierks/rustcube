@@ -61,10 +61,9 @@ impl Status {
         let mut value = 0;
 
         let device:u8 = match (value >> 7) & 7 {
-            0 => 1,
             1 => 2,
             2 => 4,
-            _ => 1
+            0 | _ => 1
         };
 
         value |= (self.connected as u32) << 13;
@@ -81,10 +80,9 @@ impl Status {
 impl From<u32> for Status {
     fn from(value: u32) -> Self {
         let device:u8 = match (value >> 7) & 7 {
-            1 => 0,
+            0 | 1 => 0, // should 0, be handled ???
             2 => 1,
             4 => 2,
-            0 => 0, // should this really happen ???
             _ => panic!("unhandled device num: {}", (value >> 7) & 7)
         };
 
