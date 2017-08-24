@@ -19,9 +19,9 @@ impl GPFifo {
         }
     }
 
-    fn reset(&mut self) {
-        self.count = 0;
-    }
+    //fn reset(&mut self) {
+    //    self.count = 0;
+    //}
 
     fn check(&mut self, pi: &mut ProcessorInterface, ram: &mut Ram) {
 

@@ -89,12 +89,23 @@ impl Cpu {
                     Spr::HID0   => self.hid0 = self.gpr[instr.s()],
                     Spr::HID2   => self.hid2 = self.gpr[instr.s()].into(),
                     Spr::GQR0   => self.gqr[0] = self.gpr[instr.s()],
+                    Spr::GQR1   => self.gqr[1] = self.gpr[instr.s()],
+                    Spr::GQR2   => self.gqr[2] = self.gpr[instr.s()],
+                    Spr::GQR3   => self.gqr[3] = self.gpr[instr.s()],
+                    Spr::GQR4   => self.gqr[4] = self.gpr[instr.s()],
+                    Spr::GQR5   => self.gqr[5] = self.gpr[instr.s()],
+                    Spr::GQR6   => self.gqr[6] = self.gpr[instr.s()],
+                    Spr::GQR7   => self.gqr[7] = self.gpr[instr.s()],
                     Spr::L2CR   => self.l2cr = self.gpr[instr.s()],
                     Spr::PMC1   => self.pmc1 = self.gpr[instr.s()],
+                    Spr::PMC2   => self.pmc2 = self.gpr[instr.s()],
+                    Spr::PMC3   => self.pmc3 = self.gpr[instr.s()],
+                    Spr::PMC4   => self.pmc4 = self.gpr[instr.s()],
                     Spr::MMCR0  => self.mmcr0 = self.gpr[instr.s()],
+                    Spr::MMCR1  => self.mmcr1 = self.gpr[instr.s()],
                     Spr::DEC    => self.dec = self.gpr[instr.s()],
                     Spr::WPAR   => {
-                        assert!(self.gpr[instr.s()] == 0x0C008000, "write gather pipe address {:#010x}", self.gpr[instr.s()]);
+                        assert_eq!(self.gpr[instr.s()], 0x0C008000, "write gather pipe address {:#010x}", self.gpr[instr.s()]);
                         println!("FixMe: reset gather pipe...");
                     },
                     _ => panic!("mtspr not implemented for {:#?} {:#x}", spr, self.gpr[instr.s()])
@@ -127,5 +138,9 @@ impl Cpu {
     #[allow(unused_variables)]
     fn sync(&mut self, instr: Instruction) {
         // don't do anything
+    }
+
+    fn twi(&mut self, _: Instruction) {
+        println!("FixMe: twi");
     }
 }

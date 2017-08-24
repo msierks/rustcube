@@ -48,14 +48,18 @@ impl Instruction {
     }
 
     #[inline(always)]
+    pub fn crbd(&self) -> u8 {
+        ((self.0 >> 21) & 0x1F) as u8
+    }
+
+    #[inline(always)]
     pub fn crfd(&self) -> usize {
         ((self.0 >> 23) & 7) as usize
     }
 
-    // FixMe: this will always be false !!!
     #[inline(always)]
     pub fn l(&self) -> bool {
-        (self.0 & 0x200000) == 1
+        (self.0 & 0x200000) != 0
     }
 
     #[inline(always)]

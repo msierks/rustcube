@@ -84,21 +84,15 @@ impl Mmu {
    fn translate(&self, bats: &[Bat; 4], msr: &Msr, ea: u32) -> u32 {
       if msr.data_address_translation { // block address translation mode (BAT)
 
-         for x in 0..bats.len() {
-            let bat = &bats[x];
-
+         for bat in bats {
             let ea_15   = (ea >> 17) as u16;
             let ea_bepi = (ea_15 & 0x7800) ^ ((ea_15 & 0x7FF) & (!bat.bl));
 
-            if ea_bepi == bat.bepi {
+            if ea_bepi == bat.bepi && ((!msr.privilege_level && bat.vs) || (msr.privilege_level && bat.vp)) {
+               let upper = (bat.brpn ^ ((ea_15 & 0x7FF) & bat.bl)) as u32;
+               let lower = (ea & 0x1FFFF) as u32;
 
-               if (!msr.privilege_level && bat.vs) || (msr.privilege_level && bat.vp) {
-                  let upper = (bat.brpn ^ ((ea_15 & 0x7FF) & bat.bl)) as u32;
-                  let lower = (ea & 0x1FFFF) as u32;
-
-                  return (upper << 17) ^ lower;
-               }
-
+               return (upper << 17) ^ lower;
             }
          }
 

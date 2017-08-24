@@ -43,7 +43,15 @@ pub struct Fpscr {
     // ZE
     // XE
     // NI
+    non_ieee_mode: bool,
     // RN
 }
 
-
+impl Fpscr {
+    pub fn set_bit(&mut self, bit: u8, value: bool) {
+        match bit {
+            29 => self.non_ieee_mode = value,
+            _ => panic!("Unhandled Fpscr.set_bit {:}", bit)
+        }
+    }
+}

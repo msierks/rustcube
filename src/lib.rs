@@ -1,3 +1,10 @@
+
+#![cfg_attr(feature="cargo-clippy", allow(inline_always))]
+#![cfg_attr(feature="cargo-clippy", allow(many_single_char_names))]
+#![cfg_attr(feature="cargo-clippy", allow(new_without_default))]
+#![cfg_attr(feature="cargo-clippy", allow(new_without_default_derive))]
+#![cfg_attr(feature="cargo-clippy", allow(unreadable_literal))]
+
 extern crate byteorder;
 extern crate getopts;
 extern crate memmap;
@@ -22,7 +29,7 @@ pub mod gamecube;
 mod gp_fifo;
 mod interconnect;
 mod memory;
-mod memory_interface;
+//mod memory_interface;
 mod pixel_engine;
 mod processor_interface;
 mod serial_interface;

@@ -38,7 +38,7 @@ impl Dol {
 
         try!(file.read_exact(&mut buff));
 
-        let mut offset = 0;
+        let mut offset;
         let mut text_offset = [0; NUM_TEXT];
         let mut text_address = [0; NUM_TEXT];
         let mut text_size = [0; NUM_TEXT];
@@ -50,7 +50,7 @@ impl Dol {
 
         for x in 0..NUM_TEXT {
             offset = x * 4;
-            text_offset[x] = BigEndian::read_u32(&buff[0x00 + offset..]);
+            text_offset[x] = BigEndian::read_u32(&buff[offset..]);
             text_address[x] = BigEndian::read_u32(&buff[0x48 + offset..]);
             text_size[x] = BigEndian::read_u32(&buff[0x90 + offset..]);
 

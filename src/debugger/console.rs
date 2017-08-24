@@ -61,9 +61,9 @@ impl Command {
     }
 
     pub fn execute(&self, debugger: &mut ConsoleDebugger, cpu: &mut Cpu, interconnect: &mut Interconnect) {
-        let args = self.data.trim().split(" ").collect::<Vec<&str>>();
+        let args = self.data.trim().split(' ').collect::<Vec<&str>>();
 
-        if args.len() == 0 {
+        if args.is_empty() {
             self.help(&args);
         } else {
 
@@ -73,11 +73,10 @@ impl Command {
                 "clear" => self.clear(&args, debugger),
                 "continue" | "c" => debugger.continue_(),
                 "examine" | "x" => self.examine(&args, cpu, interconnect),
-                "help" => self.help(&args),
                 "show" => self.show(&args, debugger, cpu, interconnect),
                 "step" | "" => self.step(&args, debugger),
                 "watch" | "w" => self.watch_(&args, debugger),
-                _ => self.help(&args)
+                "help" | _ => self.help(&args)
             }
 
         }
@@ -85,7 +84,7 @@ impl Command {
 
     fn advance(&self, args: &Vec<&str>, debugger: &mut ConsoleDebugger) {
         if args.len() > 1 {
-            match parse_hex_str(&args[1]) {
+            match parse_hex_str(args[1]) {
                 Ok(v) => debugger.set_advance(v),
                 Err(e) => println!("Error: {}", e)
             }
@@ -97,7 +96,7 @@ impl Command {
 
     fn break_(&self, args: &Vec<&str>, debugger: &mut ConsoleDebugger) {
         if args.len() > 1 {
-            match parse_hex_str(&args[1]) {
+            match parse_hex_str(args[1]) {
                 Ok(v) => debugger.add_breakpoint(v),
                 Err(e) => println!("Error: {}", e)
             }
@@ -108,7 +107,7 @@ impl Command {
 
     fn examine(&self, args: &Vec<&str>, cpu: &mut Cpu, interconnect: &mut Interconnect) {
         if args.len() > 1 {
-            match parse_hex_str(&args[1]) {
+            match parse_hex_str(args[1]) {
                 Ok(v) => println!("{:#010x}: {:#010x}", v, interconnect.read_u16(&cpu.msr, v)),
                 Err(e) => println!("Error: {}", e)
             }
@@ -119,7 +118,7 @@ impl Command {
 
     fn watch_(&self, args: &Vec<&str>, debugger: &mut ConsoleDebugger) {
         if args.len() > 1 {
-            match parse_hex_str(&args[1]) {
+            match parse_hex_str(args[1]) {
                 Ok(v) => debugger.add_watchpoint(v),
                 Err(e) => println!("Error: {}", e)
             }
@@ -130,7 +129,7 @@ impl Command {
 
     fn clear(&self, args: &Vec<&str>, debugger: &mut ConsoleDebugger) {
         if args.len() > 1 {
-            match parse_hex_str(&args[1]) {
+            match parse_hex_str(args[1]) {
                 Ok(v) => {
                     debugger.remove_breakpoint(v);
                     debugger.remove_watchpoint(v);
@@ -193,7 +192,7 @@ impl Command {
 
     fn step(&self, args: &Vec<&str>, debugger: &mut ConsoleDebugger) {
         if args.len() > 1 {
-            match u32::from_str_radix(&args[1], 10) {
+            match u32::from_str_radix(args[1], 10) {
                 Ok(v) => debugger.set_step(v),
                 Err(e) => println!("Error: {}", e)
             }

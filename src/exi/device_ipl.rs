@@ -111,7 +111,7 @@ impl Device for DeviceIpl {
                 "read"
             };
 
-            //println!("ExpansionInterface: {} {} {:#010x}", device_name, write_str, value);
+            println!("ExpansionInterface: {} {} {:#010x}", device_name, write_str, value);
         } else {
 
             match self.command {

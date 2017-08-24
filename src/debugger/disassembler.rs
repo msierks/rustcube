@@ -108,10 +108,10 @@ impl Disassembler {
     fn addi(&mut self, instr: Instruction, ext: &str) {
         if ext == "s" {
             self.opcode = String::from("lis");
-            self.operands = format!("r{},{}", instr.d(), instr.simm());
+            self.operands = format!("r{},{:#x}", instr.d(), (instr.simm() as u32) << 16);
         } else {
             if instr.a() == 0 {
-                self.opcode = format!("li");
+                self.opcode = String::from("li");
                 self.operands = format!("r{},{}", instr.d(), instr.simm());
             } else {
                 self.opcode = format!("addi{}", ext);
@@ -276,18 +276,18 @@ impl Disassembler {
 
     fn cmp(&mut self, instr: Instruction) {
         if instr.l() {
-            self.opcode = format!("cmp");
+            self.opcode = String::from("cmp");
         } else {
-            self.opcode = format!("cmpw");
+            self.opcode = String::from("cmpw");
         }
         self.operands = format!("r{},r{}", instr.a(), instr.b());
     }
 
     fn cmpi(&mut self, instr: Instruction) {
         if !instr.l() {
-            self.opcode = format!("cmpwi");
+            self.opcode = String::from("cmpwi");
         } else {
-            self.opcode = format!("cmpi");
+            self.opcode = String::from("cmpi"); 
         }
         self.operands = format!("r{},{}", instr.a(), instr.uimm());
     }
@@ -409,7 +409,7 @@ impl Disassembler {
     }
 
     fn oris(&mut self, instr: Instruction) {
-        self.opcode = format!("oris");
+        self.opcode = String::from("oris");
         self.operands = format!("r{},r{},{}", instr.a(), instr.s(), instr.uimm());
     }
 
@@ -548,12 +548,12 @@ impl Disassembler {
     }
 
     fn stmw(&mut self, instr: Instruction) {
-        self.opcode = format!("stmw");
+        self.opcode = String::from("stmw");
         self.operands = format!("r{},{}(r{})", instr.s(), instr.simm(), instr.a());
     }
 
     fn lmw(&mut self, instr: Instruction) {
-        self.opcode = format!("lmw");
+        self.opcode = String::from("lmw");
         self.operands = format!("r{},{}(r{})", instr.d(), instr.uimm(), instr.a());
     }
 
@@ -563,7 +563,7 @@ impl Disassembler {
     }
 
     fn lbz(&mut self, instr: Instruction) {
-        self.opcode = format!("lbz");
+        self.opcode = String::from("lbz");
         self.operands = format!("r{},{}(r{})", instr.d(), instr.uimm(), instr.a());
     }
 

@@ -33,6 +33,8 @@ impl Cpu {
             true
         };
 
+        //println!("BO: {} ctr_ok: {} cond_ok: {}", bo, ctr_ok, cond_ok);
+
         if ctr_ok && cond_ok {
             if instr.aa() == 1 {
                 self.nia = sign_ext_16(instr.bd() << 2) as u32;

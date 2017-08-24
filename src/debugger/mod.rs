@@ -15,6 +15,7 @@ pub trait Debugger {
     fn memory_write(&mut self, cpu: &mut Cpu, interconnect: &mut Interconnect, addr: u32);
 }
 
+#[derive(Default)]
 pub struct DummyDebugger;
 
 impl DummyDebugger {
@@ -173,7 +174,7 @@ static SIGINT: atomic::AtomicBool = atomic::ATOMIC_BOOL_INIT;
 fn install_sigint_handler() {
     SIGINT_ONCE.call_once(|| unsafe {
         let sigint = signal::SigAction::new(signal::SigHandler::Handler(sigint_handler),
-                                            signal::SaFlag::empty(),
+                                            signal::SaFlags::empty(),
                                             signal::SigSet::empty());
         let _ = signal::sigaction(signal::SIGINT, &sigint);
     });
@@ -184,6 +185,6 @@ fn install_sigint_handler() {
 }
 
 #[cfg(unix)]
-extern "C" fn sigint_handler(_: signal::SigNum) {
+extern "C" fn sigint_handler(_: i32) {
     SIGINT.store(true, atomic::Ordering::SeqCst);
 }
