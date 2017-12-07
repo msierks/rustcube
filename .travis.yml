@@ -11,6 +11,7 @@ cache: cargo
 before_script:
 - rustc --version
 - cargo --version
+- sudo apt-get install xorg-dev
 script:
 - cargo test
 branches:
