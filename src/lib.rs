@@ -7,7 +7,6 @@
 
 extern crate byteorder;
 extern crate getopts;
-extern crate memmap;
 extern crate minifb;
 #[cfg(unix)]
 extern crate nix;
