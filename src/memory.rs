@@ -1,118 +1,63 @@
-use byteorder::{ByteOrder, BigEndian};
-use memmap::{Mmap, Protection};
-use std::io::{Read, Write};
 
-const RAM_SIZE: usize = 0x1800000; // 24 MB
+use byteorder::{ByteOrder, BigEndian};
+
+/// Main RAM Size: 24MB
+const RAM_SIZE: usize = 0x180_0000;
 
 pub struct Ram {
-    data: Mmap
+    data: Box<[u8]>,
+}
+
+impl Default for Ram {
+    fn default() -> Self {
+        Ram {
+            data: vec![0; RAM_SIZE].into_boxed_slice(),
+        }
+    }
 }
 
 impl Ram {
-
-    pub fn new() -> Ram {
-        let data = match Mmap::anonymous(RAM_SIZE, Protection::ReadWrite) {
-            Ok(v) => v,
-            Err(e) => panic!("{}", e)
-        };
-
-        Ram {
-            data: data
-        }
-    }
-
     pub fn read_u8(&self, addr: u32) -> u8 {
-        let mut buf = [0u8; 1];
-        let data = unsafe { self.data.as_slice() };
-
-        match {&data[addr as usize ..]}.read(&mut buf) {
-            Ok(_) => buf[0],
-            Err(e) => panic!("{}", e)
-        }
+        self.data[addr as usize]
     }
 
     pub fn read_u16(&self, addr: u32) -> u16 {
-        let mut buf = [0u8; 2];
-        let data = unsafe { self.data.as_slice() };
-
-        match {&data[addr as usize ..]}.read(&mut buf) {
-            Ok(_) => BigEndian::read_u16(&buf),
-            Err(e) => panic!("{}", e)
-        }
+        BigEndian::read_u16(&self.data[addr as usize ..])
     }
 
     pub fn read_u32(&self, addr: u32) -> u32 {
-        let mut buf = [0u8; 4];
-        let data = unsafe { self.data.as_slice() };
-
-        match {&data[addr as usize ..]}.read(&mut buf) {
-            Ok(_) => BigEndian::read_u32(&buf),
-            Err(e) => panic!("{}", e)
-        }
+        BigEndian::read_u32(&self.data[addr as usize ..])
     }
 
     pub fn read_u64(&self, addr: u32) -> u64 {
-        let mut buf = [0u8; 8];
-        let data = unsafe { self.data.as_slice() };
+        BigEndian::read_u64(&self.data[addr as usize ..])
+    }
 
-        match {&data[addr as usize ..]}.read(&mut buf) {
-            Ok(_) => BigEndian::read_u64(&buf),
-            Err(e) => panic!("{}", e)
+    pub fn read_dma(&mut self, addr: u32, buf: &mut [u8]) {
+        for i in 0..buf.len() {
+            buf[i] = self.data[addr as usize + i];
         }
     }
 
     pub fn write_u8(&mut self, addr: u32, val: u8) {
-        let buf = [val];
-        let data = unsafe { self.data.as_mut_slice() };
-
-        match {&mut data[addr as usize ..]}.write(&buf) {
-            Ok(_) => {}
-            Err(e) => panic!("{}", e)
-        }
+        self.data[addr as usize] = val;
     }
 
     pub fn write_u16(&mut self, addr: u32, val: u16) {
-        let mut buf  = [0u8; 2];
-        let data = unsafe { self.data.as_mut_slice() };
-
-        BigEndian::write_u16(&mut buf, val);
-
-        match {&mut data[addr as usize ..]}.write(&buf) {
-            Ok(_) => {}
-            Err(e) => panic!("{}", e)
-        }
+        BigEndian::write_u16(&mut self.data[addr as usize ..], val);
     }
 
     pub fn write_u32(&mut self, addr: u32, val: u32) {
-        let mut buf  = [0u8; 4];
-        let data = unsafe { self.data.as_mut_slice() };
-
-        BigEndian::write_u32(&mut buf, val);
-
-        match {&mut data[addr as usize ..]}.write(&buf) {
-            Ok(_) => {}
-            Err(e) => panic!("{}", e)
-        }
+        BigEndian::write_u32(&mut self.data[addr as usize ..], val);
     }
 
     pub fn write_u64(&mut self, addr: u32, val: u64) {
-        let mut buf  = [0u8; 8];
-        let data = unsafe { self.data.as_mut_slice() };
-
-        BigEndian::write_u64(&mut buf, val);
-
-        match {&mut data[addr as usize ..]}.write(&buf) {
-            Ok(_) => {}
-            Err(e) => panic!("{}", e)
-        }
+        BigEndian::write_u64(&mut self.data[addr as usize ..], val);
     }
 
     pub fn write_dma(&mut self, addr: u32, buf: &[u8]) {
-        let data = unsafe { self.data.as_mut_slice() };
-
-        match {&mut data[addr as usize ..]}.write(buf) {
-            Ok(_) => {}
-            Err(e) => panic!("{}", e)
+        for i in 0..buf.len() {
+            self.data[addr as usize + i] = buf[i];
         }
     }
 
