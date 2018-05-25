@@ -98,7 +98,7 @@ impl Interconnect {
             //mi: MemoryInterface::new(),
             pe: PixelEngine::new(),
             pi: ProcessorInterface::new(),
-            ram: Ram::new(),
+            ram: Ram::default(),
             si: SerialInterface::new(),
             vi: VideoInterface::new()
         }
