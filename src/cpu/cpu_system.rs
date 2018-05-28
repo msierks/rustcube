@@ -106,7 +106,7 @@ impl Cpu {
                     Spr::DEC    => self.dec = self.gpr[instr.s()],
                     Spr::WPAR   => {
                         assert_eq!(self.gpr[instr.s()], 0x0C008000, "write gather pipe address {:#010x}", self.gpr[instr.s()]);
-                        println!("FixMe: reset gather pipe...");
+                        interconnect.gp.reset();
                     },
                     _ => panic!("mtspr not implemented for {:#?} {:#x}", spr, self.gpr[instr.s()])
                 }
