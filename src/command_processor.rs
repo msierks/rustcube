@@ -26,7 +26,7 @@ impl CommandProcessor {
         println!("WRITE CP reg {:#x} {:#x}", register, val);
     }
 
-    pub fn gather_pipe_burst(&mut self, ram: &mut Ram) {
+    pub fn gather_pipe_burst(&mut self, _ram: &mut Ram) {
 
     }
 }

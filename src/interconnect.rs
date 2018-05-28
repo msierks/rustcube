@@ -70,7 +70,7 @@ pub struct Interconnect {
     dsp: DspInterface,
     dvd: DvdInterface,
     exi: Exi,
-    gp: GPFifo,
+    pub gp: GPFifo,
     pub mmu: Mmu,
     //mi: MemoryInterface,
     pe: PixelEngine,
