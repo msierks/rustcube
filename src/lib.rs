@@ -1,17 +1,8 @@
-
-#![cfg_attr(feature="cargo-clippy", allow(inline_always))]
-#![cfg_attr(feature="cargo-clippy", allow(many_single_char_names))]
-#![cfg_attr(feature="cargo-clippy", allow(new_without_default))]
-#![cfg_attr(feature="cargo-clippy", allow(new_without_default_derive))]
-#![cfg_attr(feature="cargo-clippy", allow(unreadable_literal))]
-
-extern crate byteorder;
-extern crate getopts;
-extern crate minifb;
-#[cfg(unix)]
-extern crate nix;
-extern crate num;
-extern crate rustyline;
+#![cfg_attr(feature = "cargo-clippy", allow(inline_always))]
+#![cfg_attr(feature = "cargo-clippy", allow(many_single_char_names))]
+#![cfg_attr(feature = "cargo-clippy", allow(new_without_default))]
+#![cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
+#![cfg_attr(feature = "cargo-clippy", allow(unreadable_literal))]
 
 #[macro_use]
 extern crate enum_primitive;

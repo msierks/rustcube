@@ -1,4 +1,3 @@
-
 mod cr;
 mod fpscr;
 mod gqr;
@@ -18,37 +17,37 @@ use self::cr::Cr;
 use self::fpscr::Fpscr;
 use self::gqr::Gqr;
 use self::hid::Hid2;
-use self::xer::Xer;
 use self::instruction::Instruction;
 use self::msr::Msr;
-use self::tbr::{Tbr, TBR};
 use self::spr::Spr;
+use self::tbr::{Tbr, TBR};
 use self::util::*;
+use self::xer::Xer;
 use super::debugger::Debugger;
-use interconnect::Interconnect;
+use super::interconnect::Interconnect;
 
 const NUM_FPR: usize = 32;
 const NUM_GPR: usize = 32;
-const NUM_GQR: usize =  8;
-const NUM_SR : usize = 16;
+const NUM_GQR: usize = 8;
+const NUM_SR: usize = 16;
 
 #[derive(Debug)]
 pub enum Exception {
-    SystemReset                  = 0x00100,
-    MachineCheck                 = 0x00200,
-    DataStorage                  = 0x00300,
-    InstructionStorage           = 0x00400,
-    External                     = 0x00500,
-    Alignment                    = 0x00600,
-    Program                      = 0x00700,
-    FloatingPointUnavailable     = 0x00800,
-    Decrementer                  = 0x00900,
-    SystemCall                   = 0x00C00,
-    Trace                        = 0x00D00,
-    FloatingPointAssist          = 0x00E00,
-    PerformanceMonitor           = 0x00F00, // Gekko Only
+    SystemReset = 0x00100,
+    MachineCheck = 0x00200,
+    DataStorage = 0x00300,
+    InstructionStorage = 0x00400,
+    External = 0x00500,
+    Alignment = 0x00600,
+    Program = 0x00700,
+    FloatingPointUnavailable = 0x00800,
+    Decrementer = 0x00900,
+    SystemCall = 0x00C00,
+    Trace = 0x00D00,
+    FloatingPointAssist = 0x00E00,
+    PerformanceMonitor = 0x00F00,           // Gekko Only
     InstructionAddressBreakpoint = 0x01300, // Gekko Only
-    ThermalManagement            = 0x01700  // Gekko Only
+    ThermalManagement = 0x01700,            // Gekko Only
 }
 
 pub struct Cpu {
@@ -112,7 +111,6 @@ include!("cpu_load_store.rs");
 include!("cpu_system.rs");
 
 impl Cpu {
-
     pub fn new() -> Cpu {
         let mut cpu = Cpu {
             cia: 0,
@@ -158,9 +156,9 @@ impl Cpu {
         debugger.nia_change(self, interconnect);
 
         match instr.opcode() {
-             3 => self.twi(instr),
-             7 => self.mulli(instr),
-             8 => self.subfic(instr),
+            3 => self.twi(instr),
+            7 => self.mulli(instr),
+            8 => self.subfic(instr),
             10 => self.cmpli(instr),
             11 => self.cmpi(instr),
             12 => self.addic(instr),
@@ -170,15 +168,17 @@ impl Cpu {
             16 => self.bcx(instr),
             17 => self.sc(instr),
             18 => self.bx(instr),
-            19 => {
-                match instr.ext_opcode_x() {
-                     16 => self.bclrx(instr),
-                     50 => self.rfi(),
-                    150 => self.isync(instr),
-                    193 => self.crxor(instr),
-                    528 => self.bcctrx(instr),
-                    _ => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.ext_opcode_x())
-                }
+            19 => match instr.ext_opcode_x() {
+                16 => self.bclrx(instr),
+                50 => self.rfi(),
+                150 => self.isync(instr),
+                193 => self.crxor(instr),
+                528 => self.bcctrx(instr),
+                _ => panic!(
+                    "Unrecognized instruction subopcode {} {}",
+                    instr.opcode(),
+                    instr.ext_opcode_x()
+                ),
             },
             20 => self.rlwimix(instr),
             21 => self.rlwinmx(instr),
@@ -186,52 +186,54 @@ impl Cpu {
             25 => self.oris(instr),
             27 => self.xoris(instr),
             28 => self.andi_rc(instr),
-            31 => {
-                match instr.ext_opcode_x() {
-                      0 => self.cmp(instr),
-                      8 => self.subfcx(instr),
-                     10 => self.addcx(instr),
-                     11 => self.mulhwux(instr),
-                     19 => self.mfcr(instr),
-                     23 => self.lwzx(instr, interconnect),
-                     24 => self.slwx(instr),
-                     26 => self.cntlzwx(instr),
-                     28 => self.andx(instr),
-                     32 => self.cmpl(instr),
-                     40 => self.subfx(instr),
-                     60 => self.andcx(instr),
-                     83 => self.mfmsr(instr),
-                     86 => self.dcbf(instr),
-                     87 => self.lbzx(instr, interconnect),
-                    104 => self.negx(instr),
-                    124 => self.norx(instr),
-                    136 => self.subfex(instr),
-                    138 => self.addex(instr),
-                    146 => self.mtmsr(instr),
-                    151 => self.stwx(instr, interconnect, debugger),
-                    200 => self.subfzex(instr),
-                    202 => self.addzex(instr),
-                    210 => self.mtsr(instr),
-                    215 => self.stbx(instr, interconnect, debugger),
-                    235 => self.mullwx(instr),
-                    266 => self.addx(instr),
-                    316 => self.xorx(instr),
-                    339 => self.mfspr(instr),
-                    371 => self.mftb(instr),
-                    444 => self.orx(instr),
-                    459 => self.divwux(instr),
-                    467 => self.mtspr(instr, interconnect),
-                    470 => self.dcbi(instr),
-                    491 => self.divwx(instr),
-                    536 => self.srwx(instr),
-                    598 => self.sync(instr),
-                    792 => self.srawx(instr),
-                    824 => self.srawix(instr),
-                    922 => self.extshx(instr),
-                    954 => self.extsbx(instr),
-                    982 => self.icbi(instr),
-                    _   => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.ext_opcode_x())
-                }
+            31 => match instr.ext_opcode_x() {
+                0 => self.cmp(instr),
+                8 => self.subfcx(instr),
+                10 => self.addcx(instr),
+                11 => self.mulhwux(instr),
+                19 => self.mfcr(instr),
+                23 => self.lwzx(instr, interconnect),
+                24 => self.slwx(instr),
+                26 => self.cntlzwx(instr),
+                28 => self.andx(instr),
+                32 => self.cmpl(instr),
+                40 => self.subfx(instr),
+                60 => self.andcx(instr),
+                83 => self.mfmsr(instr),
+                86 => self.dcbf(instr),
+                87 => self.lbzx(instr, interconnect),
+                104 => self.negx(instr),
+                124 => self.norx(instr),
+                136 => self.subfex(instr),
+                138 => self.addex(instr),
+                146 => self.mtmsr(instr),
+                151 => self.stwx(instr, interconnect, debugger),
+                200 => self.subfzex(instr),
+                202 => self.addzex(instr),
+                210 => self.mtsr(instr),
+                215 => self.stbx(instr, interconnect, debugger),
+                235 => self.mullwx(instr),
+                266 => self.addx(instr),
+                316 => self.xorx(instr),
+                339 => self.mfspr(instr),
+                371 => self.mftb(instr),
+                444 => self.orx(instr),
+                459 => self.divwux(instr),
+                467 => self.mtspr(instr, interconnect),
+                470 => self.dcbi(instr),
+                491 => self.divwx(instr),
+                536 => self.srwx(instr),
+                598 => self.sync(instr),
+                792 => self.srawx(instr),
+                824 => self.srawix(instr),
+                922 => self.extshx(instr),
+                954 => self.extsbx(instr),
+                982 => self.icbi(instr),
+                _ => panic!(
+                    "Unrecognized instruction subopcode {} {}",
+                    instr.opcode(),
+                    instr.ext_opcode_x()
+                ),
             },
             32 => self.lwz(instr, interconnect),
             33 => self.lwzu(instr, interconnect),
@@ -242,7 +244,7 @@ impl Cpu {
             38 => self.stb(instr, interconnect, debugger),
             39 => self.stbu(instr, interconnect, debugger),
             40 => self.lhz(instr, interconnect),
-            41 => self.lhzu(instr, interconnect ),
+            41 => self.lhzu(instr, interconnect),
             42 => self.lha(instr, interconnect),
             44 => self.sth(instr, interconnect, debugger),
             45 => self.sthu(instr, interconnect, debugger),
@@ -254,32 +256,41 @@ impl Cpu {
             53 => self.stfsu(instr, interconnect, debugger),
             54 => self.stfd(instr, interconnect, debugger),
             56 => self.psq_l(instr, interconnect),
-            59 => {
-                match instr.ext_opcode_a() {
-                    18 => self.fdivsx(instr),
-                    20 => self.fsubsx(instr),
-                    21 => self.faddsx(instr),
-                    25 => self.fmulsx(instr),
-                    _  => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.ext_opcode_a())
-                }
+            59 => match instr.ext_opcode_a() {
+                18 => self.fdivsx(instr),
+                20 => self.fsubsx(instr),
+                21 => self.faddsx(instr),
+                25 => self.fmulsx(instr),
+                _ => panic!(
+                    "Unrecognized instruction subopcode {} {}",
+                    instr.opcode(),
+                    instr.ext_opcode_a()
+                ),
             },
             60 => self.psq_st(instr, interconnect),
-            63 => {
-                match instr.ext_opcode_x() {
-                      0 => self.fcmpu(instr),
-                     12 => self.frspx(instr),
-                     20 => self.fsubx(instr),
-                     25 => self.fmulx(instr),
-                     32 => self.fcmpo(instr),
-                     38 => self.mtfsb1x(instr),
-                     40 => self.fnegx(instr),
-                     72 => self.fmrx(instr),
-                    136 => self.fnabsx(instr),
-                    711 => self.mtfsfx(instr),
-                    _   => panic!("Unrecognized instruction subopcode {} {}", instr.opcode(), instr.ext_opcode_x())
-                }
+            63 => match instr.ext_opcode_x() {
+                0 => self.fcmpu(instr),
+                12 => self.frspx(instr),
+                20 => self.fsubx(instr),
+                25 => self.fmulx(instr),
+                32 => self.fcmpo(instr),
+                38 => self.mtfsb1x(instr),
+                40 => self.fnegx(instr),
+                72 => self.fmrx(instr),
+                136 => self.fnabsx(instr),
+                711 => self.mtfsfx(instr),
+                _ => panic!(
+                    "Unrecognized instruction subopcode {} {}",
+                    instr.opcode(),
+                    instr.ext_opcode_x()
+                ),
             },
-            _  => panic!("Unrecognized instruction {} {}, cia {:#x}", instr.0, instr.opcode(), self.cia)
+            _ => panic!(
+                "Unrecognized instruction {} {}, cia {:#x}",
+                instr.0,
+                instr.opcode(),
+                self.cia
+            ),
         }
 
         self.cia = self.nia;
@@ -299,7 +310,7 @@ impl Cpu {
                 } else {
                     self.cia = exception as u32
                 }
-            },
+            }
             Exception::SystemCall => {
                 self.srr0 = self.cia + 4;
                 self.srr1 = self.msr.as_u32() & 0x87C0FFFF;
@@ -315,15 +326,18 @@ impl Cpu {
                 }
 
                 self.nia = self.cia;
-            },
-            _ => panic!("unhandled exception")
+            }
+            _ => panic!("unhandled exception"),
         }
     }
 }
 
 impl fmt::Debug for Cpu {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "MSR: {:?} gpr: {:?}, sr: {:?}, cr:{:?}", self.msr, self.gpr, self.sr, self.cr)
+        write!(
+            f,
+            "MSR: {:?} gpr: {:?}, sr: {:?}, cr:{:?}",
+            self.msr, self.gpr, self.sr, self.cr
+        )
     }
 }
-
