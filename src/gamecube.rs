@@ -1,22 +1,22 @@
 use std::fs;
-use std::path::Path;
 use std::io::Read;
+use std::path::Path;
 
 use super::cpu::Cpu;
-use super::interconnect::Interconnect;
 use super::debugger::Debugger;
-use dol::Dol;
+use super::interconnect::Interconnect;
+use crate::dol::Dol;
 
 pub struct Gamecube {
     pub cpu: Cpu,
-    interconnect: Interconnect
+    interconnect: Interconnect,
 }
 
 impl Gamecube {
     pub fn new() -> Gamecube {
         Gamecube {
             cpu: Cpu::new(),
-            interconnect: Interconnect::new()
+            interconnect: Interconnect::new(),
         }
     }
 
@@ -42,7 +42,7 @@ impl Gamecube {
         let mut bootrom = self.interconnect.bootrom.borrow_mut();
 
         match file.read_exact(&mut **bootrom) {
-            Ok(_) => {},
+            Ok(_) => {}
             Err(e) => {
                 panic!("{}", e);
             }
@@ -71,24 +71,26 @@ impl Gamecube {
         self.interconnect.mmu.write_dbatu(3, 0xfff0001f); // Spr::DBAT3U
         self.interconnect.mmu.write_dbatl(3, 0xfff00001); // Spr::DBAT3L
 
-        self.interconnect.write_u32(&self.cpu.msr, 0x80000034, 0x817FE8C0); // ArenaHi
+        self.interconnect
+            .write_u32(&self.cpu.msr, 0x80000034, 0x817FE8C0); // ArenaHi
 
-        self.interconnect.write_u16(&self.cpu.msr, 0xCC002002, 0x0001); // VI - Display Config
+        self.interconnect
+            .write_u16(&self.cpu.msr, 0xCC002002, 0x0001); // VI - Display Config
     }
 }
 
 // bootrom descrambler reversed by segher
 // Copyright 2008 Segher Boessenkool <segher@kernel.crashing.org>
-fn descrambler(data: &mut[u8]) {
+fn descrambler(data: &mut [u8]) {
     let size = data.len();
-    let mut acc :u8 = 0;
-    let mut nacc:u8 = 0;
+    let mut acc: u8 = 0;
+    let mut nacc: u8 = 0;
 
-    let mut t:u16 = 0x2953;
-    let mut u:u16 = 0xd9c2;
-    let mut v:u16 = 0x3ff1;
+    let mut t: u16 = 0x2953;
+    let mut u: u16 = 0xd9c2;
+    let mut v: u16 = 0x3ff1;
 
-    let mut x:u8 = 1;
+    let mut x: u8 = 1;
 
     let mut it = 0;
 
@@ -122,11 +124,11 @@ fn descrambler(data: &mut[u8]) {
             t ^= 0xa740;
         }
 
-        nacc+=1;
-        acc = (2*acc as u16 + x as u16) as u8;
+        nacc += 1;
+        acc = (2 * acc as u16 + x as u16) as u8;
         if nacc == 8 {
             data[it as usize] ^= acc;
-            it+=1;
+            it += 1;
             nacc = 0;
         }
     }

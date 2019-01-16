@@ -1,9 +1,8 @@
-
+use byteorder::{BigEndian, ByteOrder};
 use std::fs;
-use std::io::{Read, Error, SeekFrom};
 use std::io::prelude::*;
+use std::io::{Error, Read, SeekFrom};
 use std::path::Path;
-use byteorder::{ByteOrder, BigEndian};
 
 use super::cpu::Cpu;
 use super::interconnect::Interconnect;
@@ -21,22 +20,22 @@ struct Header {
     data_size: [u32; NUM_DATA],
     bss_address: u32,
     bss_size: u32,
-    entry_point: u32
+    entry_point: u32,
 }
 
 #[derive(Debug)]
 pub struct Dol {
     header: Header,
     text_sections: Vec<Vec<u8>>,
-    data_sections: Vec<Vec<u8>>
+    data_sections: Vec<Vec<u8>>,
 }
 
-impl Dol {   
+impl Dol {
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Dol, Error> {
         let mut buff = [0; 0xE4];
-        let mut file = try!(fs::File::open(path));
+        let mut file = fs::File::open(path)?;
 
-        try!(file.read_exact(&mut buff));
+        file.read_exact(&mut buff)?;
 
         let mut offset;
         let mut text_offset = [0; NUM_TEXT];
@@ -56,8 +55,8 @@ impl Dol {
 
             if text_offset[x] > 0 {
                 let mut section = vec![0; text_size[x] as usize];
-                try!(file.seek(SeekFrom::Start(text_offset[x] as u64)));
-                try!(file.read_exact(section.as_mut_slice()));
+                file.seek(SeekFrom::Start(text_offset[x] as u64))?;
+                file.read_exact(section.as_mut_slice())?;
                 text_sections.push(section);
             } else {
                 break;
@@ -72,8 +71,8 @@ impl Dol {
 
             if data_offset[x] > 0 {
                 let mut section = vec![0; data_size[x] as usize];
-                try!(file.seek(SeekFrom::Start(data_offset[x] as u64)));
-                try!(file.read_exact(section.as_mut_slice()));
+                file.seek(SeekFrom::Start(data_offset[x] as u64))?;
+                file.read_exact(section.as_mut_slice())?;
                 data_sections.push(section);
             } else {
                 break;
@@ -89,13 +88,13 @@ impl Dol {
             data_size: data_size,
             bss_address: BigEndian::read_u32(&buff[0xD8..]),
             bss_size: BigEndian::read_u32(&buff[0xDC..]),
-            entry_point: BigEndian::read_u32(&buff[0xE0..])
+            entry_point: BigEndian::read_u32(&buff[0xE0..]),
         };
 
         Ok(Dol {
             header: header,
             text_sections: text_sections,
-            data_sections: data_sections
+            data_sections: data_sections,
         })
     }
 

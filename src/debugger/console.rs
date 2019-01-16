@@ -1,22 +1,19 @@
-
-use std::process;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
 use std::num::ParseIntError;
+use std::process;
 
-use debugger::ConsoleDebugger;
 use super::super::cpu::Cpu;
 use super::super::interconnect::Interconnect;
+use crate::debugger::ConsoleDebugger;
 
 pub struct Console {
-    rl: Editor<()>
+    rl: Editor<()>,
 }
 
 impl Console {
     pub fn new() -> Console {
-        Console {
-            rl: Editor::new()
-        }
+        Console { rl: Editor::new() }
     }
 
     pub fn read(&mut self) -> Command {
@@ -27,15 +24,15 @@ impl Console {
                 Ok(line) => {
                     self.rl.add_history_entry(&line);
                     return Command::new(line);
-                },
+                }
                 Err(ReadlineError::Interrupted) => {
                     println!("CTRL-C");
                     process::exit(0);
-                },
+                }
                 Err(ReadlineError::Eof) => {
                     println!("CTRL-D");
                     process::exit(0);
-                },
+                }
                 Err(err) => {
                     println!("Error: {:?}", err);
                     process::exit(1);
@@ -50,23 +47,25 @@ impl Console {
 }
 
 pub struct Command {
-    data: String
+    data: String,
 }
 
 impl Command {
     pub fn new(data: String) -> Command {
-        Command {
-            data: data
-        }
+        Command { data: data }
     }
 
-    pub fn execute(&self, debugger: &mut ConsoleDebugger, cpu: &mut Cpu, interconnect: &mut Interconnect) {
+    pub fn execute(
+        &self,
+        debugger: &mut ConsoleDebugger,
+        cpu: &mut Cpu,
+        interconnect: &mut Interconnect,
+    ) {
         let args = self.data.trim().split(' ').collect::<Vec<&str>>();
 
         if args.is_empty() {
             self.help(&args);
         } else {
-
             match args[0] {
                 "advance" => self.advance(&args, debugger),
                 "break" | "b" => self.break_(&args, debugger),
@@ -76,9 +75,8 @@ impl Command {
                 "show" => self.show(&args, debugger, cpu, interconnect),
                 "step" | "" => self.step(&args, debugger),
                 "watch" | "w" => self.watch_(&args, debugger),
-                "help" | _ => self.help(&args)
+                "help" | _ => self.help(&args),
             }
-
         }
     }
 
@@ -86,7 +84,7 @@ impl Command {
         if args.len() > 1 {
             match parse_hex_str(args[1]) {
                 Ok(v) => debugger.set_advance(v),
-                Err(e) => println!("Error: {}", e)
+                Err(e) => println!("Error: {}", e),
             }
         } else {
             println!("Missing required argument.");
@@ -98,7 +96,7 @@ impl Command {
         if args.len() > 1 {
             match parse_hex_str(args[1]) {
                 Ok(v) => debugger.add_breakpoint(v),
-                Err(e) => println!("Error: {}", e)
+                Err(e) => println!("Error: {}", e),
             }
         } else {
             println!("Missing required argument.");
@@ -109,7 +107,7 @@ impl Command {
         if args.len() > 1 {
             match parse_hex_str(args[1]) {
                 Ok(v) => println!("{:#010x}: {:#010x}", v, interconnect.read_u16(&cpu.msr, v)),
-                Err(e) => println!("Error: {}", e)
+                Err(e) => println!("Error: {}", e),
             }
         } else {
             println!("Missing required argument.");
@@ -120,7 +118,7 @@ impl Command {
         if args.len() > 1 {
             match parse_hex_str(args[1]) {
                 Ok(v) => debugger.add_watchpoint(v),
-                Err(e) => println!("Error: {}", e)
+                Err(e) => println!("Error: {}", e),
             }
         } else {
             println!("Missing required argument.");
@@ -133,8 +131,8 @@ impl Command {
                 Ok(v) => {
                     debugger.remove_breakpoint(v);
                     debugger.remove_watchpoint(v);
-                },
-                Err(e) => println!("Error: {}", e)
+                }
+                Err(e) => println!("Error: {}", e),
             }
         } else {
             println!("Missing required argument.");
@@ -158,15 +156,20 @@ impl Command {
         }
     }
 
-    fn show(&self, args: &Vec<&str>, debugger: &mut ConsoleDebugger, cpu: &mut Cpu, interconnect: &mut Interconnect) {
+    fn show(
+        &self,
+        args: &Vec<&str>,
+        debugger: &mut ConsoleDebugger,
+        cpu: &mut Cpu,
+        interconnect: &mut Interconnect,
+    ) {
         if args.len() > 1 {
-
             match args[1] {
                 "breakpoints" | "b" => {
                     for breakpoint in &debugger.breakpoints {
                         println!("break: {:#010x}", breakpoint);
                     }
-                },
+                }
                 "ci" => debugger.print_instruction(cpu, interconnect),
                 "cia" => println!("cia: {:#010x}", cpu.cia),
                 "gpr" => {
@@ -175,16 +178,18 @@ impl Command {
                             println!("r{:<10} {:#010x}    {}", i, cpu.gpr[i], cpu.gpr[i]);
                         }
                     }
-                },
+                }
                 "lr" => println!("lr: {:#010x}", cpu.lr),
                 "watchpoints" | "w" => {
                     for watchpoint in &debugger.watchpoints {
                         println!("watch: {:#010x}", watchpoint);
                     }
-                },
-                _ => println!("Unrecognized show command: \"{}\". Try \"help show\"", args[1])
+                }
+                _ => println!(
+                    "Unrecognized show command: \"{}\". Try \"help show\"",
+                    args[1]
+                ),
             }
-
         } else {
             println!("Missing required argument.");
         }
@@ -194,7 +199,7 @@ impl Command {
         if args.len() > 1 {
             match u32::from_str_radix(args[1], 10) {
                 Ok(v) => debugger.set_step(v),
-                Err(e) => println!("Error: {}", e)
+                Err(e) => println!("Error: {}", e),
             }
         } else {
             debugger.set_step(1);
