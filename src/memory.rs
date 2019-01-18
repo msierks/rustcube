@@ -1,5 +1,4 @@
-
-use byteorder::{ByteOrder, BigEndian};
+use byteorder::{BigEndian, ByteOrder};
 
 /// Main RAM Size: 24MB
 const RAM_SIZE: usize = 0x180_0000;
@@ -22,20 +21,20 @@ impl Ram {
     }
 
     pub fn read_u16(&self, addr: u32) -> u16 {
-        BigEndian::read_u16(&self.data[addr as usize ..])
+        BigEndian::read_u16(&self.data[addr as usize..])
     }
 
     pub fn read_u32(&self, addr: u32) -> u32 {
-        BigEndian::read_u32(&self.data[addr as usize ..])
+        BigEndian::read_u32(&self.data[addr as usize..])
     }
 
     pub fn read_u64(&self, addr: u32) -> u64 {
-        BigEndian::read_u64(&self.data[addr as usize ..])
+        BigEndian::read_u64(&self.data[addr as usize..])
     }
 
     pub fn read_dma(&mut self, addr: u32, buf: &mut [u8]) {
-        for i in 0..buf.len() {
-            buf[i] = self.data[addr as usize + i];
+        for (i, elem) in buf.iter_mut().enumerate() {
+            *elem = self.data[addr as usize + i];
         }
     }
 
@@ -44,21 +43,20 @@ impl Ram {
     }
 
     pub fn write_u16(&mut self, addr: u32, val: u16) {
-        BigEndian::write_u16(&mut self.data[addr as usize ..], val);
+        BigEndian::write_u16(&mut self.data[addr as usize..], val);
     }
 
     pub fn write_u32(&mut self, addr: u32, val: u32) {
-        BigEndian::write_u32(&mut self.data[addr as usize ..], val);
+        BigEndian::write_u32(&mut self.data[addr as usize..], val);
     }
 
     pub fn write_u64(&mut self, addr: u32, val: u64) {
-        BigEndian::write_u64(&mut self.data[addr as usize ..], val);
+        BigEndian::write_u64(&mut self.data[addr as usize..], val);
     }
 
     pub fn write_dma(&mut self, addr: u32, buf: &[u8]) {
-        for i in 0..buf.len() {
-            self.data[addr as usize + i] = buf[i];
+        for (i, elem) in buf.iter().enumerate() {
+            self.data[addr as usize + i] = *elem;
         }
     }
-
 }

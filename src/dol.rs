@@ -55,7 +55,7 @@ impl Dol {
 
             if text_offset[x] > 0 {
                 let mut section = vec![0; text_size[x] as usize];
-                file.seek(SeekFrom::Start(text_offset[x] as u64))?;
+                file.seek(SeekFrom::Start(u64::from(text_offset[x])))?;
                 file.read_exact(section.as_mut_slice())?;
                 text_sections.push(section);
             } else {
@@ -71,7 +71,7 @@ impl Dol {
 
             if data_offset[x] > 0 {
                 let mut section = vec![0; data_size[x] as usize];
-                file.seek(SeekFrom::Start(data_offset[x] as u64))?;
+                file.seek(SeekFrom::Start(u64::from(data_offset[x])))?;
                 file.read_exact(section.as_mut_slice())?;
                 data_sections.push(section);
             } else {
@@ -80,21 +80,21 @@ impl Dol {
         }
 
         let header = Header {
-            text_offset: text_offset,
-            data_offset: data_offset,
-            text_address: text_address,
-            data_address: data_address,
-            text_size: text_size,
-            data_size: data_size,
+            text_offset,
+            data_offset,
+            text_address,
+            data_address,
+            text_size,
+            data_size,
             bss_address: BigEndian::read_u32(&buff[0xD8..]),
             bss_size: BigEndian::read_u32(&buff[0xDC..]),
             entry_point: BigEndian::read_u32(&buff[0xE0..]),
         };
 
         Ok(Dol {
-            header: header,
-            text_sections: text_sections,
-            data_sections: data_sections,
+            header,
+            text_sections,
+            data_sections,
         })
     }
 

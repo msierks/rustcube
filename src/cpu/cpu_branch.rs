@@ -1,4 +1,3 @@
-
 impl Cpu {
     fn bx(&mut self, instr: Instruction) {
         if instr.aa() == 1 {
@@ -58,7 +57,7 @@ impl Cpu {
         };
 
         if cond_ok {
-            self.nia = self.ctr & 0xFFFFFFFC;
+            self.nia = self.ctr & 0xFFFF_FFFC;
 
             if instr.lk() == 1 {
                 self.lr = self.cia + 4;
@@ -88,7 +87,7 @@ impl Cpu {
         };
 
         if ctr_ok && cond_ok {
-            self.nia = self.lr & 0xFFFFFFFC;
+            self.nia = self.lr & 0xFFFF_FFFC;
 
             if instr.lk() == 1 {
                 self.lr = self.cia + 4;

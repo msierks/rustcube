@@ -79,9 +79,9 @@ fn clamp(x: i32) -> i32 {
     }
 }
 fn yuv_to_rgb(y: i32, u: i32, v: i32) -> u32 {
-    let r = (clamp(76283 * (y - 16) + 104595 * (v - 128)) as u32) >> 16;
+    let r = (clamp(76283 * (y - 16) + 104_595 * (v - 128)) as u32) >> 16;
     let g = (clamp((76283 * (y - 16) - 53281 * (v - 128) - 25624 * (u - 128)) >> 16) as u32) << 8;
-    let b = (clamp((76283 * (y - 16) + 132252 * (u - 128)) >> 16) as u32) << 16;
+    let b = (clamp((76283 * (y - 16) + 132_252 * (u - 128)) >> 16) as u32) << 16;
 
     b | g | r
 }
@@ -102,8 +102,8 @@ pub struct VideoInterface {
     window: Window,
 }
 
-impl VideoInterface {
-    pub fn new() -> VideoInterface {
+impl Default for VideoInterface {
+    fn default() -> VideoInterface {
         let window = Window::new("Rustcube", WIDTH, HEIGHT, WindowOptions::default())
             .unwrap_or_else(|e| {
                 panic!("{}", e);
@@ -122,10 +122,12 @@ impl VideoInterface {
             top_field_base_l: 0,
 
             buffer: vec![0; WIDTH * HEIGHT],
-            window: window,
+            window,
         }
     }
+}
 
+impl VideoInterface {
     pub fn update(&mut self, ram: &Ram) {
         if self.display_config.enable {
             self.vertical_beam_position += 1;
@@ -137,10 +139,10 @@ impl VideoInterface {
                 let mut i = self.top_field_base_l;
                 let mut j = 0;
                 while i < self.top_field_base_l + 320 * 480 * 4 {
-                    let y1 = ram.read_u8(i) as i32;
-                    let v = ram.read_u8(i + 1) as i32;
-                    let y2 = ram.read_u8(i + 2) as i32;
-                    let u = ram.read_u8(i + 3) as i32;
+                    let y1 = i32::from(ram.read_u8(i));
+                    let v = i32::from(ram.read_u8(i + 1));
+                    let y2 = i32::from(ram.read_u8(i + 2));
+                    let u = i32::from(ram.read_u8(i + 3));
 
                     self.buffer[j] = yuv_to_rgb(y1, u, v);
                     self.buffer[j + 1] = yuv_to_rgb(y2, u, v);
@@ -210,7 +212,7 @@ impl VideoInterface {
         println!("write_u32 VI {:#x} {}", register, val);
 
         match register {
-            FB_TOP_LEFT_HI => self.top_field_base_l = val & 0xFFFFFF,
+            FB_TOP_LEFT_HI => self.top_field_base_l = val & 0x00FF_FFFF,
             _ => println!("VI: unhandled register ({:#x})", register),
         }
     }
@@ -245,13 +247,13 @@ impl DisplayConfig {
     pub fn as_u16(&self) -> u16 {
         let mut value = 0;
 
-        value |= (self.format as u16) << 8;
-        value |= (self.display_latch_0 as u16) << 6;
-        value |= (self.display_latch_1 as u16) << 4;
-        value |= (self.display_mode_3d as u16) << 3;
-        value |= (self.interlaced as u16) << 2;
-        value |= (self.reset as u16) << 1;
-        value |= self.enable as u16;
+        value |= u16::from(self.format) << 8;
+        value |= u16::from(self.display_latch_0) << 6;
+        value |= u16::from(self.display_latch_1) << 4;
+        value |= u16::from(self.display_mode_3d) << 3;
+        value |= u16::from(self.interlaced) << 2;
+        value |= u16::from(self.reset) << 1;
+        value |= u16::from(self.enable);
 
         value
     }

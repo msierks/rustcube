@@ -1,7 +1,5 @@
-
 #[derive(Debug, Default)]
 pub struct Hid2 {
-
     // LSQE
     pub load_stored_quantized: bool,
 
@@ -15,27 +13,25 @@ pub struct Hid2 {
     locked_cache: bool,
 
     // DMAQL
-    dma_queue_length: u8
-
-    // DCHERR
-    // DNCERR
-    // DCMERR
-    // DQOERR
-    // DCHEE
-    // DNCEE
-    // DCMEE
-    // DQOEE
+    dma_queue_length: u8, // DCHERR
+                          // DNCERR
+                          // DCMERR
+                          // DQOERR
+                          // DCHEE
+                          // DNCEE
+                          // DCMEE
+                          // DQOEE
 }
 
 impl Hid2 {
     pub fn as_u32(&self) -> u32 {
         let mut value = 0;
 
-        value |= (self.load_stored_quantized as u32) << 31;
-        value |= (self.write_pipe as u32)            << 30;
-        value |= (self.paired_single as u32)         << 29;
-        value |= (self.locked_cache as u32)          << 28;
-        value |= (self.dma_queue_length as u32)      << 24;
+        value |= u32::from(self.load_stored_quantized) << 31;
+        value |= u32::from(self.write_pipe) << 30;
+        value |= u32::from(self.paired_single) << 29;
+        value |= u32::from(self.locked_cache) << 28;
+        value |= u32::from(self.dma_queue_length) << 24;
 
         value
     }
@@ -45,10 +41,10 @@ impl From<u32> for Hid2 {
     fn from(value: u32) -> Self {
         Hid2 {
             load_stored_quantized: (value & (1 << 31)) != 0,
-            write_pipe:            (value & (1 << 30)) != 0,
-            paired_single:         (value & (1 << 29)) != 0,
-            locked_cache:          (value & (1 << 28)) != 0,
-            dma_queue_length:      ((value >> 24) & 15) as u8,
+            write_pipe: (value & (1 << 30)) != 0,
+            paired_single: (value & (1 << 29)) != 0,
+            locked_cache: (value & (1 << 28)) != 0,
+            dma_queue_length: ((value >> 24) & 15) as u8,
         }
     }
 }

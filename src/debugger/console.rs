@@ -52,7 +52,7 @@ pub struct Command {
 
 impl Command {
     pub fn new(data: String) -> Command {
-        Command { data: data }
+        Command { data }
     }
 
     pub fn execute(
@@ -80,7 +80,7 @@ impl Command {
         }
     }
 
-    fn advance(&self, args: &Vec<&str>, debugger: &mut ConsoleDebugger) {
+    fn advance(&self, args: &[&str], debugger: &mut ConsoleDebugger) {
         if args.len() > 1 {
             match parse_hex_str(args[1]) {
                 Ok(v) => debugger.set_advance(v),
@@ -92,7 +92,7 @@ impl Command {
         println!("FixMe: continue running till given location.");
     }
 
-    fn break_(&self, args: &Vec<&str>, debugger: &mut ConsoleDebugger) {
+    fn break_(&self, args: &[&str], debugger: &mut ConsoleDebugger) {
         if args.len() > 1 {
             match parse_hex_str(args[1]) {
                 Ok(v) => debugger.add_breakpoint(v),
@@ -103,7 +103,7 @@ impl Command {
         }
     }
 
-    fn examine(&self, args: &Vec<&str>, cpu: &mut Cpu, interconnect: &mut Interconnect) {
+    fn examine(&self, args: &[&str], cpu: &mut Cpu, interconnect: &mut Interconnect) {
         if args.len() > 1 {
             match parse_hex_str(args[1]) {
                 Ok(v) => println!("{:#010x}: {:#010x}", v, interconnect.read_u16(&cpu.msr, v)),
@@ -114,7 +114,7 @@ impl Command {
         }
     }
 
-    fn watch_(&self, args: &Vec<&str>, debugger: &mut ConsoleDebugger) {
+    fn watch_(&self, args: &[&str], debugger: &mut ConsoleDebugger) {
         if args.len() > 1 {
             match parse_hex_str(args[1]) {
                 Ok(v) => debugger.add_watchpoint(v),
@@ -125,7 +125,7 @@ impl Command {
         }
     }
 
-    fn clear(&self, args: &Vec<&str>, debugger: &mut ConsoleDebugger) {
+    fn clear(&self, args: &[&str], debugger: &mut ConsoleDebugger) {
         if args.len() > 1 {
             match parse_hex_str(args[1]) {
                 Ok(v) => {
@@ -139,7 +139,7 @@ impl Command {
         }
     }
 
-    fn help(&self, args: &Vec<&str>) {
+    fn help(&self, args: &[&str]) {
         if args.len() < 2 {
             println!("List of available commands:\n");
             println!("advance  - continue running to given location");
@@ -158,7 +158,7 @@ impl Command {
 
     fn show(
         &self,
-        args: &Vec<&str>,
+        args: &[&str],
         debugger: &mut ConsoleDebugger,
         cpu: &mut Cpu,
         interconnect: &mut Interconnect,
@@ -195,7 +195,7 @@ impl Command {
         }
     }
 
-    fn step(&self, args: &Vec<&str>, debugger: &mut ConsoleDebugger) {
+    fn step(&self, args: &[&str], debugger: &mut ConsoleDebugger) {
         if args.len() > 1 {
             match u32::from_str_radix(args[1], 10) {
                 Ok(v) => debugger.set_step(v),

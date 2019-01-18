@@ -110,8 +110,8 @@ include!("cpu_integer.rs");
 include!("cpu_load_store.rs");
 include!("cpu_system.rs");
 
-impl Cpu {
-    pub fn new() -> Cpu {
+impl Default for Cpu {
+    fn default() -> Self {
         let mut cpu = Cpu {
             cia: 0,
             nia: 0,
@@ -143,7 +143,9 @@ impl Cpu {
         cpu.exception(Exception::SystemReset);
         cpu
     }
+}
 
+impl Cpu {
     pub fn read_instruction(&mut self, interconnect: &mut Interconnect) -> Instruction {
         interconnect.read_instruction(&self.msr, self.cia)
     }
@@ -306,21 +308,21 @@ impl Cpu {
         match exception {
             Exception::SystemReset => {
                 if self.msr.exception_prefix {
-                    self.cia = exception as u32 | 0xFFF00000
+                    self.cia = exception as u32 | 0xFFF0_0000
                 } else {
                     self.cia = exception as u32
                 }
             }
             Exception::SystemCall => {
                 self.srr0 = self.cia + 4;
-                self.srr1 = self.msr.as_u32() & 0x87C0FFFF;
+                self.srr1 = self.msr.as_u32() & 0x87C0_FFFF;
 
-                self.msr = (self.msr.as_u32() & !0x04EF36).into();
+                self.msr = (self.msr.as_u32() & !0x0004_EF36).into();
 
                 self.msr.little_endian = self.msr.exception_little_endian;
 
                 if self.msr.exception_prefix {
-                    self.cia = exception as u32 | 0xFFF00000
+                    self.cia = exception as u32 | 0xFFF0_0000
                 } else {
                     self.cia = exception as u32
                 }

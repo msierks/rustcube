@@ -12,14 +12,16 @@ pub struct Gamecube {
     interconnect: Interconnect,
 }
 
-impl Gamecube {
-    pub fn new() -> Gamecube {
+impl Default for Gamecube {
+    fn default() -> Self {
         Gamecube {
-            cpu: Cpu::new(),
-            interconnect: Interconnect::new(),
+            cpu: Cpu::default(),
+            interconnect: Interconnect::default(),
         }
     }
+}
 
+impl Gamecube {
     pub fn load_dol<P: AsRef<Path>>(&mut self, path: P) {
         let dol = Dol::open(path).unwrap();
 
@@ -48,7 +50,7 @@ impl Gamecube {
             }
         };
 
-        descrambler(&mut bootrom[0x100..0x15ee40]);
+        descrambler(&mut bootrom[0x100..0x0015_ee40]);
     }
 
     pub fn run(&mut self, debugger: &mut Debugger) {
@@ -58,24 +60,24 @@ impl Gamecube {
     }
 
     pub fn emulate_bs2(&mut self) {
-        self.cpu.msr = 0x00002030.into();
+        self.cpu.msr = 0x0000_2030.into();
 
-        self.interconnect.mmu.write_ibatu(0, 0x80001fff); // Spr::IBAT0U
-        self.interconnect.mmu.write_ibatl(0, 0x00000002); // Spr::IBAT0L
-        self.interconnect.mmu.write_ibatu(3, 0xfff0001f); // Spr::IBAT3U
-        self.interconnect.mmu.write_ibatl(3, 0xfff00001); // Spr::IBAT3L
-        self.interconnect.mmu.write_dbatu(0, 0x80001fff); // Spr::DBAT0U
-        self.interconnect.mmu.write_dbatl(0, 0x00000002); // Spr::DBAT0L
-        self.interconnect.mmu.write_dbatu(1, 0xc0001fff); // Spr::DBAT1U
-        self.interconnect.mmu.write_dbatl(1, 0x0000002a); // Spr::DBAT1L
-        self.interconnect.mmu.write_dbatu(3, 0xfff0001f); // Spr::DBAT3U
-        self.interconnect.mmu.write_dbatl(3, 0xfff00001); // Spr::DBAT3L
-
-        self.interconnect
-            .write_u32(&self.cpu.msr, 0x80000034, 0x817FE8C0); // ArenaHi
+        self.interconnect.mmu.write_ibatu(0, 0x8000_1fff); // Spr::IBAT0U
+        self.interconnect.mmu.write_ibatl(0, 0x0000_0002); // Spr::IBAT0L
+        self.interconnect.mmu.write_ibatu(3, 0xfff0_001f); // Spr::IBAT3U
+        self.interconnect.mmu.write_ibatl(3, 0xfff0_0001); // Spr::IBAT3L
+        self.interconnect.mmu.write_dbatu(0, 0x8000_1fff); // Spr::DBAT0U
+        self.interconnect.mmu.write_dbatl(0, 0x0000_0002); // Spr::DBAT0L
+        self.interconnect.mmu.write_dbatu(1, 0xc000_1fff); // Spr::DBAT1U
+        self.interconnect.mmu.write_dbatl(1, 0x0000_002a); // Spr::DBAT1L
+        self.interconnect.mmu.write_dbatu(3, 0xfff0_001f); // Spr::DBAT3U
+        self.interconnect.mmu.write_dbatl(3, 0xfff0_0001); // Spr::DBAT3L
 
         self.interconnect
-            .write_u16(&self.cpu.msr, 0xCC002002, 0x0001); // VI - Display Config
+            .write_u32(&self.cpu.msr, 0x8000_0034, 0x817F_E8C0); // ArenaHi
+
+        self.interconnect
+            .write_u16(&self.cpu.msr, 0xCC00_2002, 0x0001); // VI - Display Config
     }
 }
 
@@ -125,7 +127,7 @@ fn descrambler(data: &mut [u8]) {
         }
 
         nacc += 1;
-        acc = (2 * acc as u16 + x as u16) as u8;
+        acc = (2 * u16::from(acc) + u16::from(x)) as u8;
         if nacc == 8 {
             data[it as usize] ^= acc;
             it += 1;

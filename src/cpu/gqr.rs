@@ -1,4 +1,3 @@
-
 #[derive(Default, Debug, Copy, Clone)]
 pub struct Gqr(pub u32);
 
@@ -11,23 +10,23 @@ impl Gqr {
     //    self.0
     //}
 
-    #[inline(always)]
+    //#[inline(always)]
     //pub fn ld_scale(&self) -> u8 {
     //    ((self.0 >> 24) & 0x3F) as u8
     //}
 
     #[inline(always)]
-    pub fn ld_type(&self) -> u8 {
+    pub fn ld_type(self) -> u8 {
         ((self.0 >> 16) & 0x7) as u8
     }
 
-    #[inline(always)]
+    //#[inline(always)]
     //pub fn st_scale(&self) -> u8 {
     //    ((self.0 >> 8) & 0x3F) as u8
     //}
 
     #[inline(always)]
-    pub fn st_type(&self) -> u8 {
+    pub fn st_type(self) -> u8 {
         (self.0 & 0x7) as u8
     }
 }
