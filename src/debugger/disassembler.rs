@@ -1,20 +1,18 @@
-
 use super::super::cpu::instruction::Instruction;
-use super::super::cpu::Cpu;
 use super::super::cpu::util::*;
+use super::super::cpu::Cpu;
 
 #[derive(Default)]
 pub struct Disassembler {
     pub opcode: String,
-    pub operands: String
+    pub operands: String,
 }
 
 impl Disassembler {
-
-    pub fn disassemble(&mut self, cpu: &mut Cpu, instr:  Instruction) {
+    pub fn disassemble(&mut self, cpu: &mut Cpu, instr: Instruction) {
         match instr.opcode() {
-             7 => self.mulli(instr),
-             8 => self.subfic(instr),
+            7 => self.mulli(instr),
+            8 => self.subfic(instr),
             10 => self.cmpli(instr),
             11 => self.cmpi(instr),
             13 => self.addi(instr, "c."),
@@ -23,16 +21,18 @@ impl Disassembler {
             16 => self.bcx(cpu, instr),
             17 => self.sc(),
             18 => self.bx(cpu, instr),
-            19 => {
-                match instr.ext_opcode_x() {
-                    16 => self.bclrx(instr),
-                    150 => self.sync("i"),
-                    193 => self.crxor(instr),
-                    528 => self.bcctrx(instr),
-                    _ => {
-                        self.opcode = format!("unrecognized opcode {}:{}", instr.opcode(), instr.ext_opcode_x());
-                        self.operands = String::new();
-                    }
+            19 => match instr.ext_opcode_x() {
+                16 => self.bclrx(instr),
+                150 => self.sync("i"),
+                193 => self.crxor(instr),
+                528 => self.bcctrx(instr),
+                _ => {
+                    self.opcode = format!(
+                        "unrecognized opcode {}:{}",
+                        instr.opcode(),
+                        instr.ext_opcode_x()
+                    );
+                    self.operands = String::new();
                 }
             },
             20 => self.rlwimix(instr),
@@ -40,36 +40,38 @@ impl Disassembler {
             24 => self.ori(instr, ""),
             25 => self.oris(instr),
             28 => self.andi(instr),
-            31 => {
-                match instr.ext_opcode_x() {
-                      0 => self.cmp(instr),
-                     23 => self.lwzx(instr),
-                     24 => self.slwx(instr),
-                     26 => self.cntlzwx(instr),
-                     28 => self.andx(instr),
-                     32 => self.cmpl(instr),
-                     40 => self.subfx(instr),
-                     60 => self.andcx(instr),
-                     83 => self.mfmsr(instr),
-                     86 => self.dcbf(instr),
-                    124 => self.norx(instr),
-                    146 => self.mtmsr(instr),
-                    151 => self.stwx(instr),
-                    210 => self.mtsr(instr),
-                    266 => self.addx(instr),
-                    339 => self.mfspr(instr),
-                    371 => self.mftb(instr),
-                    444 => self.orx(instr),
-                    467 => self.mtspr(instr),
-                    470 => self.cbi("d", instr),
-                    536 => self.srwx(instr),
-                    598 => self.sync(""),
-                    922 => self.extshx(instr),
-                    982 => self.cbi("i", instr),
-                    _   => {
-                        self.opcode = format!("unrecognized opcode {}:{}", instr.opcode(), instr.ext_opcode_x());
-                        self.operands = String::new();
-                    }
+            31 => match instr.ext_opcode_x() {
+                0 => self.cmp(instr),
+                23 => self.lwzx(instr),
+                24 => self.slwx(instr),
+                26 => self.cntlzwx(instr),
+                28 => self.andx(instr),
+                32 => self.cmpl(instr),
+                40 => self.subfx(instr),
+                60 => self.andcx(instr),
+                83 => self.mfmsr(instr),
+                86 => self.dcbf(instr),
+                124 => self.norx(instr),
+                146 => self.mtmsr(instr),
+                151 => self.stwx(instr),
+                210 => self.mtsr(instr),
+                266 => self.addx(instr),
+                339 => self.mfspr(instr),
+                371 => self.mftb(instr),
+                444 => self.orx(instr),
+                467 => self.mtspr(instr),
+                470 => self.cbi("d", instr),
+                536 => self.srwx(instr),
+                598 => self.sync(""),
+                922 => self.extshx(instr),
+                982 => self.cbi("i", instr),
+                _ => {
+                    self.opcode = format!(
+                        "unrecognized opcode {}:{}",
+                        instr.opcode(),
+                        instr.ext_opcode_x()
+                    );
+                    self.operands = String::new();
                 }
             },
             32 => self.lwz(instr),
@@ -89,13 +91,15 @@ impl Disassembler {
             50 => self.lfd(instr),
             52 => self.stfs(instr),
             53 => self.stfsu(instr),
-            63 => {
-                match instr.ext_opcode_x() {
-                    72 => self.fmrx(instr),
-                    _   => {
-                        self.opcode = format!("unrecognized opcode {}:{}", instr.opcode(), instr.ext_opcode_x());
-                        self.operands = String::new();
-                    }
+            63 => match instr.ext_opcode_x() {
+                72 => self.fmrx(instr),
+                _ => {
+                    self.opcode = format!(
+                        "unrecognized opcode {}:{}",
+                        instr.opcode(),
+                        instr.ext_opcode_x()
+                    );
+                    self.operands = String::new();
                 }
             },
             _ => {
@@ -109,14 +113,12 @@ impl Disassembler {
         if ext == "s" {
             self.opcode = String::from("lis");
             self.operands = format!("r{},{:#x}", instr.d(), (instr.simm() as u32) << 16);
+        } else if instr.a() == 0 {
+            self.opcode = String::from("li");
+            self.operands = format!("r{},{}", instr.d(), instr.simm());
         } else {
-            if instr.a() == 0 {
-                self.opcode = String::from("li");
-                self.operands = format!("r{},{}", instr.d(), instr.simm());
-            } else {
-                self.opcode = format!("addi{}", ext);
-                self.operands = format!("r{},r{},{}", instr.d(), instr.a(), instr.simm());
-            }
+            self.opcode = format!("addi{}", ext);
+            self.operands = format!("r{},r{},{}", instr.d(), instr.a(), instr.simm());
         }
     }
 
@@ -127,12 +129,10 @@ impl Disassembler {
             } else {
                 self.opcode = String::from("addo");
             }
+        } else if instr.rc() {
+            self.opcode = String::from("add.");
         } else {
-            if instr.rc() {
-                self.opcode = String::from("add.");
-            } else {
-                self.opcode = String::from("add");
-            }
+            self.opcode = String::from("add");
         }
 
         self.operands = format!("r{},r{},r{}", instr.d(), instr.a(), instr.b());
@@ -160,12 +160,10 @@ impl Disassembler {
             } else {
                 self.opcode = String::from("bl");
             }
+        } else if instr.lk() == 0 {
+            self.opcode = String::from("ba");
         } else {
-            if instr.lk() == 0 {
-                self.opcode = String::from("ba");
-            } else {
-                self.opcode = String::from("bla");
-            }            
+            self.opcode = String::from("bla");
         }
 
         let loc = if instr.aa() == 1 {
@@ -186,12 +184,10 @@ impl Disassembler {
             } else {
                 "l"
             }
+        } else if instr.lk() == 0 {
+            "a"
         } else {
-            if instr.lk() == 0 {
-                "a"
-            } else {
-                "la"
-            }
+            "la"
         };
 
         if instr.bo() == 4 {
@@ -200,7 +196,7 @@ impl Disassembler {
                 1 => format!("ble{}", ext),
                 2 => format!("bne{}", ext),
                 3 => format!("bns{}", ext),
-                _ => unreachable!()
+                _ => unreachable!(),
             };
         } else if instr.bo() == 12 || instr.bo() == 13 {
             self.opcode = match bit {
@@ -208,7 +204,7 @@ impl Disassembler {
                 1 => format!("bgt{}", ext),
                 2 => format!("beq{}", ext),
                 3 => format!("bso{}", ext),
-                _ => unreachable!()
+                _ => unreachable!(),
             };
         } else if instr.bo() == 16 && instr.bi() == 0 {
             self.opcode = String::from("bdnz");
@@ -234,41 +230,35 @@ impl Disassembler {
             } else {
                 "l"
             }
+        } else if instr.lk() == 0 {
+            "a"
         } else {
-            if instr.lk() == 0 {
-                "a"
-            } else {
-                "la"
-            }
+            "la"
         };
 
         self.opcode = match instr.bo() {
-            4 => {
-                match bit {
-                    0 => format!("bgelr{}", ext),
-                    1 => format!("blelr{}", ext),
-                    2 => format!("bnelr{}", ext),
-                    3 => format!("bnslr{}", ext),
-                    _ => unreachable!()
-                }
-            }
-            12 => {
-                match bit {
-                    0 => format!("bltlr{}", ext),
-                    1 => format!("bgtlr{}", ext),
-                    2 => format!("beqlr{}", ext),
-                    3 => format!("bsolr{}", ext),
-                    _ => unreachable!()
-                }
-            }
+            4 => match bit {
+                0 => format!("bgelr{}", ext),
+                1 => format!("blelr{}", ext),
+                2 => format!("bnelr{}", ext),
+                3 => format!("bnslr{}", ext),
+                _ => unreachable!(),
+            },
+            12 => match bit {
+                0 => format!("bltlr{}", ext),
+                1 => format!("bgtlr{}", ext),
+                2 => format!("beqlr{}", ext),
+                3 => format!("bsolr{}", ext),
+                _ => unreachable!(),
+            },
             20 => {
                 if instr.bi() == 0 {
                     format!("blr{}", ext)
                 } else {
                     panic!("invalid instruction")
                 }
-            },
-            _ => panic!("unhandled bo: {}", instr.bo())
+            }
+            _ => panic!("unhandled bo: {}", instr.bo()),
         };
 
         self.operands = String::new();
@@ -287,7 +277,7 @@ impl Disassembler {
         if !instr.l() {
             self.opcode = String::from("cmpwi");
         } else {
-            self.opcode = String::from("cmpi"); 
+            self.opcode = String::from("cmpi");
         }
         self.operands = format!("r{},{}", instr.a(), instr.uimm());
     }
@@ -308,7 +298,13 @@ impl Disassembler {
             self.operands = format!("{},r{},r{}", instr.crfd(), instr.a(), instr.b());
         } else {
             self.opcode = String::from("cmpl");
-            self.operands = format!("crf{},{},r{},r{}", instr.crfd(), instr.l() as u8, instr.a(), instr.b());
+            self.operands = format!(
+                "crf{},{},r{},r{}",
+                instr.crfd(),
+                instr.l() as u8,
+                instr.a(),
+                instr.b()
+            );
         }
     }
 
@@ -341,11 +337,11 @@ impl Disassembler {
             1 => {
                 self.opcode = String::from("mfxer");
                 self.operands = format!("r{}", instr.s());
-            },
+            }
             8 => {
                 self.opcode = String::from("mflr");
                 self.operands = format!("r{}", instr.s());
-            },
+            }
             9 => {
                 self.opcode = String::from("mfctr");
                 self.operands = format!("r{}", instr.s());
@@ -362,11 +358,11 @@ impl Disassembler {
             1 => {
                 self.opcode = String::from("mtxer");
                 self.operands = format!("r{}", instr.s());
-            },
+            }
             8 => {
                 self.opcode = String::from("mtlr");
                 self.operands = format!("r{}", instr.s());
-            },
+            }
             9 => {
                 self.opcode = String::from("mtctr");
                 self.operands = format!("r{}", instr.s());
@@ -482,7 +478,14 @@ impl Disassembler {
         } else {
             self.opcode = String::from("rlwimi.");
         }
-        self.operands = format!("r{},r{},{},{},{}", instr.a(), instr.s(), instr.sh(), instr.mb(), instr.me());
+        self.operands = format!(
+            "r{},r{},{},{},{}",
+            instr.a(),
+            instr.s(),
+            instr.sh(),
+            instr.mb(),
+            instr.me()
+        );
     }
 
     // FixMe: ???
@@ -492,14 +495,21 @@ impl Disassembler {
             self.operands = format!("r{},r{},{}", instr.a(), instr.s(), instr.mb());
         } else if instr.sh() == 0 && instr.mb() == 0 {
             self.opcode = String::from("clrrwi");
-            self.operands = format!("r{},r{},{}", instr.a(), instr.s(), 31 -  instr.me());
+            self.operands = format!("r{},r{},{}", instr.a(), instr.s(), 31 - instr.me());
         } else {
             if !instr.rc() {
                 self.opcode = String::from("rlwinm");
             } else {
                 self.opcode = String::from("rlwinm.");
             }
-            self.operands = format!("r{},r{},{},{},{}", instr.a(), instr.s(), instr.sh(), instr.mb(), instr.me());
+            self.operands = format!(
+                "r{},r{},{},{},{}",
+                instr.a(),
+                instr.s(),
+                instr.sh(),
+                instr.mb(),
+                instr.me()
+            );
         }
     }
 

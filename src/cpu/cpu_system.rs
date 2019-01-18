@@ -1,4 +1,3 @@
-
 impl Cpu {
     fn crxor(&mut self, instr: Instruction) {
         let d = self.cr.get_bit(instr.a()) ^ self.cr.get_bit(instr.b());
@@ -19,8 +18,8 @@ impl Cpu {
 
     fn mfspr(&mut self, instr: Instruction) {
         match instr.spr() {
-            Spr::LR   => self.gpr[instr.s()] = self.lr,
-            Spr::CTR  => self.gpr[instr.s()] = self.ctr,
+            Spr::LR => self.gpr[instr.s()] = self.lr,
+            Spr::CTR => self.gpr[instr.s()] = self.ctr,
             Spr::HID0 => self.gpr[instr.s()] = self.hid0,
             Spr::HID2 => self.gpr[instr.s()] = self.hid2.as_u32(),
             Spr::GQR0 => self.gpr[instr.s()] = self.gqr[0],
@@ -33,9 +32,9 @@ impl Cpu {
             Spr::GQR7 => self.gpr[instr.s()] = self.gqr[7],
             Spr::L2CR => self.gpr[instr.s()] = self.l2cr,
             Spr::PMC1 => self.gpr[instr.s()] = self.pmc1,
-            Spr::XER  => self.gpr[instr.s()] = self.xer.as_u32(),
-            Spr::DEC  => self.gpr[instr.s()] = self.dec, // FixMe: if bit 0 changes from 0 to 1, then signal DEC exception
-            _ => panic!("mfspr not implemented for {:#?}", instr.spr()) // FixMe: properly handle this case
+            Spr::XER => self.gpr[instr.s()] = self.xer.as_u32(),
+            Spr::DEC => self.gpr[instr.s()] = self.dec, // FixMe: if bit 0 changes from 0 to 1, then signal DEC exception
+            _ => panic!("mfspr not implemented for {:#?}", instr.spr()), // FixMe: properly handle this case
         }
 
         // TODO: check privilege level
@@ -45,7 +44,7 @@ impl Cpu {
         match instr.tbr() {
             TBR::TBL => self.gpr[instr.d()] = self.tb.l(),
             TBR::TBU => self.gpr[instr.d()] = self.tb.u(),
-            TBR::UNKNOWN => panic!("mftb unknown tbr {:#?}", instr.tbr()) // FixMe: properly handle this case
+            TBR::UNKNOWN => panic!("mftb unknown tbr {:#?}", instr.tbr()), // FixMe: properly handle this case
         }
     }
 
@@ -59,14 +58,17 @@ impl Cpu {
         let spr = instr.spr();
 
         match spr {
-            Spr::LR  => self.lr  = self.gpr[instr.s()],
+            Spr::LR => self.lr = self.gpr[instr.s()],
             Spr::CTR => self.ctr = self.gpr[instr.s()],
             _ => {
-
-                if self.msr.privilege_level { // if user privilege level
+                if self.msr.privilege_level {
+                    // if user privilege level
                     // FixMe: properly handle this case
                     self.exception(Exception::Program);
-                    panic!("mtspr: user privilege level prevents setting spr {:#?}", spr);
+                    panic!(
+                        "mtspr: user privilege level prevents setting spr {:#?}",
+                        spr
+                    );
                 }
 
                 match spr {
@@ -86,29 +88,38 @@ impl Cpu {
                     Spr::DBAT2L => interconnect.mmu.write_dbatl(2, self.gpr[instr.s()]),
                     Spr::DBAT3U => interconnect.mmu.write_dbatu(3, self.gpr[instr.s()]),
                     Spr::DBAT3L => interconnect.mmu.write_dbatl(3, self.gpr[instr.s()]),
-                    Spr::HID0   => self.hid0 = self.gpr[instr.s()],
-                    Spr::HID2   => self.hid2 = self.gpr[instr.s()].into(),
-                    Spr::GQR0   => self.gqr[0] = self.gpr[instr.s()],
-                    Spr::GQR1   => self.gqr[1] = self.gpr[instr.s()],
-                    Spr::GQR2   => self.gqr[2] = self.gpr[instr.s()],
-                    Spr::GQR3   => self.gqr[3] = self.gpr[instr.s()],
-                    Spr::GQR4   => self.gqr[4] = self.gpr[instr.s()],
-                    Spr::GQR5   => self.gqr[5] = self.gpr[instr.s()],
-                    Spr::GQR6   => self.gqr[6] = self.gpr[instr.s()],
-                    Spr::GQR7   => self.gqr[7] = self.gpr[instr.s()],
-                    Spr::L2CR   => self.l2cr = self.gpr[instr.s()],
-                    Spr::PMC1   => self.pmc1 = self.gpr[instr.s()],
-                    Spr::PMC2   => self.pmc2 = self.gpr[instr.s()],
-                    Spr::PMC3   => self.pmc3 = self.gpr[instr.s()],
-                    Spr::PMC4   => self.pmc4 = self.gpr[instr.s()],
-                    Spr::MMCR0  => self.mmcr0 = self.gpr[instr.s()],
-                    Spr::MMCR1  => self.mmcr1 = self.gpr[instr.s()],
-                    Spr::DEC    => self.dec = self.gpr[instr.s()],
-                    Spr::WPAR   => {
-                        assert_eq!(self.gpr[instr.s()], 0x0C008000, "write gather pipe address {:#010x}", self.gpr[instr.s()]);
+                    Spr::HID0 => self.hid0 = self.gpr[instr.s()],
+                    Spr::HID2 => self.hid2 = self.gpr[instr.s()].into(),
+                    Spr::GQR0 => self.gqr[0] = self.gpr[instr.s()],
+                    Spr::GQR1 => self.gqr[1] = self.gpr[instr.s()],
+                    Spr::GQR2 => self.gqr[2] = self.gpr[instr.s()],
+                    Spr::GQR3 => self.gqr[3] = self.gpr[instr.s()],
+                    Spr::GQR4 => self.gqr[4] = self.gpr[instr.s()],
+                    Spr::GQR5 => self.gqr[5] = self.gpr[instr.s()],
+                    Spr::GQR6 => self.gqr[6] = self.gpr[instr.s()],
+                    Spr::GQR7 => self.gqr[7] = self.gpr[instr.s()],
+                    Spr::L2CR => self.l2cr = self.gpr[instr.s()],
+                    Spr::PMC1 => self.pmc1 = self.gpr[instr.s()],
+                    Spr::PMC2 => self.pmc2 = self.gpr[instr.s()],
+                    Spr::PMC3 => self.pmc3 = self.gpr[instr.s()],
+                    Spr::PMC4 => self.pmc4 = self.gpr[instr.s()],
+                    Spr::MMCR0 => self.mmcr0 = self.gpr[instr.s()],
+                    Spr::MMCR1 => self.mmcr1 = self.gpr[instr.s()],
+                    Spr::DEC => self.dec = self.gpr[instr.s()],
+                    Spr::WPAR => {
+                        assert_eq!(
+                            self.gpr[instr.s()],
+                            0x0C00_8000,
+                            "write gather pipe address {:#010x}",
+                            self.gpr[instr.s()]
+                        );
                         interconnect.gp.reset();
-                    },
-                    _ => panic!("mtspr not implemented for {:#?} {:#x}", spr, self.gpr[instr.s()])
+                    }
+                    _ => panic!(
+                        "mtspr not implemented for {:#?} {:#x}",
+                        spr,
+                        self.gpr[instr.s()]
+                    ),
                 }
             }
         }
@@ -121,13 +132,13 @@ impl Cpu {
     }
 
     fn rfi(&mut self) {
-        let mask = 0x87C0FFFF;
+        let mask = 0x87C0_FFFF;
 
         self.msr = ((self.msr.as_u32() & !mask) | (self.srr1 & mask)).into();
 
         self.msr.power_management = false;
 
-        self.nia = self.srr0 & 0xFFFFFFFE;
+        self.nia = self.srr0 & 0xFFFF_FFFE;
     }
 
     #[allow(unused_variables)]

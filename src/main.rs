@@ -1,13 +1,12 @@
-
 extern crate getopts;
 extern crate rustcube;
 
+use rustcube::debugger::{ConsoleDebugger, DummyDebugger};
 use rustcube::gamecube::Gamecube;
-use rustcube::debugger::{ConsoleDebugger,DummyDebugger};
 
+use getopts::Options;
 use std::env;
 use std::path::Path;
-use getopts::Options;
 
 fn print_usage(program: &str, opts: &Options) {
     let brief = format!("Usage: {} [options] IPL_FILE", program);
@@ -23,8 +22,8 @@ fn main() {
     opts.optflag("h", "help", "print this help menu");
 
     let matches = match opts.parse(&args[1..]) {
-        Ok(m) => { m }
-        Err(f) => { panic!(f.to_string()) }
+        Ok(m) => m,
+        Err(f) => panic!(f.to_string()),
     };
 
     if matches.opt_present("h") {
@@ -39,22 +38,23 @@ fn main() {
         return;
     };
 
-    let mut gamecube = Gamecube::new();
+    let mut gamecube = Gamecube::default();
 
     match file_name.extension() {
         Some(ext) => {
             if ext == "dol" {
                 gamecube.load_dol(file_name);
-            } else { // assume ipl
+            } else {
+                // assume ipl
                 gamecube.load_ipl(file_name);
             }
-        },
-        None => gamecube.load_ipl(file_name)
+        }
+        None => gamecube.load_ipl(file_name),
     }
 
     if matches.opt_present("d") {
-        gamecube.run(&mut ConsoleDebugger::new());
+        gamecube.run(&mut ConsoleDebugger::default());
     } else {
-        gamecube.run(&mut DummyDebugger::new());
+        gamecube.run(&mut DummyDebugger::default());
     }
 }

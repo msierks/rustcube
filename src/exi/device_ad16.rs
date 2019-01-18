@@ -1,6 +1,5 @@
-
-use super::device::Device;
 use super::super::memory::Ram;
+use super::device::Device;
 
 // AD16
 
@@ -13,20 +12,26 @@ impl Device for DeviceAd16 {
 
     fn read_imm(&self, len: u8) -> u32 {
         println!("ExiDeviceAd16: read_imm {}", len);
-        0x04120000 // FixMe: always returns AD16 EXI ID
+        0x0412_0000 // FixMe: always returns AD16 EXI ID
     }
 
     fn write_imm(&mut self, value: u32, _: u8) {
         match value {
-            0x00000000 => println!("AD16: get ID command"),
-            0x01000000 => println!("AD16: init"),
-            0x02000000 => println!("AD16: ???"),
-            0x03000000 => println!("AD16: ???"),
-            0x04000000 => println!("AD16: memory test passed"),
-            0x05000000 => panic!("AD16: memory test failed {:#x}", value),
-            0x06000000 => panic!("AD16: memory test failed {:#x}", value),
-            0x07000000 => panic!("AD16: memory test failed {:#x}", value),
-            _ => println!("AD16: unhandled value {:#x}", value)
+            0x0A00_0000 => println!("AD16: CardInit {:#x}", value),
+            0x0B00_0000 => println!("AD16: VIInit {:#x}", value),
+            0x0C00_0000 => println!("AD16: PADInit {:#x}", value),
+            0x0000_0000 => println!("AD16: get ID command"),
+            0x0100_0000 => println!("AD16: init"),
+            0x0200_0000 => println!("AD16: ???"),
+            0x0300_0000 => println!("AD16: ???"),
+            0x0400_0000 => println!("AD16: memory test passed"),
+            0x0500_0000 => panic!("AD16: memory test failed {:#x}", value),
+            0x0600_0000 => panic!("AD16: memory test failed {:#x}", value),
+            0x0700_0000 => panic!("AD16: memory test failed {:#x}", value),
+            0x0800_0000 => println!("AD16: AD16Init {:#x}", value),
+            0x0900_0000 => println!("AD16: DVDInit {:#x}", value),
+            0xA000_0000 => println!("AD16: WRITE/CODE/PADDING??? {:#x}", value),
+            _ => panic!("AD16: unhandled value {:#x}", value),
         }
     }
 

@@ -18,7 +18,7 @@ use crate::processor_interface::ProcessorInterface;
 use crate::serial_interface::SerialInterface;
 use crate::video_interface::VideoInterface;
 
-const BOOTROM_SIZE: usize = 0x0200000; // 2 MB
+const BOOTROM_SIZE: usize = 0x0020_0000; // 2 MB
 
 #[derive(Debug)]
 pub enum Address {
@@ -40,24 +40,24 @@ pub enum Address {
 
 fn map(address: u32) -> Address {
     match address {
-        0x00000000...0x017FFFFF => Address::Ram,
-        0x08000000...0x0BFFFFFF => Address::EmbeddedFramebuffer,
-        0x0C000000...0x0C000FFF => Address::CommandProcessor(address - 0x0C000000),
-        0x0C001000...0x0C001FFF => Address::PixelEngine(address - 0x0C001000),
-        0x0C002000...0x0C002FFF => Address::VideoInterface(address - 0x0C002000),
-        0x0C003000...0x0C003FFF => Address::ProcessorInterface(address - 0x0C003000),
-        0x0C004000...0x0C004FFF => Address::MemoryInterface(address - 0x0C004000),
-        0x0C005000...0x0C005200 => Address::DspInterface(address - 0x0C005000),
-        0x0C006000...0x0C0063FF => Address::DvdInterface(address - 0x0C006000),
-        0x0C006400...0x0C0067FF => Address::SerialInterface(address - 0x0C006400),
-        0x0C006800...0x0C006938 => {
-            let channel = (address - 0x0C006800) / 0x14;
-            let register = (address - 0x0C006800) % 0x14;
+        0x0000_0000...0x017F_FFFF => Address::Ram,
+        0x0800_0000...0x0BFF_FFFF => Address::EmbeddedFramebuffer,
+        0x0C00_0000...0x0C00_0FFF => Address::CommandProcessor(address - 0x0C00_0000),
+        0x0C00_1000...0x0C00_1FFF => Address::PixelEngine(address - 0x0C00_1000),
+        0x0C00_2000...0x0C00_2FFF => Address::VideoInterface(address - 0x0C00_2000),
+        0x0C00_3000...0x0C00_3FFF => Address::ProcessorInterface(address - 0x0C00_3000),
+        0x0C00_4000...0x0C00_4FFF => Address::MemoryInterface(address - 0x0C00_4000),
+        0x0C00_5000...0x0C00_5200 => Address::DspInterface(address - 0x0C00_5000),
+        0x0C00_6000...0x0C00_63FF => Address::DvdInterface(address - 0x0C00_6000),
+        0x0C00_6400...0x0C00_67FF => Address::SerialInterface(address - 0x0C00_6400),
+        0x0C00_6800...0x0C00_6938 => {
+            let channel = (address - 0x0C00_6800) / 0x14;
+            let register = (address - 0x0C00_6800) % 0x14;
             Address::ExpansionInterface(channel, register)
         }
-        0x0C006C00...0x0C006C20 => Address::AudioInterface(address - 0x0C006C00),
-        0x0C008000 => Address::GPFifo,
-        0xFFF00000...0xFFFFFFFF => Address::Bootrom(address - 0xFFF00000),
+        0x0C00_6C00...0x0C00_6C20 => Address::AudioInterface(address - 0x0C00_6C00),
+        0x0C00_8000 => Address::GPFifo,
+        0xFFF0_0000...0xFFFF_FFFF => Address::Bootrom(address - 0xFFF0_0000),
         _ => panic!("Unrecognized physical address: {:#x}", address),
     }
 }
@@ -79,8 +79,8 @@ pub struct Interconnect {
     vi: VideoInterface,
 }
 
-impl Interconnect {
-    pub fn new() -> Interconnect {
+impl Default for Interconnect {
+    fn default() -> Self {
         let bootrom = Rc::new(RefCell::new(Box::new([0; BOOTROM_SIZE])));
 
         Interconnect {
@@ -89,18 +89,20 @@ impl Interconnect {
             dsp: DspInterface::default(),
             dvd: DvdInterface::default(),
             exi: Exi::new(bootrom.clone()),
-            bootrom: bootrom,
-            gp: GPFifo::new(),
-            mmu: Mmu::new(),
+            bootrom,
+            gp: GPFifo::default(),
+            mmu: Mmu::default(),
             //mi: MemoryInterface::new(),
-            pe: PixelEngine::new(),
-            pi: ProcessorInterface::new(),
+            pe: PixelEngine::default(),
+            pi: ProcessorInterface::default(),
             ram: Ram::default(),
-            si: SerialInterface::new(),
-            vi: VideoInterface::new(),
+            si: SerialInterface::default(),
+            vi: VideoInterface::default(),
         }
     }
+}
 
+impl Interconnect {
     pub fn read_instruction(&self, msr: &Msr, cia: u32) -> Instruction {
         let addr = self.mmu.translate_instr_address(msr, cia);
 

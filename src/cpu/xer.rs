@@ -1,4 +1,3 @@
-
 // Integer Exception Register
 
 #[derive(Debug, Default)]
@@ -12,20 +11,18 @@ pub struct Xer {
     // CA
     pub carry: bool,
 
-    byte_count: u8
+    byte_count: u8,
 }
 
 impl Xer {
-
     pub fn as_u32(&self) -> u32 {
         let mut value = 0;
 
-        value |= (self.summary_overflow as u32) << 31;
-        value |= (self.overflow as u32)         << 30;
-        value |= (self.carry as u32)            << 29;
-        value |= (self.byte_count as u32) & 0x7F;
+        value |= u32::from(self.summary_overflow) << 31;
+        value |= u32::from(self.overflow) << 30;
+        value |= u32::from(self.carry) << 29;
+        value |= u32::from(self.byte_count) & 0x7F;
 
         value
     }
-
 }

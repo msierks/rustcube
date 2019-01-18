@@ -1,11 +1,10 @@
-
 fn mask(x: u8, y: u8) -> u32 {
-    let mut mask:u32 = 0xFFFFFFFF >> x;
+    let mut mask: u32 = 0xFFFF_FFFF >> x;
 
     if y >= 31 {
         mask ^= 0;
     } else {
-        mask ^= 0xFFFFFFFF >> (y + 1)
+        mask ^= 0xFFFF_FFFF >> (y + 1)
     };
 
     if y < x {
@@ -18,15 +17,15 @@ fn mask(x: u8, y: u8) -> u32 {
 impl Cpu {
     fn addi(&mut self, instr: Instruction) {
         if instr.a() == 0 {
-            self.gpr[instr.d()] = (instr.simm() as i32) as u32;
+            self.gpr[instr.d()] = i32::from(instr.simm()) as u32;
         } else {
-            self.gpr[instr.d()] = self.gpr[instr.a()].wrapping_add((instr.simm() as i32) as u32);
+            self.gpr[instr.d()] = self.gpr[instr.a()].wrapping_add(i32::from(instr.simm()) as u32);
         }
     }
 
     fn addic(&mut self, instr: Instruction) {
-        let ra  = self.gpr[instr.a()];
-        let imm = (instr.simm() as i32) as u32;
+        let ra = self.gpr[instr.a()];
+        let imm = i32::from(instr.simm()) as u32;
 
         self.gpr[instr.d()] = ra.wrapping_add(imm);
 
@@ -34,8 +33,8 @@ impl Cpu {
     }
 
     fn addic_rc(&mut self, instr: Instruction) {
-        let ra  = self.gpr[instr.a()];
-        let imm = (instr.simm() as i32) as u32;
+        let ra = self.gpr[instr.a()];
+        let imm = i32::from(instr.simm()) as u32;
 
         self.gpr[instr.d()] = ra.wrapping_add(imm);
 
@@ -71,7 +70,7 @@ impl Cpu {
 
     fn addzex(&mut self, instr: Instruction) {
         let carry = self.xer.carry as u32;
-        let ra    = self.gpr[instr.a()];
+        let ra = self.gpr[instr.a()];
 
         self.gpr[instr.d()] = ra.wrapping_add(carry);
 
@@ -141,7 +140,7 @@ impl Cpu {
         let a = self.gpr[instr.a()] as i32;
         let b = self.gpr[instr.b()] as i32;
 
-        let mut c:u8 = if a < b {
+        let mut c: u8 = if a < b {
             0b1000
         } else if a > b {
             0b0100
@@ -160,9 +159,9 @@ impl Cpu {
         }
 
         let a = self.gpr[instr.a()] as i32;
-        let b = instr.simm() as i32;
+        let b = i32::from(instr.simm());
 
-        let mut c:u8 = if a < b {
+        let mut c: u8 = if a < b {
             0b1000
         } else if a > b {
             0b0100
@@ -183,7 +182,7 @@ impl Cpu {
         let a = self.gpr[instr.a()];
         let b = self.gpr[instr.b()];
 
-        let mut c:u8 = if a < b {
+        let mut c: u8 = if a < b {
             0b1000
         } else if a > b {
             0b0100
@@ -204,7 +203,7 @@ impl Cpu {
         let a = self.gpr[instr.a()];
         let b = instr.uimm();
 
-        let mut c:u8 = if a < b {
+        let mut c: u8 = if a < b {
             0b1000
         } else if a > b {
             0b0100
@@ -219,7 +218,7 @@ impl Cpu {
 
     fn cntlzwx(&mut self, instr: Instruction) {
         let mut n = 0;
-        let mut mask = 0x80000000;
+        let mut mask = 0x8000_0000;
         let s = self.gpr[instr.s()];
 
         while n < 32 {
@@ -248,7 +247,7 @@ impl Cpu {
             }
 
             if a as u32 == 0x8000_0000 && b == 0 {
-                self.gpr[instr.d()] = 0xFFFFFFFF;
+                self.gpr[instr.d()] = 0xFFFF_FFFF;
             } else {
                 self.gpr[instr.d()] = 0;
             }
@@ -281,7 +280,7 @@ impl Cpu {
     }
 
     fn extsbx(&mut self, instr: Instruction) {
-        self.gpr[instr.a()] = ((self.gpr[instr.s()] as i8) as i32) as u32;
+        self.gpr[instr.a()] = i32::from(self.gpr[instr.s()] as i8) as u32;
 
         if instr.rc() {
             self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
@@ -289,7 +288,7 @@ impl Cpu {
     }
 
     fn extshx(&mut self, instr: Instruction) {
-        self.gpr[instr.a()] = ((self.gpr[instr.s()] as i16) as i32) as u32;
+        self.gpr[instr.a()] = i32::from(self.gpr[instr.s()] as i16) as u32;
 
         if instr.rc() {
             self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
@@ -297,8 +296,8 @@ impl Cpu {
     }
 
     fn mulhwux(&mut self, instr: Instruction) {
-        let a = self.gpr[instr.a()] as u64;
-        let b = self.gpr[instr.b()] as u64;
+        let a = u64::from(self.gpr[instr.a()]);
+        let b = u64::from(self.gpr[instr.b()]);
 
         self.gpr[instr.d()] = ((a * b) >> 32) as u32;
 
@@ -308,7 +307,8 @@ impl Cpu {
     }
 
     fn mulli(&mut self, instr: Instruction) {
-        self.gpr[instr.d()] = (self.gpr[instr.a()] as i32).wrapping_mul(instr.simm() as i32) as u32;
+        self.gpr[instr.d()] =
+            (self.gpr[instr.a()] as i32).wrapping_mul(i32::from(instr.simm())) as u32;
     }
 
     fn mullwx(&mut self, instr: Instruction) {
@@ -362,7 +362,7 @@ impl Cpu {
 
     fn rlwimix(&mut self, instr: Instruction) {
         let m = mask(instr.mb(), instr.me());
-        let r = self.gpr[instr.s()].rotate_left(instr.sh() as u32);
+        let r = self.gpr[instr.s()].rotate_left(u32::from(instr.sh()));
 
         self.gpr[instr.a()] = (r & m) | (self.gpr[instr.a()] & !m);
 
@@ -374,13 +374,12 @@ impl Cpu {
     fn rlwinmx(&mut self, instr: Instruction) {
         let mask = mask(instr.mb(), instr.me());
 
-        self.gpr[instr.a()] = (self.gpr[instr.s()].rotate_left(instr.sh() as u32)) & mask;
+        self.gpr[instr.a()] = (self.gpr[instr.s()].rotate_left(u32::from(instr.sh()))) & mask;
 
         if instr.rc() {
             self.cr.update_cr0(self.gpr[instr.a()], &self.xer);
         }
     }
-
 
     fn slwx(&mut self, instr: Instruction) {
         let r = self.gpr[instr.b()];
@@ -400,8 +399,8 @@ impl Cpu {
         let rb = self.gpr[instr.b()];
 
         if rb & 0x20 != 0 {
-            if self.gpr[instr.s()] & 0x80000000 != 0 {
-                self.gpr[instr.a()] = 0xFFFFFFFF;
+            if self.gpr[instr.s()] & 0x8000_0000 != 0 {
+                self.gpr[instr.a()] = 0xFFFF_FFFF;
                 self.xer.carry = true;
             } else {
                 self.gpr[instr.a()] = 0;
@@ -512,7 +511,7 @@ impl Cpu {
 
     fn subfic(&mut self, instr: Instruction) {
         let ra = !self.gpr[instr.a()] as i32;
-        let imm = (instr.simm() as i32) + 1;
+        let imm = i32::from(instr.simm()) + 1;
 
         self.gpr[instr.d()] = ra.wrapping_add(imm) as u32;
 

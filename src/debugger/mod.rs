@@ -1,9 +1,12 @@
 mod console;
 mod disassembler;
 
-#[cfg(unix)] use std::sync;
-#[cfg(unix)] use std::sync::atomic;
-#[cfg(unix)] use nix::sys::signal;
+#[cfg(unix)]
+use nix::sys::signal;
+#[cfg(unix)]
+use std::sync;
+#[cfg(unix)]
+use std::sync::atomic;
 
 use self::console::Console;
 use self::disassembler::Disassembler;
@@ -17,12 +20,6 @@ pub trait Debugger {
 
 #[derive(Default)]
 pub struct DummyDebugger;
-
-impl DummyDebugger {
-    pub fn new() -> DummyDebugger {
-        DummyDebugger
-    }
-}
 
 impl Debugger for DummyDebugger {
     fn nia_change(&mut self, _: &mut Cpu, _: &mut Interconnect) {}
@@ -39,8 +36,8 @@ pub struct ConsoleDebugger {
     pub watchpoints: Vec<u32>,
 }
 
-impl ConsoleDebugger {
-    pub fn new() -> ConsoleDebugger {
+impl Default for ConsoleDebugger {
+    fn default() -> Self {
         let mut console = Console::new();
 
         console.intro();
@@ -48,7 +45,7 @@ impl ConsoleDebugger {
         install_sigint_handler();
 
         ConsoleDebugger {
-            console: console,
+            console,
             resume: false,
             step: false,
             step_count: 0,
@@ -57,7 +54,9 @@ impl ConsoleDebugger {
             watchpoints: Vec::new(),
         }
     }
+}
 
+impl ConsoleDebugger {
     pub fn debug(&mut self, cpu: &mut Cpu, interconnect: &mut Interconnect) {
         if self.step {
             if self.step_count > 0 {
@@ -131,7 +130,10 @@ impl ConsoleDebugger {
 
         disassembler.disassemble(cpu, instr);
 
-        println!("{:#010x}       {: <7} {}", cpu.cia, disassembler.opcode, disassembler.operands);
+        println!(
+            "{:#010x}       {: <7} {}",
+            cpu.cia, disassembler.opcode, disassembler.operands
+        );
     }
 }
 
@@ -173,16 +175,17 @@ static SIGINT: atomic::AtomicBool = atomic::ATOMIC_BOOL_INIT;
 #[cfg(unix)]
 fn install_sigint_handler() {
     SIGINT_ONCE.call_once(|| unsafe {
-        let sigint = signal::SigAction::new(signal::SigHandler::Handler(sigint_handler),
-                                            signal::SaFlags::empty(),
-                                            signal::SigSet::empty());
+        let sigint = signal::SigAction::new(
+            signal::SigHandler::Handler(sigint_handler),
+            signal::SaFlags::empty(),
+            signal::SigSet::empty(),
+        );
         let _ = signal::sigaction(signal::SIGINT, &sigint);
     });
 }
 
 #[cfg(not(unix))]
-fn install_sigint_handler() {
-}
+fn install_sigint_handler() {}
 
 #[cfg(unix)]
 extern "C" fn sigint_handler(_: i32) {
