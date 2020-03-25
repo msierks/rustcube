@@ -64,7 +64,7 @@ fn map(address: u32) -> Address {
 
 pub struct Interconnect {
     ai: AudioInterface,
-    pub bootrom: Rc<RefCell<Box<[u8; BOOTROM_SIZE]>>>,
+    pub bootrom: Rc<RefCell<Vec<u8>>>,
     cp: CommandProcessor,
     dsp: DspInterface,
     dvd: DvdInterface,
@@ -81,7 +81,7 @@ pub struct Interconnect {
 
 impl Default for Interconnect {
     fn default() -> Self {
-        let bootrom = Rc::new(RefCell::new(Box::new([0; BOOTROM_SIZE])));
+        let bootrom = Rc::new(RefCell::new(Vec::with_capacity(BOOTROM_SIZE)));
 
         Interconnect {
             ai: AudioInterface::default(),

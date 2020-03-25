@@ -19,7 +19,7 @@ pub struct Exi {
 }
 
 impl Exi {
-    pub fn new(bootrom: Rc<RefCell<Box<[u8; BOOTROM_SIZE]>>>) -> Exi {
+    pub fn new(bootrom: Rc<RefCell<Vec<u8>>>) -> Exi {
         let channel0 = Channel::new([
             Box::new(DeviceDummy::new()),
             Box::new(DeviceIpl::new(bootrom)),
