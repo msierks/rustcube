@@ -43,7 +43,7 @@ impl Gamecube {
 
         let mut bootrom = self.interconnect.bootrom.borrow_mut();
 
-        match file.read_exact(&mut **bootrom) {
+        match file.read_exact(&mut *bootrom) {
             Ok(_) => {}
             Err(e) => {
                 panic!("{}", e);

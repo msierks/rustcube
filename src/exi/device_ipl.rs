@@ -11,13 +11,13 @@ pub struct DeviceIpl {
     command: u32,
     offset: u32,
     write: bool,
-    bootrom: Rc<RefCell<Box<[u8; BOOTROM_SIZE]>>>,
+    bootrom: Rc<RefCell<Vec<u8>>>,
     sram: [u8; 64],
     uart: String,
 }
 
 impl DeviceIpl {
-    pub fn new(bootrom: Rc<RefCell<Box<[u8; BOOTROM_SIZE]>>>) -> DeviceIpl {
+    pub fn new(bootrom: Rc<RefCell<Vec<u8>>>) -> DeviceIpl {
         DeviceIpl {
             address: 0,
             command: 0,
@@ -161,11 +161,11 @@ impl Device for DeviceIpl {
                 memory.write_dma(address, &self.sram[0..length as usize]);
             }
             _ => {
-                let bootrom = **self.bootrom.borrow_mut();
+                let mut bootrom = &*self.bootrom.borrow_mut();
 
                 memory.write_dma(
                     address,
-                    &bootrom[self.address as usize..(self.address + length) as usize],
+                    &bootrom.as_slice()[self.address as usize..(self.address + length) as usize],
                 );
             }
         }
