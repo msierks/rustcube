@@ -81,7 +81,7 @@ pub struct Interconnect {
 
 impl Default for Interconnect {
     fn default() -> Self {
-        let bootrom = Rc::new(RefCell::new(Vec::with_capacity(BOOTROM_SIZE)));
+        let bootrom = Rc::new(RefCell::new(vec![0; BOOTROM_SIZE]));
 
         Interconnect {
             ai: AudioInterface::default(),
