@@ -1,21 +1,21 @@
 use byteorder::{BigEndian, ByteOrder};
 
-/// Main RAM Size: 24MB
-const RAM_SIZE: usize = 0x180_0000;
+/// Main Memory Size: 24MB
+const MEMORY_SIZE: usize = 0x180_0000;
 
-pub struct Ram {
+pub struct Memory {
     data: Box<[u8]>,
 }
 
-impl Default for Ram {
+impl Default for Memory {
     fn default() -> Self {
-        Ram {
-            data: vec![0; RAM_SIZE].into_boxed_slice(),
+        Memory {
+            data: vec![0; MEMORY_SIZE].into_boxed_slice(),
         }
     }
 }
 
-impl Ram {
+impl Memory {
     pub fn read_u8(&self, addr: u32) -> u8 {
         self.data[addr as usize]
     }
@@ -30,6 +30,10 @@ impl Ram {
 
     pub fn read_u64(&self, addr: u32) -> u64 {
         BigEndian::read_u64(&self.data[addr as usize..])
+    }
+
+    pub fn read_f32(&self, addr: u32) -> f32 {
+        BigEndian::read_f32(&self.data[addr as usize..])
     }
 
     pub fn read_dma(&mut self, addr: u32, buf: &mut [u8]) {

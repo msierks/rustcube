@@ -10,10 +10,11 @@ name = "rustcube"
 doc = false
 
 [dependencies]
+bitfield = "0.13"
 byteorder = "0.4"
-enum_primitive = "0.1.0"
+gdbstub = {version = "0.4", optional = true}
 getopts = "0.2"
-minifb = "0.10.0"
-num = "0.1"
-nix = "0"
-rustyline = "1.0.0"
+
+[features]
+default = ["gdb"]
+gdb = ["gdbstub"]

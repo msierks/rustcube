@@ -1,9 +1,3 @@
-use num::FromPrimitive;
-use std::fmt;
-
-use super::spr::Spr;
-use super::tbr::TBR;
-
 #[derive(Copy, Clone)]
 pub struct Instruction(pub u32);
 
@@ -39,13 +33,18 @@ impl Instruction {
     }
 
     #[inline(always)]
+    pub fn c(self) -> usize {
+        ((self.0 >> 6) & 0x1F) as usize
+    }
+
+    #[inline(always)]
     pub fn oe(self) -> bool {
-        ((self.0 >> 10) & 1) == 1
+        ((self.0 >> 10) & 1) != 0
     }
 
     #[inline(always)]
     pub fn rc(self) -> bool {
-        self.0 & 1 == 1
+        self.0 & 1 != 0
     }
 
     #[inline(always)]
@@ -83,7 +82,7 @@ impl Instruction {
     }
 
     pub fn w(self) -> bool {
-        ((self.0 >> 15) & 1) == 1
+        ((self.0 >> 15) & 1) != 0
     }
 
     #[inline(always)]
@@ -141,20 +140,13 @@ impl Instruction {
         ((self.0 >> 1) & 0x1F) as u8
     }
 
-    pub fn spr(self) -> Spr {
-        let n = ((self.0 >> 6) & 0x3E0) | ((self.0 >> 16) & 0x1F);
+    pub fn spr(self) -> usize {
+        let spr = (self.0 >> 11) & 0x3FF;
 
-        Spr::from_u32(n).unwrap_or_else(|| Spr::UNKNOWN)
+        (((spr & 0x1F) << 5) + ((spr >> 5) & 0x1F)) as usize
     }
 
-    pub fn tbr(self) -> TBR {
-        let n = ((self.0 >> 6) & 0x3E0) | ((self.0 >> 16) & 0x1F);
-        TBR::from_u32(n).unwrap_or_else(|| TBR::UNKNOWN)
-    }
-}
-
-impl fmt::Debug for Instruction {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:#b}", self.opcode())
+    pub fn crm(self) -> usize {
+        ((self.0 >> 12) & 0xFF) as usize
     }
 }

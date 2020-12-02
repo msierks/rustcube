@@ -4,8 +4,7 @@ use std::io::prelude::*;
 use std::io::{Error, Read, SeekFrom};
 use std::path::Path;
 
-use super::cpu::Cpu;
-use super::interconnect::Interconnect;
+use super::Context;
 
 const NUM_TEXT: usize = 7;
 const NUM_DATA: usize = 11;
@@ -102,13 +101,13 @@ impl Dol {
         self.header.entry_point
     }
 
-    pub fn load(&self, cpu: &mut Cpu, interconnect: &mut Interconnect) {
+    pub fn load(&self, ctx: &mut Context) {
         for (x, section) in self.text_sections.iter().enumerate() {
-            interconnect.write(&cpu.msr, self.header.text_address[x], section.as_slice());
+            ctx.write(self.header.text_address[x], section.as_slice());
         }
 
         for (x, section) in self.data_sections.iter().enumerate() {
-            interconnect.write(&cpu.msr, self.header.data_address[x], section.as_slice());
+            ctx.write(self.header.data_address[x], section.as_slice());
         }
     }
 }
