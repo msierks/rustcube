@@ -1,8 +1,13 @@
 mod cpu;
 mod dol;
+mod dsp;
+mod exi;
 #[cfg(feature = "gdb")]
 mod gdb;
-mod memory;
+
+mod mem;
+mod pi;
+mod si;
 
 use byteorder::{BigEndian, ByteOrder};
 use std::cell::RefCell;
@@ -13,7 +18,11 @@ use std::rc::Rc;
 
 use self::cpu::Cpu;
 use self::dol::Dol;
-use self::memory::Memory;
+use self::dsp::DspInterface;
+use self::exi::ExternalInterface;
+use self::mem::Memory;
+use self::pi::ProcessorInterface;
+use self::si::SerialInterface;
 
 const BOOTROM_SIZE: usize = 0x0020_0000; // 2 MB
 
@@ -40,11 +49,14 @@ struct Access {
 pub struct Context {
     cpu: Cpu,
     bootrom: Rc<RefCell<Vec<u8>>>,
-    mem: Memory, // ToDo: Audio Interface
+    mem: Memory,
+    dsp: DspInterface,
+    exi: ExternalInterface,
+    pi: ProcessorInterface,
+    si: SerialInterface,
+    // ToDo: Audio Interface
     // ToDo: Command Processor
-    // ToDo: Digital Signal Processor Interface
     // ToDo: DVD Interface
-    // ToDo: EXI Interface
     // ToDo: GPFIFO
     // ToDo: Everything Else
     watchpoints: Vec<u32>,
@@ -54,10 +66,17 @@ pub struct Context {
 
 impl Default for Context {
     fn default() -> Self {
+        let bootrom = Rc::new(RefCell::new(vec![0; BOOTROM_SIZE]));
+        let exi = ExternalInterface::new(bootrom.clone());
+
         Context {
             cpu: Default::default(),
-            bootrom: Rc::new(RefCell::new(vec![0; BOOTROM_SIZE])),
+            bootrom,
             mem: Default::default(),
+            dsp: Default::default(),
+            exi,
+            pi: Default::default(),
+            si: Default::default(),
             watchpoints: Default::default(),
             breakpoints: Default::default(),
             hit_watchpoint: None,
@@ -100,6 +119,7 @@ impl Context {
     pub fn step(&mut self) -> Option<Event> {
         cpu::step(self);
 
+        #[cfg(feature = "gdb")]
         if let Some(access) = self.hit_watchpoint {
             self.hit_watchpoint = None;
 
@@ -109,6 +129,7 @@ impl Context {
             });
         }
 
+        #[cfg(feature = "gdb")]
         if self.breakpoints.contains(&self.cpu.get_pc()) {
             return Some(Event::Break);
         }
@@ -120,7 +141,7 @@ impl Context {
         use Address::*;
 
         let val = match map(addr) {
-            Memory => self.mem.read_u32(addr),
+            Memory => mem::read_u32(self, addr),
             Bootrom(offset) => BigEndian::read_u32(&self.bootrom.borrow()[offset as usize..]),
             _ => panic!(
                 "read_instruction not implemented for {:#?} address {:#x}",
@@ -166,13 +187,41 @@ impl Context {
         ret
     }
 
+    pub fn read_u32(&mut self, ea: u32) -> u32 {
+        let addr = self.cpu.translate_data_address(ea);
+
+        use Address::*;
+
+        let ret = match map(addr) {
+            Memory => mem::read_u32(self, addr),
+            ExternalInterface(chan, reg) => exi::read_u32(self, chan, reg),
+            ProcessorInterface(offset) => pi::read_u32(self, offset),
+            SerialInterface(offset) => si::read_u32(self, offset),
+            _ => panic!(
+                "read_u32 not implemented for {:#?} address {:#x}",
+                map(addr),
+                addr
+            ),
+        };
+
+        #[cfg(feature = "gdb")]
+        if self.watchpoints.contains(&addr) {
+            self.hit_watchpoint = Some(Access {
+                kind: AccessKind::Read,
+                addr: addr,
+            })
+        }
+
+        ret
+    }
+
     pub fn write(&mut self, ea: u32, data: &[u8]) {
         let addr = self.cpu.translate_data_address(ea);
 
         use Address::*;
 
         match map(addr) {
-            Memory => self.mem.write_dma(addr, data),
+            Memory => mem::write(self, addr, data),
             _ => unimplemented!(
                 "write not implemented for {:#?} address {:#x}",
                 map(addr),
@@ -195,13 +244,40 @@ impl Context {
         use Address::*;
 
         match map(addr) {
-            Memory => self.mem.write_u16(addr, val),
-            //Address::VideoInterface(offset) => self.vi.write_u16(offset, val),
-            //Address::MemoryInterface(offset) => self.mi.write_u16(offset, val),
-            //Address::DspInterface(offset) => self.dsp.write_u16(offset, val),
-            //Address::CommandProcessor(offset) => self.cp.write_u16(offset, val),
-            //Address::PixelEngine(offset) => self.pe.write_u16(state, &mut self.pi, offset, val),
-            _ => {}
+            Memory => mem::write_u16(self, addr, val),
+            DspInterface(offset) => dsp::write_u16(self, offset, val),
+            MemoryInterface(_) => {} //ignore
+            _ => panic!(
+                "write_u16 not implemented for {:#?} address {:#x}",
+                map(addr),
+                addr
+            ),
+        }
+
+        #[cfg(feature = "gdb")]
+        if self.watchpoints.contains(&addr) {
+            self.hit_watchpoint = Some(Access {
+                kind: AccessKind::Write,
+                addr: addr,
+            })
+        }
+    }
+
+    pub fn write_u32(&mut self, ea: u32, val: u32) {
+        let addr = self.cpu.translate_data_address(ea);
+
+        use Address::*;
+
+        match map(addr) {
+            Memory => mem::write_u32(self, addr, val),
+            ExternalInterface(chan, reg) => exi::write_u32(self, chan, reg, val),
+            ProcessorInterface(offset) => pi::write_u32(self, offset, val),
+            SerialInterface(offset) => si::write_u32(self, offset, val),
+            _ => panic!(
+                "write_u32 not implemented for {:#?} address {:#x}",
+                map(addr),
+                addr
+            ),
         }
 
         #[cfg(feature = "gdb")]
@@ -226,7 +302,7 @@ pub enum Address {
     DspInterface(u32),
     DvdInterface(u32),
     SerialInterface(u32),
-    ExpansionInterface(u32, u32),
+    ExternalInterface(u32, u32),
     AudioInterface(u32),
     GPFifo,
     Bootrom(u32),
@@ -249,7 +325,7 @@ fn map(address: u32) -> Address {
         0x0C00_6800..=0x0C00_6938 => {
             let channel = (address - 0x0C00_6800) / 0x14;
             let register = (address - 0x0C00_6800) % 0x14;
-            ExpansionInterface(channel, register)
+            ExternalInterface(channel, register)
         }
         0x0C00_6C00..=0x0C00_6C20 => AudioInterface(address - 0x0C00_6C00),
         0x0C00_8000 => GPFifo,
@@ -258,6 +334,9 @@ fn map(address: u32) -> Address {
     }
 }
 
+// Rust port of descrambler from Dolphin Emulater source code
+// https://github.com/dolphin-emu/dolphin/blob/master/Source/Core/Core/HW/EXI/EXI_DeviceIPL.cpp#L49
+//
 // bootrom descrambler reversed by segher
 // Copyright 2008 Segher Boessenkool <segher@kernel.crashing.org>
 fn descrambler(data: &mut [u8]) {

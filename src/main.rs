@@ -3,6 +3,7 @@ extern crate rustcube;
 
 use rustcube::emu::Context;
 
+use env_logger::Env;
 use getopts::Options;
 use std::env;
 use std::path::Path;
@@ -21,6 +22,8 @@ fn print_usage(program: &str, opts: &Options) {
 }
 
 fn main() -> DynResult<()> {
+    env_logger::Builder::from_env(Env::default().default_filter_or("debug")).init();
+
     let args: Vec<String> = env::args().collect();
     let program = args[0].clone();
 

@@ -94,12 +94,12 @@ pub struct Cpu {
     spr: [u32; NUM_SPR],
     /// Segment Registers
     sr: [u32; NUM_SR],
-    /// Link Register
-    lr: u32,
-    /// Count Register
-    ctr: u32,
+    /// Integer Exception Register
+    xer: Xer,
     /// Machine State Register
     msr: MachineStateRegister,
+    /// Condition Register
+    cr: ConditionRegister,
     // Exceptions
     exceptions: u32,
     // Memory Management Unit
@@ -154,9 +154,9 @@ impl Default for Cpu {
             gpr: [0; NUM_GPR],
             spr,
             sr: [0; NUM_SR],
-            lr: 0,
-            ctr: 0,
+            xer: Default::default(),
             msr: 0x40.into(),
+            cr: Default::default(),
             exceptions: EXCEPTION_SYSTEM_RESET,
             mmu: Default::default(),
             optable,
@@ -183,7 +183,7 @@ impl Cpu {
 
             self.exceptions &= !EXCEPTION_SYSTEM_RESET;
 
-            println!("EXCEPTION_SYSTEM_RESET");
+            info!("EXCEPTION_SYSTEM_RESET");
         }
 
         if self.exceptions & EXCEPTION_SYSTEM_CALL != 0 {
@@ -204,7 +204,7 @@ impl Cpu {
 
             self.exceptions &= !EXCEPTION_SYSTEM_CALL;
 
-            println!("EXCEPTION_SYSTEM_CALL");
+            info!("EXCEPTION_SYSTEM_CALL");
         }
 
         if self.msr.external_interrupt() && self.exceptions & EXCEPTION_EXTERNAL_INT != 0 {
@@ -225,7 +225,7 @@ impl Cpu {
 
             self.exceptions &= !EXCEPTION_EXTERNAL_INT;
 
-            println!("EXCEPTION_EXTERNAL_INT");
+            info!("EXCEPTION_EXTERNAL_INT");
         }
 
         if self.exceptions & EXCEPTION_PERFORMANCE_MONITOR != 0 {
@@ -247,6 +247,22 @@ impl Cpu {
 
     pub fn get_pc(&mut self) -> u32 {
         self.pc
+    }
+
+    fn update_cr0(&mut self, r: u32) {
+        let value = r as i32;
+        let mut flags = 0;
+        if value > 0 {
+            flags |= 0x40000000; // GT
+        } else if value < 0 {
+            flags |= 0x80000000; // LT
+        } else {
+            flags |= 0x20000000; // GT
+        }
+
+        flags |= self.gpr[SPR_XER] & 0x10000000;
+
+        self.cr.set((self.cr.as_u32() & 0xFFF_FFFF) | flags);
     }
 
     pub fn translate_instr_address(&self, ea: u32) -> u32 {
@@ -278,11 +294,17 @@ pub fn step(ctx: &mut Context) {
     if instr.0 != 0 {
         ctx.cpu.optable[instr.opcode() as usize](ctx, instr);
     } else {
-        //self.check_exceptions();
         unimplemented!();
     }
 
     ctx.cpu.pc = ctx.cpu.npc;
+
+    // FixMe: Temp advance Timebase till properly implemented
+    ctx.cpu.spr[SPR_TBL] += 1;
+
+    if ctx.cpu.exceptions != 0 {
+        ctx.cpu.check_exceptions();
+    }
 }
 
 bitfield! {
@@ -316,6 +338,53 @@ impl From<u32> for MachineStateRegister {
 impl From<MachineStateRegister> for u32 {
     fn from(v: MachineStateRegister) -> Self {
         v.0
+    }
+}
+
+bitfield! {
+    #[derive(Copy, Clone, Default)]
+    pub struct Xer(u32);
+    impl Debug;
+    pub byte_count, _ : 6, 0;
+    pub carry, set_carry : 29;
+    pub overflow, _ : 30;
+    pub summary_overflow, _ : 31;
+}
+
+impl From<u32> for Xer {
+    fn from(v: u32) -> Self {
+        Xer(v)
+    }
+}
+
+#[derive(Default, Debug)]
+pub struct ConditionRegister(u32);
+
+impl ConditionRegister {
+    pub fn as_u32(&self) -> u32 {
+        self.0
+    }
+
+    pub fn set(&mut self, value: u32) {
+        self.0 = value;
+    }
+
+    pub fn set_field(&mut self, field: usize, value: u32) {
+        self.0 = (self.0 & (!(0xF0000000 >> (field * 4)))) | (value << ((7 - field) * 4));
+    }
+
+    pub fn get_bit(&self, bit: usize) -> u8 {
+        ((self.0 >> (31 - bit)) & 1) as u8
+    }
+
+    pub fn set_bit(&mut self, bit: usize, value: u8) {
+        self.0 = value as u32 | (self.0 & !(0x8000_0000 >> bit));
+    }
+}
+
+impl From<u32> for ConditionRegister {
+    fn from(v: u32) -> Self {
+        ConditionRegister(v)
     }
 }
 
@@ -586,3 +655,17 @@ include!("cpu_gdb.rs");
 include!("cpu_integer.rs");
 include!("cpu_load_store.rs");
 include!("cpu_system.rs");
+
+// Note: A cast from a signed value widens with signed-extension
+//       A cast from an unsigned value widens with zero-extension
+pub fn sign_ext_16(x: u16) -> i32 {
+    i32::from(x as i16)
+}
+
+pub fn sign_ext_26(x: u32) -> i32 {
+    if x & 0x0200_0000 != 0 {
+        (x | 0xFC00_0000) as i32
+    } else {
+        x as i32
+    }
+}

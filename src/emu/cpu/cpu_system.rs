@@ -1,5 +1,7 @@
-fn op_crxor(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!();
+fn op_crxor(ctx: &mut Context, instr: Instruction) {
+    let d = ctx.cpu.cr.get_bit(instr.a()) ^ ctx.cpu.cr.get_bit(instr.b());
+
+    ctx.cpu.cr.set_bit(instr.d(), d);
 }
 
 fn op_isync(_: &mut Context, _: Instruction) {
@@ -17,11 +19,22 @@ fn op_mfspr(ctx: &mut Context, instr: Instruction) {
 
     ctx.cpu.gpr[instr.s()] = ctx.cpu.spr[i];
 
+    match instr.spr() {
+        SPR_XER => ctx.cpu.gpr[instr.s()] = ctx.cpu.xer.0,
+        _ => (),
+    }
+
     // TODO: check privilege level
 }
 
-fn op_mftb(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!();
+fn op_mftb(ctx: &mut Context, instr: Instruction) {
+    if instr.tbr() == 268 {
+        ctx.cpu.gpr[instr.d()] = ctx.cpu.spr[SPR_TBL];
+    } else if instr.tbr() == 269 {
+        ctx.cpu.gpr[instr.d()] = ctx.cpu.spr[SPR_TBL + 1];
+    } else {
+        panic!("mftb unknown tbr {:#x}", instr.tbr());
+    }
 }
 
 fn op_mtmsr(ctx: &mut Context, instr: Instruction) {
@@ -37,8 +50,7 @@ fn op_mtspr(ctx: &mut Context, instr: Instruction) {
     ctx.cpu.spr[i] = v;
 
     match i {
-        SPR_LR => ctx.cpu.lr = v,
-        SPR_CTR => ctx.cpu.ctr = v,
+        SPR_XER => ctx.cpu.xer = v.into(),
         _ => {
             if ctx.cpu.msr.privilege_level() {
                 // FixMe: properly handle this case
@@ -77,11 +89,11 @@ fn op_mtsr(ctx: &mut Context, instr: Instruction) {
 }
 
 fn op_rfi(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!();
+    unimplemented!("op_rfi");
 }
 
 fn op_sc(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!();
+    unimplemented!("op_sc");
 }
 
 fn op_sync(_ctx: &mut Context, _instr: Instruction) {
@@ -89,5 +101,5 @@ fn op_sync(_ctx: &mut Context, _instr: Instruction) {
 }
 
 fn op_twi(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!();
+    unimplemented!("op_twi");
 }

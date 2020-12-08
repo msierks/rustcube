@@ -146,7 +146,12 @@ impl Instruction {
         (((spr & 0x1F) << 5) + ((spr >> 5) & 0x1F)) as usize
     }
 
+    #[inline(always)]
     pub fn crm(self) -> usize {
         ((self.0 >> 12) & 0xFF) as usize
+    }
+
+    pub fn tbr(self) -> usize {
+        (((self.0 >> 6) & 0x3E0) | ((self.0 >> 16) & 0x1F)) as usize
     }
 }

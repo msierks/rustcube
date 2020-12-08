@@ -12,8 +12,10 @@ doc = false
 [dependencies]
 bitfield = "0.13"
 byteorder = "0.4"
+env_logger = "0.8.2"
 gdbstub = {version = "0.4", optional = true}
 getopts = "0.2"
+log = { version = "0.4", features = ["std"] }
 
 [features]
 default = ["gdb"]

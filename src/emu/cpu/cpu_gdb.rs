@@ -53,10 +53,10 @@ impl SingleThreadOps for Context {
         //regs.fpr.copy_from_slice(&self.cpu.fpr);
         regs.pc = self.cpu.pc;
         regs.msr = self.cpu.msr.0;
-        //regs.cr = self.
-        //regs.lr = self.
+        regs.cr = self.cpu.cr.0;
+        regs.lr = self.cpu.spr[SPR_LR];
         regs.ctr = self.cpu.spr[SPR_CTR];
-        regs.xer = self.cpu.spr[SPR_XER];
+        regs.xer = self.cpu.xer.0;
         //regs.fpscr = self.cpu.
         regs.sr.copy_from_slice(&self.cpu.sr);
         regs.pvr = self.cpu.spr[SPR_PVR];
@@ -70,8 +70,8 @@ impl SingleThreadOps for Context {
             .copy_from_slice(&self.cpu.spr[SPR_SPRG0..SPR_SPRG0 + 4]);
         regs.srr0 = self.cpu.spr[SPR_SRR0];
         regs.srr1 = self.cpu.spr[SPR_SRR0 + 1];
-        //regs.tbl = self.cpu.
-        //regs.tbu = self.cpu.
+        regs.tbl = self.cpu.spr[SPR_TBL];
+        regs.tbu = self.cpu.spr[SPR_TBL + 1];
         regs.dec = self.cpu.spr[SPR_DEC];
         regs.dabr = self.cpu.spr[SPR_DABR];
         regs.ear = self.cpu.spr[SPR_EAR];
@@ -119,10 +119,13 @@ impl SingleThreadOps for Context {
                 Gpr(i) => self.cpu.gpr[i] = w, // FixMe: write using register id
                 Pc => self.cpu.pc = w,
                 Msr => self.cpu.msr = w.into(),
-                Cr => (), //self.cpu.cr = w,
-                Lr => self.cpu.lr = w,
-                Ctr => self.cpu.ctr = w,
-                Xer => (),
+                Cr => self.cpu.cr = w.into(),
+                Lr => self.cpu.spr[SPR_LR] = w,
+                Ctr => self.cpu.spr[SPR_CTR] = w,
+                Xer => {
+                    self.cpu.spr[SPR_XER] = w;
+                    self.cpu.xer = w.into();
+                }
                 Fpscr => (),
                 Sr(i) => self.cpu.sr[i] = w,
                 Pvr => self.cpu.spr[SPR_PVR] = w,

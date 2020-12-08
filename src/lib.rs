@@ -3,5 +3,8 @@
 #[macro_use]
 extern crate bitfield;
 
+#[macro_use]
+extern crate log;
+
 #[allow(dead_code)]
 pub mod emu;

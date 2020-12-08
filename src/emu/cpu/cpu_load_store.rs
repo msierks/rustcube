@@ -1,9 +1,9 @@
 fn get_ea(ctx: &Context, instr: Instruction) -> u32 {
-    if instr.a() != 0 {
-        ctx.cpu.gpr[instr.a()].wrapping_add(i32::from(instr.simm()) as u32)
-    } else {
-        i32::from(instr.simm()) as u32
-    }
+    ctx.cpu.gpr[instr.a()].wrapping_add(i32::from(instr.simm()) as u32)
+}
+
+fn get_ea_u(ctx: &Context, instr: Instruction) -> u32 {
+    ctx.cpu.gpr[instr.a()].wrapping_add(i32::from(instr.simm()) as u32)
 }
 
 fn op_dcbf(_ctx: &mut Context, _instr: Instruction) {
@@ -54,8 +54,8 @@ fn op_lmw(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_lmw");
 }
 
-fn op_lwz(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_lwz");
+fn op_lwz(ctx: &mut Context, instr: Instruction) {
+    ctx.cpu.gpr[instr.d()] = ctx.read_u32(get_ea(ctx, instr));
 }
 
 fn op_lwzx(_ctx: &mut Context, _instr: Instruction) {
@@ -110,14 +110,26 @@ fn op_stmw(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_stmw");
 }
 
-fn op_stw(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_stw");
+fn op_stw(ctx: &mut Context, instr: Instruction) {
+    //if ctx.cpu.pc == 0x8130_04c4 {
+    //    ctx.write_u32(get_ea(ctx, instr), 0x1000_0006);
+    //} else {
+    ctx.write_u32(get_ea(ctx, instr), ctx.cpu.gpr[instr.s()]);
+    //}
 }
 
 fn op_stwx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_stwx");
 }
 
-fn op_stwu(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_stwu");
+fn op_stwu(ctx: &mut Context, instr: Instruction) {
+    if instr.a() == 0 {
+        panic!("stwu: invalid instruction");
+    }
+
+    let ea = get_ea_u(ctx, instr);
+
+    ctx.write_u32(ea, ctx.cpu.gpr[instr.s()]);
+
+    ctx.cpu.gpr[instr.a()] = ea;
 }

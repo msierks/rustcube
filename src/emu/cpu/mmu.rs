@@ -11,19 +11,10 @@ pub struct Bat {
     pp: u8,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Mmu {
     pub dbat: [Bat; 4],
     pub ibat: [Bat; 4],
-}
-
-impl Default for Mmu {
-    fn default() -> Self {
-        Mmu {
-            dbat: [Bat::default(); 4],
-            ibat: [Bat::default(); 4],
-        }
-    }
 }
 
 impl Mmu {
@@ -75,6 +66,7 @@ impl Mmu {
 }
 
 pub fn translate_address(bats: &[Bat; 4], msr: MachineStateRegister, ea: u32) -> u32 {
+    // Block Address Translation
     for bat in bats {
         let ea_15 = (ea >> 17) as u16;
         let ea_bepi = (ea_15 & 0x7800) ^ ((ea_15 & 0x7FF) & (!bat.bl));
@@ -89,5 +81,7 @@ pub fn translate_address(bats: &[Bat; 4], msr: MachineStateRegister, ea: u32) ->
         }
     }
 
-    unimplemented!("MMU page/segment address translation",);
+    // Segment Address Translation
+    //unimplemented!("MMU page/segment address translation {:#x} {:}", ea, ea);
+    0
 }
