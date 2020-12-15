@@ -41,7 +41,7 @@ pub fn read_u32(ctx: &mut Context, addr: u32) -> u32 {
     BigEndian::read_u32(&ctx.mem.data[addr as usize..])
 }
 
-pub fn read_u64(ctx: &mut Context, addr: u64) -> u64 {
+pub fn read_u64(ctx: &mut Context, addr: u32) -> u64 {
     BigEndian::read_u64(&ctx.mem.data[addr as usize..])
 }
 

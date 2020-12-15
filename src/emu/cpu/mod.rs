@@ -85,11 +85,13 @@ const PROCESSOR_VERSION: u32 = 0x00083214;
 
 pub struct Cpu {
     /// Current Instruction Address
-    pc: u32,
+    cia: u32,
     /// Next Instruction Address
-    npc: u32,
+    nia: u32,
     /// General-Purpose Registers
     gpr: [u32; NUM_GPR],
+    /// Floating-Point Registers
+    fpr: [Fpr; NUM_FPR],
     /// Special-Purpose Registers
     spr: [u32; NUM_SPR],
     /// Segment Registers
@@ -100,6 +102,8 @@ pub struct Cpu {
     msr: MachineStateRegister,
     /// Condition Register
     cr: ConditionRegister,
+    /// Hardware Implementation-Dependent Register 2
+    hid2: Hid2,
     // Exceptions
     exceptions: u32,
     // Memory Management Unit
@@ -128,19 +132,19 @@ impl Default for Cpu {
             optable[op.0 as usize] = op.3;
         }
 
-        for op in SUBOPCODE19_TABLE.iter() {
+        for op in OPCODE19_TABLE.iter() {
             optable19[op.0 as usize] = op.3;
         }
 
-        for op in SUBOPCODE31_TABLE.iter() {
+        for op in OPCODE31_TABLE.iter() {
             optable31[op.0 as usize] = op.3;
         }
 
-        for op in SUBOPCODE59_TABLE.iter() {
+        for op in OPCODE59_TABLE.iter() {
             optable59[op.0 as usize] = op.3;
         }
 
-        for op in SUBOPCODE63_TABLE.iter() {
+        for op in OPCODE63_TABLE.iter() {
             optable63[op.0 as usize] = op.3;
         }
 
@@ -149,14 +153,16 @@ impl Default for Cpu {
         spr[SPR_PVR] = PROCESSOR_VERSION;
 
         let mut cpu = Cpu {
-            pc: 0,
-            npc: 0,
-            gpr: [0; NUM_GPR],
+            cia: 0,
+            nia: 0,
+            gpr: Default::default(),
+            fpr: Default::default(),
             spr,
-            sr: [0; NUM_SR],
+            sr: Default::default(),
             xer: Default::default(),
             msr: 0x40.into(),
             cr: Default::default(),
+            hid2: Default::default(),
             exceptions: EXCEPTION_SYSTEM_RESET,
             mmu: Default::default(),
             optable,
@@ -173,12 +179,16 @@ impl Default for Cpu {
 }
 
 impl Cpu {
+    pub fn external_interrupt(&mut self) {
+        self.exceptions &= EXCEPTION_EXTERNAL_INT;
+    }
+
     fn check_exceptions(&mut self) {
         if self.exceptions & EXCEPTION_SYSTEM_RESET != 0 {
             if self.msr.exception_prefix() {
-                self.pc = 0x100 | 0xFFF0_0000
+                self.cia = 0x100 | 0xFFF0_0000
             } else {
-                self.pc = 0x100
+                self.cia = 0x100
             }
 
             self.exceptions &= !EXCEPTION_SYSTEM_RESET;
@@ -187,7 +197,7 @@ impl Cpu {
         }
 
         if self.exceptions & EXCEPTION_SYSTEM_CALL != 0 {
-            self.spr[SPR_SRR0] = self.npc;
+            self.spr[SPR_SRR0] = self.nia;
             self.spr[SPR_SRR1] = self.msr.0 & 0x87C0_FFFF;
             self.msr.0 = self.msr.0 & !0x04_EF36;
 
@@ -195,12 +205,12 @@ impl Cpu {
                 .set_little_endian(self.msr.exception_little_endian());
 
             if self.msr.exception_prefix() {
-                self.pc = 0xC00 | 0xFFF0_0000
+                self.cia = 0xC00 | 0xFFF0_0000
             } else {
-                self.pc = 0xC00
+                self.cia = 0xC00
             }
 
-            self.npc = self.pc;
+            self.nia = self.cia;
 
             self.exceptions &= !EXCEPTION_SYSTEM_CALL;
 
@@ -208,7 +218,7 @@ impl Cpu {
         }
 
         if self.msr.external_interrupt() && self.exceptions & EXCEPTION_EXTERNAL_INT != 0 {
-            self.spr[SPR_SRR0] = self.npc;
+            self.spr[SPR_SRR0] = self.nia;
             self.spr[SPR_SRR1] = self.msr.0 & 0x87C0_FFFF;
             self.msr.0 = self.msr.0 & !0x04_EF36;
 
@@ -216,12 +226,12 @@ impl Cpu {
                 .set_little_endian(self.msr.exception_little_endian());
 
             if self.msr.exception_prefix() {
-                self.pc = 0x500 | 0xFFF0_0000
+                self.cia = 0x500 | 0xFFF0_0000
             } else {
-                self.pc = 0x500
+                self.cia = 0x500
             }
 
-            self.npc = self.pc;
+            self.nia = self.cia;
 
             self.exceptions &= !EXCEPTION_EXTERNAL_INT;
 
@@ -242,27 +252,33 @@ impl Cpu {
     }
 
     pub fn set_pc(&mut self, pc: u32) {
-        self.pc = pc;
+        self.cia = pc;
     }
 
     pub fn get_pc(&mut self) -> u32 {
-        self.pc
+        self.cia
+    }
+
+    fn set_xer_so(&mut self, v: bool) {
+        self.xer.set_overflow(v);
+        self.xer.set_summary_overflow(v);
     }
 
     fn update_cr0(&mut self, r: u32) {
         let value = r as i32;
         let mut flags = 0;
+
         if value > 0 {
-            flags |= 0x40000000; // GT
+            flags |= 0x4; // GT
         } else if value < 0 {
-            flags |= 0x80000000; // LT
+            flags |= 0x8; // LT
         } else {
-            flags |= 0x20000000; // GT
+            flags |= 0x2; // EQ
         }
 
-        flags |= self.gpr[SPR_XER] & 0x10000000;
+        flags |= self.xer.summary_overflow() as u32;
 
-        self.cr.set((self.cr.as_u32() & 0xFFF_FFFF) | flags);
+        self.cr.set_field(0, flags);
     }
 
     pub fn translate_instr_address(&self, ea: u32) -> u32 {
@@ -285,11 +301,11 @@ impl Cpu {
 }
 
 pub fn step(ctx: &mut Context) {
-    let addr = ctx.cpu.translate_instr_address(ctx.cpu.pc);
+    let addr = ctx.cpu.translate_instr_address(ctx.cpu.cia);
 
     let instr = Instruction(ctx.read_instruction(addr));
 
-    ctx.cpu.npc = ctx.cpu.pc.wrapping_add(4);
+    ctx.cpu.nia = ctx.cpu.cia.wrapping_add(4);
 
     if instr.0 != 0 {
         ctx.cpu.optable[instr.opcode() as usize](ctx, instr);
@@ -297,13 +313,56 @@ pub fn step(ctx: &mut Context) {
         unimplemented!();
     }
 
-    ctx.cpu.pc = ctx.cpu.npc;
+    ctx.cpu.cia = ctx.cpu.nia;
 
     // FixMe: Temp advance Timebase till properly implemented
     ctx.cpu.spr[SPR_TBL] += 1;
 
     if ctx.cpu.exceptions != 0 {
         ctx.cpu.check_exceptions();
+    }
+}
+
+bitfield! {
+    #[derive(Copy, Clone, Default)]
+    struct Fpr(u64);
+    impl Debug;
+    u32;
+    ps1, set_ps1 : 31, 0;
+    ps0, set_ps0 : 63, 32;
+}
+
+impl Fpr {
+    pub fn as_float(self) -> f64 {
+        f64::from_bits(self.0)
+    }
+
+    pub fn as_u64(self) -> u64 {
+        self.0
+    }
+
+    pub fn as_ps0(self) -> f32 {
+        f32::from_bits(self.ps0())
+    }
+
+    pub fn as_ps1(self) -> f32 {
+        f32::from_bits(self.ps1())
+    }
+
+    pub fn as_ps0_u32(self) -> u32 {
+        self.ps0()
+    }
+
+    pub fn as_ps1_u32(self) -> u32 {
+        self.ps1()
+    }
+
+    pub fn to_float(val: f64) -> Fpr {
+        Fpr(f64::to_bits(val))
+    }
+
+    pub fn to_ps_float(ps0: f32, ps1: f32) -> Fpr {
+        Fpr(((f32::to_bits(ps0) as u64) << 32) ^ f32::to_bits(ps1) as u64)
     }
 }
 
@@ -347,13 +406,19 @@ bitfield! {
     impl Debug;
     pub byte_count, _ : 6, 0;
     pub carry, set_carry : 29;
-    pub overflow, _ : 30;
-    pub summary_overflow, _ : 31;
+    pub overflow, set_overflow : 30;
+    pub summary_overflow, set_summary_overflow : 31;
 }
 
 impl From<u32> for Xer {
     fn from(v: u32) -> Self {
         Xer(v)
+    }
+}
+
+impl From<Xer> for u32 {
+    fn from(s: Xer) -> u32 {
+        s.0
     }
 }
 
@@ -386,6 +451,25 @@ impl From<u32> for ConditionRegister {
     fn from(v: u32) -> Self {
         ConditionRegister(v)
     }
+}
+
+bitfield! {
+    #[derive(Copy, Clone, Default)]
+    pub struct Hid2(u32);
+    impl Debug;
+    pub dqoee, _ : 16;
+    pub dcmee, _ : 17;
+    pub dncee, _ : 18;
+    pub dchee, _ : 19;
+    pub dqoerr, _ : 20;
+    pub dcmerr, _ : 21;
+    pub dncerr, _ : 22;
+    pub dcherr, _ : 23;
+    pub dmaql, _ : 27, 24;
+    pub lce, _ : 28;
+    pub pse, _ : 29;
+    pub wpe, _ : 30;
+    pub lsqe, _ : 31;
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -554,7 +638,7 @@ pub const OPCODE_TABLE: [(u8, Opcodes, &'static str, fn(&mut Context, Instructio
     (63, Opcodes::TABLE63, "subtable63", op_subtable63),
 ];
 
-pub const SUBOPCODE19_TABLE: [(u16, Opcodes, &str, fn(&mut Context, Instruction)); 5] = [
+pub const OPCODE19_TABLE: [(u16, Opcodes, &str, fn(&mut Context, Instruction)); 5] = [
     (16, Opcodes::BCLRX, "bclrx", op_bclrx),
     (50, Opcodes::RFI, "rfi", op_rfi),
     (150, Opcodes::ISYNC, "isync", op_isync),
@@ -562,7 +646,7 @@ pub const SUBOPCODE19_TABLE: [(u16, Opcodes, &str, fn(&mut Context, Instruction)
     (528, Opcodes::BCCTRX, "bcctrx", op_bcctrx),
 ];
 
-pub const SUBOPCODE31_TABLE: [(u16, Opcodes, &str, fn(&mut Context, Instruction)); 43] = [
+pub const OPCODE31_TABLE: [(u16, Opcodes, &str, fn(&mut Context, Instruction)); 43] = [
     (0, Opcodes::CMP, "cmp", op_cmp),
     (8, Opcodes::SUBFCX, "subfcx", op_subfcx),
     (10, Opcodes::ADDCX, "addcx", op_addcx),
@@ -608,14 +692,14 @@ pub const SUBOPCODE31_TABLE: [(u16, Opcodes, &str, fn(&mut Context, Instruction)
     (982, Opcodes::ICBI, "icbi", op_icbi),
 ];
 
-pub const SUBOPCODE59_TABLE: [(u8, Opcodes, &str, fn(&mut Context, Instruction)); 4] = [
+pub const OPCODE59_TABLE: [(u8, Opcodes, &str, fn(&mut Context, Instruction)); 4] = [
     (18, Opcodes::FDIVSX, "fdivsx", op_fdivsx),
     (20, Opcodes::FSUBSX, "fsubsx", op_fsubsx),
     (21, Opcodes::FADDSX, "faddsx", op_faddsx),
     (25, Opcodes::FMULSX, "fmulsx", op_fmulsx),
 ];
 
-pub const SUBOPCODE63_TABLE: [(u16, Opcodes, &str, fn(&mut Context, Instruction)); 11] = [
+pub const OPCODE63_TABLE: [(u16, Opcodes, &str, fn(&mut Context, Instruction)); 11] = [
     (0, Opcodes::FCMPU, "fcmpu", op_fcmpu),
     (12, Opcodes::FRSPX, "frspx", op_frspx),
     (15, Opcodes::FCTIWZX, "fctiwzx", op_fctiwzx),

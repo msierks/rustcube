@@ -15,6 +15,12 @@ const TRANSFER_TYPE_READ: u32 = 0;
 const TRANSFER_TYPE_WRITE: u32 = 1;
 const TRANSFER_TYPE_RW: u32 = 2;
 
+const AD16_ID: u32 = 0x04120000;
+
+const AD16_COMMAND_INIT: u8 = 0x00;
+const AD16_COMMAND_READ: u8 = 0xa2;
+const AD16_COMMAND_WRITE: u8 = 0xa0;
+
 pub struct ExternalInterface {
     status: [StatusRegister; NUM_CHANNELS],
     control: [ControlRegister; NUM_CHANNELS],
@@ -46,16 +52,16 @@ bitfield! {
     #[derive(Copy, Clone, Default)]
     pub struct StatusRegister(u32);
     impl Debug;
-    pub exi_interrupt_mast, _ : 0;
+    pub exi_interrupt_mask, set_exi_interrupt_mask : 0;
     pub exi_interrupt_status, _ : 1;
-    pub tc_interrupt_mask, _ : 2;
+    pub tc_interrupt_mask, set_tc_interrupt_mask : 2;
     pub tc_interrupt, _ : 3;
-    pub clock_frequency, _ : 6, 4;
-    pub devices_selected, _ : 9, 7;
+    pub clock_frequency, set_clock_frequency : 6, 4;
+    pub device_select, set_device_select : 9, 7;
     pub ext_interrupt_mask, _ : 10;
     pub ext_insertion_interrupt_status, _ : 11;
     pub device_connected, _ : 12;
-    pub rom_descramble, _ : 13;
+    pub rom_descramble, set_rom_descramble : 13;
 }
 
 impl From<u32> for StatusRegister {
@@ -72,10 +78,11 @@ impl From<StatusRegister> for u32 {
 
 impl StatusRegister {
     fn get_selected_device(&self) -> u8 {
-        match self.devices_selected() {
+        match self.device_select() {
+            1 => 0,
             2 => 1,
             4 => 2,
-            _ => 0,
+            _ => 0, // FixMe: handle this case properly instead of default to 0
         }
     }
 }
@@ -106,8 +113,7 @@ pub fn read_u32(ctx: &mut Context, channel: u32, register: u32) -> u32 {
         DMA_CONTROL => ctx.exi.control[c].into(),
         IMM_DATA => ctx.exi.imm_data[c],
         _ => {
-            warn!("read_u32 unrecognized register {:#x}", register);
-            0
+            panic!("read_u32 unrecognized register {:#x}", register);
         }
     }
 }
@@ -117,9 +123,22 @@ pub fn write_u32(ctx: &mut Context, channel: u32, register: u32, val: u32) {
 
     match register {
         STATUS => {
-            ctx.exi.status[c] = val.into();
+            let mut status = ctx.exi.status[c];
+            let new_status = StatusRegister(val);
 
-            let device_index = c * NUM_CHANNELS + ctx.exi.status[c].get_selected_device() as usize;
+            status.set_exi_interrupt_mask(new_status.exi_interrupt_mask());
+            status.set_tc_interrupt_mask(new_status.tc_interrupt_mask());
+            status.set_clock_frequency(new_status.clock_frequency());
+
+            if c == 0 && !status.rom_descramble() {
+                status.set_rom_descramble(new_status.rom_descramble());
+            }
+
+            status.set_device_select(new_status.device_select());
+
+            let device_index = c * NUM_CHANNELS + status.get_selected_device() as usize;
+
+            ctx.exi.status[c] = status;
 
             match ctx.exi.devices[device_index].as_mut() {
                 Some(device) => device.device_select(),
@@ -143,27 +162,25 @@ pub fn write_u32(ctx: &mut Context, channel: u32, register: u32, val: u32) {
                             let dma_length = ctx.exi.dma_length[c];
 
                             if control.transfer_type() == TRANSFER_TYPE_READ {
-                                device.read_dma(&mut ctx.mem, dma_address, dma_length);
+                                device.dma_read(&mut ctx.mem, dma_address, dma_length);
                             } else if control.transfer_type() == TRANSFER_TYPE_WRITE {
-                                device.write_dma(&mut ctx.mem, dma_address, dma_length);
+                                device.dma_write(&mut ctx.mem, dma_address, dma_length);
                             }
                         } else {
                             // Immediate Mode
                             let transfer_len = control.transfer_len() + 1;
 
                             if control.transfer_type() == TRANSFER_TYPE_READ {
-                                device.read_imm(transfer_len as u8);
+                                ctx.exi.imm_data[c] = device.imm_read(transfer_len as u8);
                             } else if control.transfer_type() == TRANSFER_TYPE_WRITE {
-                                let imm_data = ctx.exi.imm_data[c];
-
-                                device.write_imm(imm_data, transfer_len as u8);
+                                device.imm_write(ctx.exi.imm_data[c], transfer_len as u8);
                             }
                         }
                     }
                     None => warn!(
                         "no device on this channel frequency {}:{}",
                         c,
-                        ctx.exi.status[c].get_selected_device()
+                        ctx.exi.status[c].get_selected_device(),
                     ),
                 }
 
@@ -173,14 +190,16 @@ pub fn write_u32(ctx: &mut Context, channel: u32, register: u32, val: u32) {
             ctx.exi.control[c] = control;
         }
         IMM_DATA => ctx.exi.imm_data[c] = val,
-        _ => warn!("write_u32 unrecognized register {:#x}:{}", register, val),
+        _ => panic!("write_u32 unrecognized register {:#x}:{}", register, val),
     }
 }
 
 pub trait Device {
     fn device_select(&mut self);
+
     fn transfer_byte(&mut self, _byte: &mut u8) {}
-    fn read_imm(&mut self, mut len: u8) -> u32 {
+
+    fn imm_read(&mut self, mut len: u8) -> u32 {
         let mut result: u32 = 0;
         let mut position = 0;
 
@@ -194,7 +213,8 @@ pub trait Device {
 
         return result;
     }
-    fn write_imm(&mut self, mut value: u32, mut len: u8) {
+
+    fn imm_write(&mut self, mut value: u32, mut len: u8) {
         while len > 0 {
             len -= 1;
             let mut byte = (value >> 24) as u8;
@@ -202,7 +222,8 @@ pub trait Device {
             value <<= 8;
         }
     }
-    fn read_dma(&mut self, mem: &mut Memory, mut address: u32, mut len: u32) {
+
+    fn dma_read(&mut self, mem: &mut Memory, mut address: u32, mut len: u32) {
         while len > 0 {
             len -= 1;
             let mut byte = 0;
@@ -211,7 +232,8 @@ pub trait Device {
             address += 1;
         }
     }
-    fn write_dma(&mut self, mem: &mut Memory, mut address: u32, mut len: u32) {
+
+    fn dma_write(&mut self, mem: &mut Memory, mut address: u32, mut len: u32) {
         while len > 0 {
             len -= 1;
             let mut byte = mem.read_u8(address);
@@ -222,36 +244,63 @@ pub trait Device {
 }
 
 #[derive(Default)]
-pub struct DeviceAd16;
+pub struct DeviceAd16 {
+    position: usize,
+    command: u8,
+    register: u32,
+}
 
 impl Device for DeviceAd16 {
     fn device_select(&mut self) {
-        println!("DeviceAd16 Selected");
+        self.position = 0;
+        self.command = 0;
     }
 
-    fn read_imm(&mut self, len: u8) -> u32 {
-        println!("ExiDeviceAd16: read_imm {}", len);
-        0x0412_0000 // FixMe: always returns AD16 EXI ID
-    }
+    fn transfer_byte(&mut self, byte: &mut u8) {
+        if self.position == 0 {
+            self.command = *byte;
+        } else {
+            match self.command {
+                AD16_COMMAND_INIT => {
+                    self.register = AD16_ID;
 
-    fn write_imm(&mut self, value: u32, _: u8) {
-        match value {
-            0x0A00_0000 => println!("AD16: CardInit {:#x}", value),
-            0x0B00_0000 => println!("AD16: VIInit {:#x}", value),
-            0x0C00_0000 => println!("AD16: PADInit {:#x}", value),
-            0x0000_0000 => println!("AD16: get ID command"),
-            0x0100_0000 => println!("AD16: init"),
-            0x0200_0000 => println!("AD16: ???"),
-            0x0300_0000 => println!("AD16: ???"),
-            0x0400_0000 => println!("AD16: memory test passed"),
-            0x0500_0000 => panic!("AD16: memory test failed {:#x}", value),
-            0x0600_0000 => panic!("AD16: memory test failed {:#x}", value),
-            0x0700_0000 => panic!("AD16: memory test failed {:#x}", value),
-            0x0800_0000 => println!("AD16: AD16Init {:#x}", value),
-            0x0900_0000 => println!("AD16: DVDInit {:#x}", value),
-            0xA000_0000 => println!("AD16: WRITE/CODE/PADDING??? {:#x}", value),
-            _ => panic!("AD16: unhandled value {:#x}", value),
+                    if self.position > 1 && self.position < 6 {
+                        let pos = self.position - 2;
+                        *byte = (self.register >> 24 - (pos * 8)) as u8;
+                    }
+                }
+                AD16_COMMAND_READ => {
+                    if self.position < 4 {
+                        let pos = self.position - 1;
+                        *byte = (self.register >> 24 - (pos * 8)) as u8;
+                    }
+                }
+                AD16_COMMAND_WRITE => {
+                    if self.position < 4 {
+                        self.register |= *byte as u32;
+                        self.register <<= 8
+                    }
+                    if self.position == 3 {
+                        let msg = match self.register {
+                            0x0100_0000 => "Init",
+                            0x0400_0000 => "Memory test passed",
+                            0x0500_0000 | 0x0600_0000 | 0x0700_0000 => "Memory test failed",
+                            0x0800_0000 => "IPL and OS Init called",
+                            0x0900_0000 => "DVD Init",
+                            0x0A00_0000 => "Card Init",
+                            0x0B00_0000 => "VI Init",
+                            0x0C00_0000 => "PAD Init",
+                            _ => "unknown",
+                        };
+
+                        info!("AD16: {:#x} {:}", self.register, msg);
+                    }
+                }
+                _ => (),
+            }
         }
+
+        self.position += 1;
     }
 }
 
@@ -388,7 +437,7 @@ impl Device for DeviceIpl {
                         }
 
                         if byte_char == '\r' {
-                            println!("UART: {}", self.uart);
+                            info!("UART: {}", self.uart);
                             self.uart.clear();
                         }
                     } else {

@@ -1,13 +1,15 @@
+mod ai;
 mod cpu;
+mod di;
 mod dol;
 mod dsp;
 mod exi;
 #[cfg(feature = "gdb")]
 mod gdb;
-
 mod mem;
 mod pi;
 mod si;
+mod util;
 
 use byteorder::{BigEndian, ByteOrder};
 use std::cell::RefCell;
@@ -16,7 +18,9 @@ use std::io::Read;
 use std::path::Path;
 use std::rc::Rc;
 
+use self::ai::AudioInterface;
 use self::cpu::Cpu;
+use self::di::DvdInterface;
 use self::dol::Dol;
 use self::dsp::DspInterface;
 use self::exi::ExternalInterface;
@@ -47,14 +51,15 @@ struct Access {
 }
 
 pub struct Context {
+    ai: AudioInterface,
     cpu: Cpu,
     bootrom: Rc<RefCell<Vec<u8>>>,
     mem: Memory,
+    di: DvdInterface,
     dsp: DspInterface,
     exi: ExternalInterface,
     pi: ProcessorInterface,
     si: SerialInterface,
-    // ToDo: Audio Interface
     // ToDo: Command Processor
     // ToDo: DVD Interface
     // ToDo: GPFIFO
@@ -70,9 +75,11 @@ impl Default for Context {
         let exi = ExternalInterface::new(bootrom.clone());
 
         Context {
+            ai: Default::default(),
             cpu: Default::default(),
             bootrom,
             mem: Default::default(),
+            di: Default::default(),
             dsp: Default::default(),
             exi,
             pi: Default::default(),
@@ -187,6 +194,32 @@ impl Context {
         ret
     }
 
+    pub fn read_u16(&mut self, ea: u32) -> u16 {
+        let addr = self.cpu.translate_data_address(ea);
+
+        use Address::*;
+
+        let ret = match map(addr) {
+            Memory => mem::read_u16(self, addr),
+            DspInterface(reg) => dsp::read_u16(self, reg),
+            _ => panic!(
+                "read_u16 not implemented for {:#?} address {:#x}",
+                map(addr),
+                addr
+            ),
+        };
+
+        #[cfg(feature = "gdb")]
+        if self.watchpoints.contains(&addr) {
+            self.hit_watchpoint = Some(Access {
+                kind: AccessKind::Read,
+                addr: addr,
+            })
+        }
+
+        ret
+    }
+
     pub fn read_u32(&mut self, ea: u32) -> u32 {
         let addr = self.cpu.translate_data_address(ea);
 
@@ -195,10 +228,36 @@ impl Context {
         let ret = match map(addr) {
             Memory => mem::read_u32(self, addr),
             ExternalInterface(chan, reg) => exi::read_u32(self, chan, reg),
-            ProcessorInterface(offset) => pi::read_u32(self, offset),
-            SerialInterface(offset) => si::read_u32(self, offset),
+            ProcessorInterface(reg) => pi::read_u32(self, reg),
+            SerialInterface(reg) => si::read_u32(self, reg),
+            AudioInterface(reg) => ai::read_u32(self, reg),
             _ => panic!(
                 "read_u32 not implemented for {:#?} address {:#x}",
+                map(addr),
+                addr
+            ),
+        };
+
+        #[cfg(feature = "gdb")]
+        if self.watchpoints.contains(&addr) {
+            self.hit_watchpoint = Some(Access {
+                kind: AccessKind::Read,
+                addr: addr,
+            })
+        }
+
+        ret
+    }
+
+    pub fn read_u64(&mut self, ea: u32) -> u64 {
+        let addr = self.cpu.translate_data_address(ea);
+
+        use Address::*;
+
+        let ret = match map(addr) {
+            Memory => mem::read_u64(self, addr),
+            _ => panic!(
+                "read_u64 not implemented for {:#?} address {:#x}",
                 map(addr),
                 addr
             ),
@@ -238,6 +297,29 @@ impl Context {
         }
     }
 
+    pub fn write_u8(&mut self, ea: u32, val: u8) {
+        let addr = self.cpu.translate_data_address(ea);
+
+        use Address::*;
+
+        match map(addr) {
+            Memory => self.mem.write_u8(addr, val),
+            _ => panic!(
+                "write_u16 not implemented for {:#?} address {:#x}",
+                map(addr),
+                addr
+            ),
+        }
+
+        #[cfg(feature = "gdb")]
+        if self.watchpoints.contains(&addr) {
+            self.hit_watchpoint = Some(Access {
+                kind: AccessKind::Write,
+                addr: addr,
+            })
+        }
+    }
+
     pub fn write_u16(&mut self, ea: u32, val: u16) {
         let addr = self.cpu.translate_data_address(ea);
 
@@ -245,7 +327,7 @@ impl Context {
 
         match map(addr) {
             Memory => mem::write_u16(self, addr, val),
-            DspInterface(offset) => dsp::write_u16(self, offset, val),
+            DspInterface(reg) => dsp::write_u16(self, reg, val),
             MemoryInterface(_) => {} //ignore
             _ => panic!(
                 "write_u16 not implemented for {:#?} address {:#x}",
@@ -270,9 +352,15 @@ impl Context {
 
         match map(addr) {
             Memory => mem::write_u32(self, addr, val),
+            DspInterface(reg) => {
+                dsp::write_u16(self, reg, (val >> 16) as u16);
+                dsp::write_u16(self, reg + 2, val as u16);
+            }
+            DvdInterface(reg) => di::write_u32(self, reg, val),
             ExternalInterface(chan, reg) => exi::write_u32(self, chan, reg, val),
-            ProcessorInterface(offset) => pi::write_u32(self, offset, val),
-            SerialInterface(offset) => si::write_u32(self, offset, val),
+            ProcessorInterface(reg) => pi::write_u32(self, reg, val),
+            SerialInterface(reg) => si::write_u32(self, reg, val),
+            AudioInterface(reg) => ai::write_u32(self, reg, val),
             _ => panic!(
                 "write_u32 not implemented for {:#?} address {:#x}",
                 map(addr),

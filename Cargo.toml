@@ -20,3 +20,7 @@ log = { version = "0.4", features = ["std"] }
 [features]
 default = ["gdb"]
 gdb = ["gdbstub"]
+
+[profile.dev]
+opt-level = 3
+overflow-checks = true

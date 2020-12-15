@@ -1,6 +1,6 @@
 # rustcube [![Build Status](https://travis-ci.org/msierks/rustcube.svg?branch=master)](https://travis-ci.org/msierks/rustcube) [![Build status](https://ci.appveyor.com/api/projects/status/ganyydat21is3coa/branch/master?svg=true)](https://ci.appveyor.com/project/msierks/rustcube/branch/master)
 
-A Gamecube emulator in the Rust programming language. Work is in progress to boot the Gamecube BIOS.
+A Gamecube emulator written in the Rust programming language. This project is intended as a learning exercise for myself and not expected to ever be fully functional. Work is currently in progress to boot the Gamecube BIOS and homebrew games such as pong.
 
 [Documentation](http://msierks.github.io/rustcube/rustcube/)
 

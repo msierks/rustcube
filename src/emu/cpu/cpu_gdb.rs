@@ -51,7 +51,7 @@ impl SingleThreadOps for Context {
         regs.gpr.copy_from_slice(&self.cpu.gpr);
 
         //regs.fpr.copy_from_slice(&self.cpu.fpr);
-        regs.pc = self.cpu.pc;
+        regs.pc = self.cpu.cia;
         regs.msr = self.cpu.msr.0;
         regs.cr = self.cpu.cr.0;
         regs.lr = self.cpu.spr[SPR_LR];
@@ -117,7 +117,7 @@ impl SingleThreadOps for Context {
 
             match reg_id {
                 Gpr(i) => self.cpu.gpr[i] = w, // FixMe: write using register id
-                Pc => self.cpu.pc = w,
+                Pc => self.cpu.cia = w,
                 Msr => self.cpu.msr = w.into(),
                 Cr => self.cpu.cr = w.into(),
                 Lr => self.cpu.spr[SPR_LR] = w,

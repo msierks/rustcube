@@ -20,7 +20,7 @@ fn op_mfspr(ctx: &mut Context, instr: Instruction) {
     ctx.cpu.gpr[instr.s()] = ctx.cpu.spr[i];
 
     match instr.spr() {
-        SPR_XER => ctx.cpu.gpr[instr.s()] = ctx.cpu.xer.0,
+        SPR_XER => ctx.cpu.gpr[instr.s()] = ctx.cpu.xer.into(),
         _ => (),
     }
 
@@ -88,12 +88,19 @@ fn op_mtsr(ctx: &mut Context, instr: Instruction) {
     // TODO: check privilege level
 }
 
-fn op_rfi(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_rfi");
+fn op_rfi(ctx: &mut Context, _instr: Instruction) {
+    let mask = 0x87C0_FF73;
+
+    ctx.cpu.msr.0 = (ctx.cpu.msr.0 & !mask) | (ctx.cpu.spr[SPR_SRR1] & mask);
+
+    ctx.cpu.msr.0 &= 0xFFFB_FFFF;
+
+    ctx.cpu.nia = ctx.cpu.spr[SPR_SRR0] & 0xFFFF_FFFC;
 }
 
-fn op_sc(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_sc");
+fn op_sc(ctx: &mut Context, _intsr: Instruction) {
+    ctx.cpu.exceptions |= EXCEPTION_SYSTEM_CALL;
+    ctx.cpu.check_exceptions();
 }
 
 fn op_sync(_ctx: &mut Context, _instr: Instruction) {
