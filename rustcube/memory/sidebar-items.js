@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["RAM_SIZE","Main RAM Size: 24MB"]],"struct":[["Ram",""]]});

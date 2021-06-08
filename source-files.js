@@ -1,0 +1,3 @@
+var N = null;var sourcesIndex = {};
+sourcesIndex["rustcube"] = {"name":"","dirs":[{"name":"cpu","files":["cpu_integer.rs","cr.rs","fpscr.rs","gqr.rs","hid.rs","instruction.rs","mmu.rs","mod.rs","msr.rs","spr.rs","tbr.rs","util.rs","xer.rs"]},{"name":"debugger","files":["console.rs","disassembler.rs","mod.rs"]},{"name":"exi","files":["channel.rs","device.rs","device_ad16.rs","device_ipl.rs","mod.rs"]}],"files":["audio_interface.rs","command_processor.rs","dol.rs","dsp_interface.rs","dvd_interface.rs","gamecube.rs","gp_fifo.rs","interconnect.rs","lib.rs","memory.rs","pixel_engine.rs","processor_interface.rs","serial_interface.rs","video_interface.rs"]};
+createSourceSidebar();

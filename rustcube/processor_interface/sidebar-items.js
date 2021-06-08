@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["FIFO_BASE_END",""],["FIFO_BASE_START",""],["FIFO_WRITE_POINTER",""],["INTERRUPT_CAUSE",""],["INTERRUPT_MASK",""],["RESET_CODE",""],["REVISION",""],["UNKNOWN",""]],"enum":[["Interrupt",""]],"struct":[["ProcessorInterface",""]]});
