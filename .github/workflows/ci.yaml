@@ -26,6 +26,10 @@ jobs:
           rustc --version
           cargo clippy --version
 
+      - name: Install missing dependencies
+        run: |
+          sudo apt-get install -y libx11-dev xserver-xorg-dev xorg-dev
+
       - name: Lint
         run: |
           cargo fmt -- --check
