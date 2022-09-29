@@ -1,29 +1,20 @@
-use super::msr::Msr;
+use super::MachineStateRegister;
 
 #[derive(Default, Clone, Copy, Debug)]
-struct Bat {
-    bepi: u16,
-    bl: u16,
-    vs: bool,
-    vp: bool,
-    brpn: u16,
-    wimg: u8,
-    pp: u8,
+pub struct Bat {
+    bepi: u16, // Block Effect Page Index
+    bl: u16,   // Block-length Mask
+    vs: bool,  // Supervisor state valid bit  -- allows root access
+    vp: bool,  // Problem state valid bit -- allows user acce
+    brpn: u16, // Block Real Page Number
+    wimg: u8,  // Storage Access Controls
+    pp: u8,    // Protection bits for Bat Ares (00 No Access, 01 Read Only, 10 Read/Write)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Mmu {
-    dbat: [Bat; 4],
-    ibat: [Bat; 4],
-}
-
-impl Default for Mmu {
-    fn default() -> Self {
-        Mmu {
-            dbat: [Bat::default(); 4],
-            ibat: [Bat::default(); 4],
-        }
-    }
+    pub dbat: [Bat; 4],
+    pub ibat: [Bat; 4],
 }
 
 impl Mmu {
@@ -72,40 +63,25 @@ impl Mmu {
         bat.wimg = (value >> 3 & 0x1F) as u8;
         bat.pp = (value & 3) as u8;
     }
+}
 
-    pub fn translate_instr_address(&self, msr: &Msr, ea: u32) -> u32 {
-        if msr.instr_address_translation {
-            self.translate(&self.ibat, msr, ea)
-        } else {
-            // real addressing mode
-            ea
+pub fn translate_address(bats: &[Bat; 4], msr: MachineStateRegister, ea: u32) -> u32 {
+    // Block Address Translation
+    for bat in bats {
+        let ea_15 = (ea >> 17) as u16;
+        let ea_bepi = (ea_15 & 0x7800) ^ ((ea_15 & 0x7FF) & (!bat.bl));
+
+        if ea_bepi == bat.bepi
+            && ((!msr.privilege_level() && bat.vs) || (msr.privilege_level() && bat.vp))
+        {
+            let upper = u32::from(bat.brpn ^ ((ea_15 & 0x7FF) & bat.bl));
+            let lower = ea & 0x1FFFF;
+
+            return (upper << 17) ^ lower;
         }
     }
 
-    pub fn translate_data_address(&self, msr: &Msr, ea: u32) -> u32 {
-        if msr.data_address_translation {
-            self.translate(&self.dbat, msr, ea)
-        } else {
-            // real addressing mode
-            ea
-        }
-    }
-
-    fn translate(&self, bats: &[Bat; 4], msr: &Msr, ea: u32) -> u32 {
-        for bat in bats {
-            let ea_15 = (ea >> 17) as u16;
-            let ea_bepi = (ea_15 & 0x7800) ^ ((ea_15 & 0x7FF) & (!bat.bl));
-
-            if ea_bepi == bat.bepi
-                && ((!msr.privilege_level && bat.vs) || (msr.privilege_level && bat.vp))
-            {
-                let upper = u32::from(bat.brpn ^ ((ea_15 & 0x7FF) & bat.bl));
-                let lower = ea & 0x1FFFF;
-
-                return (upper << 17) ^ lower;
-            }
-        }
-
-        unimplemented!("MMU page/segment address translation",);
-    }
+    // Segment Address Translation
+    //unimplemented!("MMU page/segment address translation {:#x} {:}", ea, ea);
+    0
 }

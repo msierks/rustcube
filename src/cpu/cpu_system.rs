@@ -1,157 +1,128 @@
-impl Cpu {
-    fn crxor(&mut self, instr: Instruction) {
-        let d = self.cr.get_bit(instr.a()) ^ self.cr.get_bit(instr.b());
+fn op_crxor(ctx: &mut Context, instr: Instruction) {
+    let d = ctx.cpu.cr.get_bit(instr.a()) ^ ctx.cpu.cr.get_bit(instr.b());
 
-        self.cr.set_bit(instr.d(), d);
+    ctx.cpu.cr.set_bit(instr.d(), d);
+}
+
+fn op_isync(_ctx: &mut Context, _instr: Instruction) {
+    // don't do anything
+}
+
+fn op_mfmsr(ctx: &mut Context, instr: Instruction) {
+    ctx.cpu.gpr[instr.d()] = ctx.cpu.msr.0;
+
+    // TODO: check privilege level
+}
+
+fn op_mfspr(ctx: &mut Context, instr: Instruction) {
+    let i = instr.spr();
+
+    ctx.cpu.gpr[instr.s()] = ctx.cpu.spr[i];
+
+    match i {
+        SPR_XER => ctx.cpu.gpr[instr.s()] = ctx.cpu.xer.into(),
+        SPR_TBL => unimplemented!(),
+        SPR_TBU => unimplemented!(),
+        _ => (),
     }
 
-    #[allow(unused_variables)]
-    fn isync(&mut self, instr: Instruction) {
-        // don't do anything
+    if i < SPR_IBAT0U || i > SPR_DBAT3L {
+        ctx.tick(1);
+    } else {
+        ctx.tick(3);
     }
 
-    fn mfmsr(&mut self, instr: Instruction) {
-        self.gpr[instr.d()] = self.msr.as_u32();
+    // TODO: check privilege level
+}
 
-        // TODO: check privilege level
+fn op_mftb(ctx: &mut Context, instr: Instruction) {
+    let timebase = ctx.timers.get_timebase();
+
+    ctx.cpu.spr[SPR_TBL] = (timebase & 0xFFFF_FFFF) as u32;
+    ctx.cpu.spr[SPR_TBU] = (timebase >> 32) as u32;
+
+    if instr.tbr() == 268 {
+        ctx.cpu.gpr[instr.d()] = ctx.cpu.spr[SPR_TBL];
+    } else if instr.tbr() == 269 {
+        ctx.cpu.gpr[instr.d()] = ctx.cpu.spr[SPR_TBU];
+    } else {
+        panic!("mftb unknown tbr {:#x}", instr.tbr());
     }
+}
 
-    fn mfspr(&mut self, instr: Instruction) {
-        match instr.spr() {
-            Spr::LR => self.gpr[instr.s()] = self.lr,
-            Spr::CTR => self.gpr[instr.s()] = self.ctr,
-            Spr::HID0 => self.gpr[instr.s()] = self.hid0,
-            Spr::HID2 => self.gpr[instr.s()] = self.hid2.as_u32(),
-            Spr::GQR0 => self.gpr[instr.s()] = self.gqr[0],
-            Spr::GQR1 => self.gpr[instr.s()] = self.gqr[1],
-            Spr::GQR2 => self.gpr[instr.s()] = self.gqr[2],
-            Spr::GQR3 => self.gpr[instr.s()] = self.gqr[3],
-            Spr::GQR4 => self.gpr[instr.s()] = self.gqr[4],
-            Spr::GQR5 => self.gpr[instr.s()] = self.gqr[5],
-            Spr::GQR6 => self.gpr[instr.s()] = self.gqr[6],
-            Spr::GQR7 => self.gpr[instr.s()] = self.gqr[7],
-            Spr::L2CR => self.gpr[instr.s()] = self.l2cr,
-            Spr::PMC1 => self.gpr[instr.s()] = self.pmc1,
-            Spr::XER => self.gpr[instr.s()] = self.xer.as_u32(),
-            Spr::DEC => self.gpr[instr.s()] = self.dec, // FixMe: if bit 0 changes from 0 to 1, then signal DEC exception
-            _ => panic!("mfspr not implemented for {:#?}", instr.spr()), // FixMe: properly handle this case
-        }
+fn op_mtmsr(ctx: &mut Context, instr: Instruction) {
+    ctx.cpu.msr = ctx.cpu.gpr[instr.s()].into();
 
-        // TODO: check privilege level
-    }
+    // TODO: check privilege level
+}
 
-    fn mftb(&mut self, instr: Instruction) {
-        match instr.tbr() {
-            TBR::TBL => self.gpr[instr.d()] = self.tb.l(),
-            TBR::TBU => self.gpr[instr.d()] = self.tb.u(),
-            TBR::UNKNOWN => panic!("mftb unknown tbr {:#?}", instr.tbr()), // FixMe: properly handle this case
-        }
-    }
+fn op_mtspr(ctx: &mut Context, instr: Instruction) {
+    let i = instr.spr();
+    let v = ctx.cpu.gpr[instr.s()];
 
-    fn mtmsr(&mut self, instr: Instruction) {
-        self.msr = self.gpr[instr.s()].into();
+    ctx.cpu.spr[i] = v;
 
-        // TODO: check privilege level
-    }
+    match i {
+        SPR_XER => ctx.cpu.xer = v.into(),
+        _ => {
+            if ctx.cpu.msr.privilege_level() {
+                // FixMe: properly handle this case
+                ctx.cpu.exceptions |= EXCEPTION_PROGRAM;
+                panic!("mtspr: user privilege level prevents setting spr {:#?}", i);
+            }
 
-    fn mtspr(&mut self, instr: Instruction, interconnect: &mut Interconnect) {
-        let spr = instr.spr();
-
-        match spr {
-            Spr::LR => self.lr = self.gpr[instr.s()],
-            Spr::CTR => self.ctr = self.gpr[instr.s()],
-            _ => {
-                if self.msr.privilege_level {
-                    // if user privilege level
-                    // FixMe: properly handle this case
-                    self.exception(Exception::Program);
-                    panic!(
-                        "mtspr: user privilege level prevents setting spr {:#?}",
-                        spr
-                    );
+            match i {
+                SPR_IBAT0U => ctx.cpu.mmu.write_ibatu(0, v),
+                SPR_IBAT0L => ctx.cpu.mmu.write_ibatl(0, v),
+                SPR_IBAT1U => ctx.cpu.mmu.write_ibatu(1, v),
+                SPR_IBAT1L => ctx.cpu.mmu.write_ibatl(1, v),
+                SPR_IBAT2U => ctx.cpu.mmu.write_ibatu(2, v),
+                SPR_IBAT2L => ctx.cpu.mmu.write_ibatl(2, v),
+                SPR_IBAT3U => ctx.cpu.mmu.write_ibatu(3, v),
+                SPR_IBAT3L => ctx.cpu.mmu.write_ibatl(3, v),
+                SPR_DBAT0U => ctx.cpu.mmu.write_dbatu(0, v),
+                SPR_DBAT0L => ctx.cpu.mmu.write_dbatl(0, v),
+                SPR_DBAT1U => ctx.cpu.mmu.write_dbatu(1, v),
+                SPR_DBAT1L => ctx.cpu.mmu.write_dbatl(1, v),
+                SPR_DBAT2U => ctx.cpu.mmu.write_dbatu(2, v),
+                SPR_DBAT2L => ctx.cpu.mmu.write_dbatl(2, v),
+                SPR_DBAT3U => ctx.cpu.mmu.write_dbatu(3, v),
+                SPR_DBAT3L => ctx.cpu.mmu.write_dbatl(3, v),
+                SPR_DEC => unimplemented!("Software Triggered Decrementer"),
+                SPR_HID2 => ctx.cpu.hid2 = v.into(),
+                SPR_TBL => ctx.timers.set_timebase_lower(v),
+                SPR_TBU => ctx.timers.set_timebase_upper(v),
+                SPR_WPAR => {
+                    ctx.cpu.spr[i] = ctx.cpu.spr[i] & !0x1F;
+                    info!("WPAR set to {:#x}", ctx.cpu.spr[i]);
+                    //ctx.gp_fifo.reset();
                 }
-
-                match spr {
-                    Spr::IBAT0U => interconnect.mmu.write_ibatu(0, self.gpr[instr.s()]),
-                    Spr::IBAT0L => interconnect.mmu.write_ibatl(0, self.gpr[instr.s()]),
-                    Spr::IBAT1U => interconnect.mmu.write_ibatu(1, self.gpr[instr.s()]),
-                    Spr::IBAT1L => interconnect.mmu.write_ibatl(1, self.gpr[instr.s()]),
-                    Spr::IBAT2U => interconnect.mmu.write_ibatu(2, self.gpr[instr.s()]),
-                    Spr::IBAT2L => interconnect.mmu.write_ibatl(2, self.gpr[instr.s()]),
-                    Spr::IBAT3U => interconnect.mmu.write_ibatu(3, self.gpr[instr.s()]),
-                    Spr::IBAT3L => interconnect.mmu.write_ibatl(3, self.gpr[instr.s()]),
-                    Spr::DBAT0U => interconnect.mmu.write_dbatu(0, self.gpr[instr.s()]),
-                    Spr::DBAT0L => interconnect.mmu.write_dbatl(0, self.gpr[instr.s()]),
-                    Spr::DBAT1U => interconnect.mmu.write_dbatu(1, self.gpr[instr.s()]),
-                    Spr::DBAT1L => interconnect.mmu.write_dbatl(1, self.gpr[instr.s()]),
-                    Spr::DBAT2U => interconnect.mmu.write_dbatu(2, self.gpr[instr.s()]),
-                    Spr::DBAT2L => interconnect.mmu.write_dbatl(2, self.gpr[instr.s()]),
-                    Spr::DBAT3U => interconnect.mmu.write_dbatu(3, self.gpr[instr.s()]),
-                    Spr::DBAT3L => interconnect.mmu.write_dbatl(3, self.gpr[instr.s()]),
-                    Spr::HID0 => self.hid0 = self.gpr[instr.s()],
-                    Spr::HID2 => self.hid2 = self.gpr[instr.s()].into(),
-                    Spr::GQR0 => self.gqr[0] = self.gpr[instr.s()],
-                    Spr::GQR1 => self.gqr[1] = self.gpr[instr.s()],
-                    Spr::GQR2 => self.gqr[2] = self.gpr[instr.s()],
-                    Spr::GQR3 => self.gqr[3] = self.gpr[instr.s()],
-                    Spr::GQR4 => self.gqr[4] = self.gpr[instr.s()],
-                    Spr::GQR5 => self.gqr[5] = self.gpr[instr.s()],
-                    Spr::GQR6 => self.gqr[6] = self.gpr[instr.s()],
-                    Spr::GQR7 => self.gqr[7] = self.gpr[instr.s()],
-                    Spr::L2CR => self.l2cr = self.gpr[instr.s()],
-                    Spr::PMC1 => self.pmc1 = self.gpr[instr.s()],
-                    Spr::PMC2 => self.pmc2 = self.gpr[instr.s()],
-                    Spr::PMC3 => self.pmc3 = self.gpr[instr.s()],
-                    Spr::PMC4 => self.pmc4 = self.gpr[instr.s()],
-                    Spr::MMCR0 => self.mmcr0 = self.gpr[instr.s()],
-                    Spr::MMCR1 => self.mmcr1 = self.gpr[instr.s()],
-                    Spr::DEC => self.dec = self.gpr[instr.s()],
-                    Spr::WPAR => {
-                        assert_eq!(
-                            self.gpr[instr.s()],
-                            0x0C00_8000,
-                            "write gather pipe address {:#010x}",
-                            self.gpr[instr.s()]
-                        );
-                        interconnect.gp.reset();
-                    }
-                    _ => panic!(
-                        "mtspr not implemented for {:#?} {:#x}",
-                        spr,
-                        self.gpr[instr.s()]
-                    ),
-                }
+                _ => {}
             }
         }
     }
+}
 
-    fn mtsr(&mut self, instr: Instruction) {
-        self.sr[instr.sr()] = self.gpr[instr.s()];
+fn op_mtsr(ctx: &mut Context, instr: Instruction) {
+    ctx.cpu.sr[instr.sr()] = ctx.cpu.gpr[instr.s()];
 
-        // TODO: check privilege level -> supervisor level instruction
-    }
+    // TODO: check privilege level -> supervisor level instruction
+}
 
-    fn rfi(&mut self) {
-        let mask = 0x87C0_FFFF;
+fn op_rfi(ctx: &mut Context, _instr: Instruction) {
+    let mask = 0x87C0_FFFF;
 
-        self.msr = ((self.msr.as_u32() & !mask) | (self.srr1 & mask)).into();
+    ctx.cpu.msr = ((ctx.cpu.msr.0 & !mask) | (ctx.cpu.srr1 & mask)).into();
 
-        self.msr.power_management = false;
+    ctx.cpu.msr.0 &= 0xFFFB_FFFF;
 
-        self.nia = self.srr0 & 0xFFFF_FFFE;
-    }
+    ctx.cpu.nia = ctx.cpu.srr0 & 0xFFFF_FFFE;
+}
 
-    #[allow(unused_variables)]
-    fn sc(&mut self, instr: Instruction) {
-        self.exception(Exception::SystemCall);
-    }
+fn op_sc(ctx: &mut Context, _instr: Instruction) {
+    ctx.cpu.exceptions |= EXCEPTION_SYSTEM_CALL;
+}
 
-    #[allow(unused_variables)]
-    fn sync(&mut self, instr: Instruction) {
-        // don't do anything
-    }
-
-    fn twi(&mut self, _: Instruction) {
-        println!("FixMe: twi");
-    }
+fn op_sync(_ctx: &mut Context, _instr: Instruction) {
+    // don't do anything
 }
