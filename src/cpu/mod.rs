@@ -1,6 +1,4 @@
-mod fpscr;
 mod gqr;
-mod hid;
 
 pub mod instruction;
 pub mod mmu;
@@ -8,13 +6,12 @@ pub mod util;
 
 use std::fmt;
 
-use self::fpscr::Fpscr;
 use self::gqr::Gqr;
-use self::hid::Hid2;
 use self::instruction::Instruction;
 use self::util::*;
 use super::Context;
 use mmu::{translate_address, Mmu};
+use std::cmp::Ordering;
 
 const NUM_FPR: usize = 32;
 const NUM_GPR: usize = 32;
@@ -31,17 +28,17 @@ const OPTABLE63_SIZE: usize = 1024;
 const SPR_XER: usize = 1;
 const SPR_LR: usize = 8;
 const SPR_CTR: usize = 9;
-const SPR_DSISR: usize = 18;
-const SPR_DAR: usize = 19;
+//const SPR_DSISR: usize = 18;
+//const SPR_DAR: usize = 19;
 const SPR_DEC: usize = 22;
-const SPR_SDR1: usize = 25;
+//const SPR_SDR1: usize = 25;
 const SPR_SRR0: usize = 26;
 const SPR_SRR1: usize = 27;
-const SPR_SPRG0: usize = 272;
-const SPR_EAR: usize = 282;
+//const SPR_SPRG0: usize = 272;
+//const SPR_EAR: usize = 282;
 const SPR_TBL: usize = 284;
 const SPR_TBU: usize = 285;
-const SPR_PVR: usize = 287;
+//const SPR_PVR: usize = 287;
 const SPR_IBAT0U: usize = 528;
 const SPR_IBAT0L: usize = 529;
 const SPR_IBAT1U: usize = 530;
@@ -58,65 +55,46 @@ const SPR_DBAT2U: usize = 540;
 const SPR_DBAT2L: usize = 541;
 const SPR_DBAT3U: usize = 542;
 const SPR_DBAT3L: usize = 543;
-const SPR_GQR0: usize = 912;
+//const SPR_GQR0: usize = 912;
 const SPR_HID2: usize = 920;
 const SPR_WPAR: usize = 921;
-const SPR_DMAU: usize = 922;
-const SPR_UMMCR0: usize = 936;
-const SPR_UPMC1: usize = 937;
-const SPR_USIA: usize = 939;
-const SPR_UMMCR1: usize = 940;
-const SPR_UPMC3: usize = 941;
-const SPR_UPMC4: usize = 942;
-const SPR_MMCR0: usize = 952;
-const SPR_PMC1: usize = 953;
-const SPR_PMC2: usize = 954;
-const SPR_SIA: usize = 955;
-const SPR_MMCR1: usize = 956;
-const SPR_PMC3: usize = 957;
-const SPR_PMC4: usize = 958;
-const SPR_IABR: usize = 1010;
-const SPR_HID0: usize = 1008;
-const SPR_HID1: usize = 1009;
-const SPR_DABR: usize = 1013;
-const SPR_L2CR: usize = 1017;
-const SPR_ICTC: usize = 1019;
-const SPR_THRM1: usize = 1020;
+//const SPR_DMAU: usize = 922;
+//const SPR_UMMCR0: usize = 936;
+//const SPR_UPMC1: usize = 937;
+//const SPR_USIA: usize = 939;
+//const SPR_UMMCR1: usize = 940;
+//const SPR_UPMC3: usize = 941;
+//const SPR_UPMC4: usize = 942;
+//const SPR_MMCR0: usize = 952;
+//const SPR_PMC1: usize = 953;
+//const SPR_PMC2: usize = 954;
+//const SPR_SIA: usize = 955;
+//const SPR_MMCR1: usize = 956;
+//const SPR_PMC3: usize = 957;
+//const SPR_PMC4: usize = 958;
+//const SPR_IABR: usize = 1010;
+//const SPR_HID0: usize = 1008;
+//const SPR_HID1: usize = 1009;
+//const SPR_DABR: usize = 1013;
+//const SPR_L2CR: usize = 1017;
+//const SPR_ICTC: usize = 1019;
+//const SPR_THRM1: usize = 1020;
 
 const EXCEPTION_SYSTEM_RESET: u32 = 0x1;
-const EXCEPTION_MACHINE_CHECK: u32 = 0x2;
-const EXCEPTION_DSI: u32 = 0x4;
-const EXCEPTION_ISI: u32 = 0x8;
+//const EXCEPTION_MACHINE_CHECK: u32 = 0x2;
+//const EXCEPTION_DSI: u32 = 0x4;
+//const EXCEPTION_ISI: u32 = 0x8;
 const EXCEPTION_EXTERNAL_INT: u32 = 0x10;
-const EXCEPTION_ALIGNMENT: u32 = 0x20;
+//const EXCEPTION_ALIGNMENT: u32 = 0x20;
 const EXCEPTION_PROGRAM: u32 = 0x40;
-const EXCEPTION_FPU_UNAVAILABLE: u32 = 0x80;
+//const EXCEPTION_FPU_UNAVAILABLE: u32 = 0x80;
 const EXCEPTION_DECREMENTER: u32 = 0x100;
 const EXCEPTION_SYSTEM_CALL: u32 = 0x200;
-const EXCEPTION_TRACE: u32 = 0x400;
-const EXCEPTION_FPU_ASSIST: u32 = 0x800;
+//const EXCEPTION_TRACE: u32 = 0x400;
+//const EXCEPTION_FPU_ASSIST: u32 = 0x800;
 const EXCEPTION_PERFORMANCE_MONITOR: u32 = 0x1000; // Gekko Only
-const EXCEPTION_IABR: u32 = 0x2000; // Gekko Only
+                                                   //const EXCEPTION_IABR: u32 = 0x2000; // Gekko Only
 const EXCEPTION_THERMAL_MANAGEMENT: u32 = 0x4000; // Gekko Only
-
-#[derive(Debug)]
-pub enum Exception {
-    SystemReset = 0x00100,
-    MachineCheck = 0x00200,
-    DataStorage = 0x00300,
-    InstructionStorage = 0x00400,
-    External = 0x00500,
-    Alignment = 0x00600,
-    Program = 0x00700,
-    FloatingPointUnavailable = 0x00800,
-    Decrementer = 0x00900,
-    SystemCall = 0x00C00,
-    Trace = 0x00D00,
-    FloatingPointAssist = 0x00E00,
-    PerformanceMonitor = 0x00F00,           // Gekko Only
-    InstructionAddressBreakpoint = 0x01300, // Gekko Only
-    ThermalManagement = 0x01700,            // Gekko Only
-}
 
 pub struct Cpu {
     /// Current Instruction Address
@@ -131,14 +109,14 @@ pub struct Cpu {
     spr: [u32; NUM_SPR],
     /// Condition Register
     cr: ConditionRegister,
-    /// Floating-Point Status and Control Register
-    fpscr: Fpscr,
+    //// Floating-Point Status and Control Register
+    //fpscr: Fpscr,
     /// Integer Exception Register
     xer: Xer,
     /// Link Register
     pub lr: u32,
-    /// Count Register
-    ctr: u32,
+    //// Count Register
+    //ctr: u32,
     /// Machine State Register
     pub msr: MachineStateRegister,
     /// Segment Registers
@@ -147,28 +125,28 @@ pub struct Cpu {
     srr0: u32,
     /// Machine Status Save/Restore Register 1
     srr1: u32,
-    /// Decrementer Register
-    dec: u32,
-    /// Hardware Implementation-Dependent Register 0
-    hid0: u32,
+    //// Decrementer Register
+    //dec: u32,
+    //// Hardware Implementation-Dependent Register 0
+    //hid0: u32,
     /// Hardware Implementation-Dependent Register 1
     hid2: Hid2,
     /// Graphics Quantization Registers
     gqr: [u32; NUM_GQR],
-    /// L2 Cache Control Register
-    l2cr: u32,
-    /// Monitor Mode Control Register 0
-    mmcr0: u32,
-    /// Monitor Mode Control Register 1
-    mmcr1: u32,
-    /// Performance Monitor Counter Register 1
-    pmc1: u32,
-    /// Performance Monitor Counter Register 2
-    pmc2: u32,
-    /// Performance Monitor Counter Register 3
-    pmc3: u32,
-    /// Performance Monitor Counter Register 4
-    pmc4: u32,
+    //// L2 Cache Control Register
+    //l2cr: u32,
+    //// Monitor Mode Control Register 0
+    //mmcr0: u32,
+    //// Monitor Mode Control Register 1
+    //mmcr1: u32,
+    //// Performance Monitor Counter Register 1
+    //pmc1: u32,
+    //// Performance Monitor Counter Register 2
+    //pmc2: u32,
+    //// Performance Monitor Counter Register 3
+    //pmc3: u32,
+    //// Performance Monitor Counter Register 4
+    //pmc4: u32,
     /// Excceptions
     exceptions: u32,
     /// Memory Management Unit
@@ -220,25 +198,25 @@ impl Default for Cpu {
             fpr: [0; NUM_FPR],
             spr: [0; NUM_SPR],
             cr: Default::default(),
-            fpscr: Default::default(),
+            //fpscr: Default::default(),
             xer: Default::default(),
             lr: 0,
-            ctr: 0,
+            //ctr: 0,
             msr: 0x40.into(),
             sr: [0; NUM_SR],
             srr0: 0,
             srr1: 0,
-            dec: 0,
-            hid0: 0,
+            //dec: 0,
+            //hid0: 0,
             hid2: Default::default(),
             gqr: [0; NUM_GQR],
-            l2cr: 0,
-            mmcr0: 0,
-            mmcr1: 0,
-            pmc1: 0,
-            pmc2: 0,
-            pmc3: 0,
-            pmc4: 0,
+            //l2cr: 0,
+            //mmcr0: 0,
+            //mmcr1: 0,
+            //pmc1: 0,
+            //pmc2: 0,
+            //pmc3: 0,
+            //pmc4: 0,
             exceptions: EXCEPTION_SYSTEM_RESET,
             mmu: Default::default(),
             optable,
@@ -287,7 +265,7 @@ impl Cpu {
         if self.exceptions & EXCEPTION_SYSTEM_CALL != 0 {
             self.spr[SPR_SRR0] = self.nia;
             self.spr[SPR_SRR1] = self.msr.0 & 0x87C0_FFFF;
-            self.msr.0 = self.msr.0 & !0x04_EF36;
+            self.msr.0 &= !0x04_EF36;
 
             self.msr
                 .set_little_endian(self.msr.exception_little_endian());
@@ -308,7 +286,7 @@ impl Cpu {
         if self.msr.external_interrupt() && self.exceptions & EXCEPTION_EXTERNAL_INT != 0 {
             self.spr[SPR_SRR0] = self.nia;
             self.spr[SPR_SRR1] = self.msr.0 & 0x87C0_FFFF;
-            self.msr.0 = self.msr.0 & !0x04_EF36;
+            self.msr.0 &= !0x04_EF36;
 
             self.msr
                 .set_little_endian(self.msr.exception_little_endian());
@@ -359,12 +337,10 @@ impl Cpu {
     fn update_cr0(&mut self, r: u32) {
         let value = r as i32;
 
-        let mut flags = if value > 0 {
-            0x4 // GT
-        } else if value < 0 {
-            0x8 // LT
-        } else {
-            0x2 // EQ
+        let mut flags = match value.cmp(&0) {
+            Ordering::Less => 0x8,    // LT
+            Ordering::Greater => 0x4, // GT
+            Ordering::Equal => 0x2,   // EQ
         };
 
         flags |= self.xer.summary_overflow() as u32;
@@ -414,242 +390,244 @@ pub fn step(ctx: &mut Context) {
 
 #[derive(Copy, Clone, Debug)]
 pub enum Opcode {
-    TWI,
-    MULLI,
-    SUBFIC,
-    CMPLI,
-    CMPI,
-    ADDIC,
-    ADDICRC,
-    ADDI,
-    ADDIS,
-    BCX,
-    SC,
-    BX,
-    RLWIMIX,
-    RLWINMX,
-    ORI,
-    ORIS,
-    XORIS,
-    ANDIRC,
-    LWZ,
-    LWZU,
-    LBZ,
-    LBZU,
-    STW,
-    STWU,
-    STB,
-    STBU,
-    LHZ,
-    LHZU,
-    LHA,
-    STH,
-    STHU,
-    LMW,
-    STMW,
-    LFS,
-    LFD,
-    STFS,
-    STFSU,
-    STFD,
-    PSQL,
-    PSQST,
-    TABLE19,
-    TABLE31,
-    TABLE59,
-    TABLE63,
-    ILLEGAL,
+    Twi,
+    Mulli,
+    Subfic,
+    Cmpli,
+    Cmpi,
+    Addic,
+    Addicrc,
+    Addi,
+    Addis,
+    Bcx,
+    Sc,
+    Bx,
+    Rlwimix,
+    Rlwinmx,
+    Ori,
+    Oris,
+    Xoris,
+    Andirc,
+    Lwz,
+    Lwzu,
+    Lbz,
+    Lbzu,
+    Stw,
+    Stwu,
+    Stb,
+    Stbu,
+    Lhz,
+    Lhzu,
+    Lha,
+    Sth,
+    Sthu,
+    Lmw,
+    Stmw,
+    Lfs,
+    Lfd,
+    Stfs,
+    Stfsu,
+    Stfd,
+    Psql,
+    Psqst,
+    Table19,
+    Table31,
+    Table59,
+    Table63,
+    Illegal,
     // Table19
-    BCLRX,
-    RFI,
-    ISYNC,
-    CRXOR,
-    BCCTRX,
+    Bclrx,
+    Rfi,
+    Isync,
+    Crxor,
+    Bcctrx,
     // Table31
-    CMP,
-    SUBFCX,
-    ADDCX,
-    MULHWUX,
-    MFCR,
-    LWZX,
-    SLWX,
-    CNTLZWX,
-    ANDX,
-    CMPL,
-    SUBFX,
-    ANDCX,
-    MFMSR,
-    DCBF,
-    LBZX,
-    NEGX,
-    NORX,
-    SUBFEX,
-    MTCRF,
-    ADDEX,
-    MTMSR,
-    STWX,
-    SUBFZEX,
-    ADDZEX,
-    MTSR,
-    STBX,
-    MULLWX,
-    ADDX,
-    XORX,
-    MFSPR,
-    MFTB,
-    ORX,
-    DIVWUX,
-    MTSPR,
-    DCBI,
-    DIVWX,
-    SRWX,
-    SYNC,
-    SRAWX,
-    SRAWIX,
-    EXTSHX,
-    EXTSBX,
-    ICBI,
+    Cmp,
+    Subfcx,
+    Addcx,
+    Mulhwux,
+    Mfcr,
+    Lwzx,
+    Slwx,
+    Cntlzwx,
+    Andx,
+    Cmpl,
+    Subfx,
+    Andcx,
+    Mfmsr,
+    Dcbf,
+    Lbzx,
+    Negx,
+    Norx,
+    Subfex,
+    Mtcrf,
+    Addex,
+    Mtmsr,
+    Stwx,
+    Subfzex,
+    Addzex,
+    Mtsr,
+    Stbx,
+    Mullwx,
+    Addx,
+    Xorx,
+    Mfspr,
+    Mftb,
+    Orx,
+    Divwux,
+    Mtspr,
+    Dcbi,
+    Divwx,
+    Srwx,
+    Sync,
+    Srawx,
+    Srawix,
+    Extshx,
+    Extsbx,
+    Icbi,
     // Table59
-    FDIVSX,
-    FSUBSX,
-    FADDSX,
-    FMULSX,
+    Fdivsx,
+    Fsubsx,
+    Faddsx,
+    Fmulsx,
     // Table63
-    FCMPU,
-    FRSPX,
-    FCTIWZX,
-    FSUBX,
-    FMULX,
-    FCMPO,
-    MTFSB1X,
-    FNEGX,
-    FMRX,
-    FNABSX,
-    MTFSFX,
+    Fcmpu,
+    Frspx,
+    Fctiwzx,
+    Fsubx,
+    Fmulx,
+    Fcmpo,
+    Mtfsb1x,
+    Fnegx,
+    Fmrx,
+    Fnabsx,
+    Mtfsfx,
 }
 
-pub const ILLEGAL_OP: (Opcode, fn(&mut Context, Instruction)) = (Opcode::ILLEGAL, op_illegal);
+type OpcodeTableItem = (u16, Opcode, fn(&mut Context, Instruction));
 
-pub const OPCODE_TABLE: [(u8, Opcode, fn(&mut Context, Instruction)); 44] = [
-    (3, Opcode::TWI, op_twi),
-    (7, Opcode::MULLI, op_mulli),
-    (8, Opcode::SUBFIC, op_subfic),
-    (10, Opcode::CMPLI, op_cmpli),
-    (11, Opcode::CMPI, op_cmpi),
-    (12, Opcode::ADDIC, op_addic),
-    (13, Opcode::ADDICRC, op_addic_rc),
-    (14, Opcode::ADDI, op_addi),
-    (15, Opcode::ADDIS, op_addis),
-    (16, Opcode::BCX, op_bcx),
-    (17, Opcode::SC, op_sc),
-    (18, Opcode::BX, op_bx),
-    (19, Opcode::TABLE19, op_subtable19),
-    (20, Opcode::RLWIMIX, op_rlwimix),
-    (21, Opcode::RLWINMX, op_rlwinmx),
-    (24, Opcode::ORI, op_ori),
-    (25, Opcode::ORIS, op_oris),
-    (27, Opcode::XORIS, op_xoris),
-    (28, Opcode::ANDIRC, op_andi_rc),
-    (31, Opcode::TABLE31, op_subtable31),
-    (32, Opcode::LWZ, op_lwz),
-    (33, Opcode::LWZU, op_lwzu),
-    (34, Opcode::LBZ, op_lbz),
-    (35, Opcode::LBZU, op_lbzu),
-    (36, Opcode::STW, op_stw),
-    (37, Opcode::STWU, op_stwu),
-    (38, Opcode::STB, op_stb),
-    (39, Opcode::STBU, op_stbu),
-    (40, Opcode::LHZ, op_lhz),
-    (41, Opcode::LHZU, op_lhzu),
-    (42, Opcode::LHA, op_lha),
-    (44, Opcode::STH, op_sth),
-    (45, Opcode::STHU, op_sthu),
-    (46, Opcode::LMW, op_lmw),
-    (47, Opcode::STMW, op_stmw),
-    (48, Opcode::LFS, op_lfs),
-    (50, Opcode::LFD, op_lfd),
-    (52, Opcode::STFS, op_stfs),
-    (53, Opcode::STFSU, op_stfsu),
-    (54, Opcode::STFD, op_stfd),
-    (56, Opcode::PSQL, op_psq_l),
-    (59, Opcode::TABLE59, op_subtable59),
-    (60, Opcode::PSQST, op_psq_st),
-    (63, Opcode::TABLE63, op_subtable63),
+pub const ILLEGAL_OP: (Opcode, fn(&mut Context, Instruction)) = (Opcode::Illegal, op_illegal);
+
+pub const OPCODE_TABLE: [OpcodeTableItem; 44] = [
+    (3, Opcode::Twi, op_twi),
+    (7, Opcode::Mulli, op_mulli),
+    (8, Opcode::Subfic, op_subfic),
+    (10, Opcode::Cmpli, op_cmpli),
+    (11, Opcode::Cmpi, op_cmpi),
+    (12, Opcode::Addic, op_addic),
+    (13, Opcode::Addicrc, op_addic_rc),
+    (14, Opcode::Addi, op_addi),
+    (15, Opcode::Addis, op_addis),
+    (16, Opcode::Bcx, op_bcx),
+    (17, Opcode::Sc, op_sc),
+    (18, Opcode::Bx, op_bx),
+    (19, Opcode::Table19, op_subtable19),
+    (20, Opcode::Rlwimix, op_rlwimix),
+    (21, Opcode::Rlwinmx, op_rlwinmx),
+    (24, Opcode::Ori, op_ori),
+    (25, Opcode::Oris, op_oris),
+    (27, Opcode::Xoris, op_xoris),
+    (28, Opcode::Andirc, op_andi_rc),
+    (31, Opcode::Table31, op_subtable31),
+    (32, Opcode::Lwz, op_lwz),
+    (33, Opcode::Lwzu, op_lwzu),
+    (34, Opcode::Lbz, op_lbz),
+    (35, Opcode::Lbzu, op_lbzu),
+    (36, Opcode::Stw, op_stw),
+    (37, Opcode::Stwu, op_stwu),
+    (38, Opcode::Stb, op_stb),
+    (39, Opcode::Stbu, op_stbu),
+    (40, Opcode::Lhz, op_lhz),
+    (41, Opcode::Lhzu, op_lhzu),
+    (42, Opcode::Lha, op_lha),
+    (44, Opcode::Sth, op_sth),
+    (45, Opcode::Sthu, op_sthu),
+    (46, Opcode::Lmw, op_lmw),
+    (47, Opcode::Stmw, op_stmw),
+    (48, Opcode::Lfs, op_lfs),
+    (50, Opcode::Lfd, op_lfd),
+    (52, Opcode::Stfs, op_stfs),
+    (53, Opcode::Stfsu, op_stfsu),
+    (54, Opcode::Stfd, op_stfd),
+    (56, Opcode::Psql, op_psq_l),
+    (59, Opcode::Table59, op_subtable59),
+    (60, Opcode::Psqst, op_psq_st),
+    (63, Opcode::Table63, op_subtable63),
 ];
 
-pub const OPCODE19_TABLE: [(u16, Opcode, fn(&mut Context, Instruction)); 5] = [
-    (16, Opcode::BCLRX, op_bclrx),
-    (50, Opcode::RFI, op_rfi),
-    (150, Opcode::ISYNC, op_isync),
-    (193, Opcode::CRXOR, op_crxor),
-    (528, Opcode::BCCTRX, op_bcctrx),
+pub const OPCODE19_TABLE: [OpcodeTableItem; 5] = [
+    (16, Opcode::Bclrx, op_bclrx),
+    (50, Opcode::Rfi, op_rfi),
+    (150, Opcode::Isync, op_isync),
+    (193, Opcode::Crxor, op_crxor),
+    (528, Opcode::Bcctrx, op_bcctrx),
 ];
 
-pub const OPCODE31_TABLE: [(u16, Opcode, fn(&mut Context, Instruction)); 43] = [
-    (0, Opcode::CMP, op_cmp),
-    (8, Opcode::SUBFCX, op_subfcx),
-    (10, Opcode::ADDCX, op_addcx),
-    (11, Opcode::MULHWUX, op_mulhwux),
-    (19, Opcode::MFCR, op_mfcr),
-    (23, Opcode::LWZX, op_lwzx),
-    (24, Opcode::SLWX, op_slwx),
-    (26, Opcode::CNTLZWX, op_cntlzwx),
-    (28, Opcode::ANDX, op_andx),
-    (32, Opcode::CMPL, op_cmpl),
-    (40, Opcode::SUBFX, op_subfx),
-    (60, Opcode::ANDCX, op_andcx),
-    (83, Opcode::MFMSR, op_mfmsr),
-    (86, Opcode::DCBF, op_dcbf),
-    (87, Opcode::LBZX, op_lbzx),
-    (104, Opcode::NEGX, op_negx),
-    (124, Opcode::NORX, op_norx),
-    (136, Opcode::SUBFEX, op_subfex),
-    (138, Opcode::ADDEX, op_addex),
-    (144, Opcode::MTCRF, op_mtcrf),
-    (146, Opcode::MTMSR, op_mtmsr),
-    (151, Opcode::STWX, op_stwx),
-    (200, Opcode::SUBFZEX, op_subfzex),
-    (202, Opcode::ADDZEX, op_addzex),
-    (210, Opcode::MTSR, op_mtsr),
-    (215, Opcode::STBX, op_stbx),
-    (235, Opcode::MULLWX, op_mullwx),
-    (266, Opcode::ADDX, op_addx),
-    (316, Opcode::XORX, op_xorx),
-    (339, Opcode::MFSPR, op_mfspr),
-    (371, Opcode::MFTB, op_mftb),
-    (444, Opcode::ORX, op_orx),
-    (459, Opcode::DIVWUX, op_divwux),
-    (467, Opcode::MTSPR, op_mtspr),
-    (470, Opcode::DCBI, op_dcbi),
-    (491, Opcode::DIVWX, op_divwx),
-    (536, Opcode::SRWX, op_srwx),
-    (598, Opcode::SYNC, op_sync),
-    (792, Opcode::SRAWX, op_srawx),
-    (824, Opcode::SRAWIX, op_srawix),
-    (922, Opcode::EXTSHX, op_extshx),
-    (954, Opcode::EXTSBX, op_extsbx),
-    (982, Opcode::ICBI, op_icbi),
+pub const OPCODE31_TABLE: [OpcodeTableItem; 43] = [
+    (0, Opcode::Cmp, op_cmp),
+    (8, Opcode::Subfcx, op_subfcx),
+    (10, Opcode::Addcx, op_addcx),
+    (11, Opcode::Mulhwux, op_mulhwux),
+    (19, Opcode::Mfcr, op_mfcr),
+    (23, Opcode::Lwzx, op_lwzx),
+    (24, Opcode::Slwx, op_slwx),
+    (26, Opcode::Cntlzwx, op_cntlzwx),
+    (28, Opcode::Andx, op_andx),
+    (32, Opcode::Cmpl, op_cmpl),
+    (40, Opcode::Subfx, op_subfx),
+    (60, Opcode::Andcx, op_andcx),
+    (83, Opcode::Mfmsr, op_mfmsr),
+    (86, Opcode::Dcbf, op_dcbf),
+    (87, Opcode::Lbzx, op_lbzx),
+    (104, Opcode::Negx, op_negx),
+    (124, Opcode::Norx, op_norx),
+    (136, Opcode::Subfex, op_subfex),
+    (138, Opcode::Addex, op_addex),
+    (144, Opcode::Mtcrf, op_mtcrf),
+    (146, Opcode::Mtmsr, op_mtmsr),
+    (151, Opcode::Stwx, op_stwx),
+    (200, Opcode::Subfzex, op_subfzex),
+    (202, Opcode::Addzex, op_addzex),
+    (210, Opcode::Mtsr, op_mtsr),
+    (215, Opcode::Stbx, op_stbx),
+    (235, Opcode::Mullwx, op_mullwx),
+    (266, Opcode::Addx, op_addx),
+    (316, Opcode::Xorx, op_xorx),
+    (339, Opcode::Mfspr, op_mfspr),
+    (371, Opcode::Mftb, op_mftb),
+    (444, Opcode::Orx, op_orx),
+    (459, Opcode::Divwux, op_divwux),
+    (467, Opcode::Mtspr, op_mtspr),
+    (470, Opcode::Dcbi, op_dcbi),
+    (491, Opcode::Divwx, op_divwx),
+    (536, Opcode::Srwx, op_srwx),
+    (598, Opcode::Sync, op_sync),
+    (792, Opcode::Srawx, op_srawx),
+    (824, Opcode::Srawix, op_srawix),
+    (922, Opcode::Extshx, op_extshx),
+    (954, Opcode::Extsbx, op_extsbx),
+    (982, Opcode::Icbi, op_icbi),
 ];
 
-pub const OPCODE59_TABLE: [(u8, Opcode, fn(&mut Context, Instruction)); 4] = [
-    (18, Opcode::FDIVSX, op_fdivsx),
-    (20, Opcode::FSUBSX, op_fsubsx),
-    (21, Opcode::FADDSX, op_faddsx),
-    (25, Opcode::FMULSX, op_fmulsx),
+pub const OPCODE59_TABLE: [OpcodeTableItem; 4] = [
+    (18, Opcode::Fdivsx, op_fdivsx),
+    (20, Opcode::Fsubsx, op_fsubsx),
+    (21, Opcode::Faddsx, op_faddsx),
+    (25, Opcode::Fmulsx, op_fmulsx),
 ];
 
-pub const OPCODE63_TABLE: [(u16, Opcode, fn(&mut Context, Instruction)); 11] = [
-    (0, Opcode::FCMPU, op_fcmpu),
-    (12, Opcode::FRSPX, op_frspx),
-    (15, Opcode::FCTIWZX, op_fctiwzx),
-    (20, Opcode::FSUBX, op_fsubx),
-    (25, Opcode::FMULX, op_fmulx),
-    (32, Opcode::FCMPO, op_fcmpo),
-    (38, Opcode::MTFSB1X, op_mtfsb1x),
-    (40, Opcode::FNEGX, op_fnegx),
-    (72, Opcode::FMRX, op_fmrx),
-    (136, Opcode::FNABSX, op_fnabsx),
-    (711, Opcode::MTFSFX, op_mtfsfx),
+pub const OPCODE63_TABLE: [OpcodeTableItem; 11] = [
+    (0, Opcode::Fcmpu, op_fcmpu),
+    (12, Opcode::Frspx, op_frspx),
+    (15, Opcode::Fctiwzx, op_fctiwzx),
+    (20, Opcode::Fsubx, op_fsubx),
+    (25, Opcode::Fmulx, op_fmulx),
+    (32, Opcode::Fcmpo, op_fcmpo),
+    (38, Opcode::Mtfsb1x, op_mtfsb1x),
+    (40, Opcode::Fnegx, op_fnegx),
+    (72, Opcode::Fmrx, op_fmrx),
+    (136, Opcode::Fnabsx, op_fnabsx),
+    (711, Opcode::Mtfsfx, op_mtfsfx),
 ];
 
 fn op_illegal(_ctx: &mut Context, _instr: Instruction) {}
@@ -761,5 +739,30 @@ impl ConditionRegister {
 impl From<u32> for ConditionRegister {
     fn from(v: u32) -> Self {
         ConditionRegister(v)
+    }
+}
+
+bitfield! {
+    #[derive(Copy, Clone, Default)]
+    pub struct Hid2(u32);
+    impl Debug;
+    pub dqoee, _ : 16;
+    pub dcmee, _ : 17;
+    pub dncee, _ : 18;
+    pub dchee, _ : 19;
+    pub dqoerr, _ : 20;
+    pub dcmerr, _ : 21;
+    pub dncerr, _ : 22;
+    pub dcherr, _ : 23;
+    pub dmaql, _ : 27, 24;
+    pub lce, _ : 28;
+    pub pse, _ : 29;
+    pub wpe, _ : 30;
+    pub lsqe, _ : 31;
+}
+
+impl From<u32> for Hid2 {
+    fn from(v: u32) -> Self {
+        Hid2(v)
     }
 }

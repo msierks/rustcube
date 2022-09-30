@@ -25,23 +25,13 @@ impl Memory {
     pub fn write_u8(&mut self, addr: u32, val: u8) {
         self.data[addr as usize] = val;
     }
-
-    pub fn write(&mut self, addr: u32, buf: &[u8]) {
-        for (i, elem) in buf.iter().enumerate() {
-            self.data[addr as usize + i] = *elem;
-        }
-    }
-
-    pub fn read_u32(&self, addr: u32) -> u32 {
-        BigEndian::read_u32(&self.data[addr as usize..])
-    }
 }
 
-pub fn read(ctx: &mut Context, addr: u32, buf: &mut [u8]) {
-    for (i, elem) in buf.iter_mut().enumerate() {
-        *elem = ctx.mem.data[addr as usize + i];
-    }
-}
+//pub fn read(ctx: &mut Context, addr: u32, buf: &mut [u8]) {
+//    for (i, elem) in buf.iter_mut().enumerate() {
+//        *elem = ctx.mem.data[addr as usize + i];
+//    }
+//}
 
 pub fn read_u16(ctx: &mut Context, addr: u32) -> u16 {
     BigEndian::read_u16(&ctx.mem.data[addr as usize..])

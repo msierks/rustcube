@@ -13,9 +13,9 @@ impl Timers {
         self.cycles = self.cycles.wrapping_add(cycles as u64);
     }
 
-    pub fn get_ticks(&self) -> u64 {
-        self.cycles
-    }
+    //pub fn get_ticks(&self) -> u64 {
+    //    self.cycles
+    //}
 
     pub fn get_timebase(&mut self) -> u64 {
         let timebase_jump = (self.cycles - self.timebase_cycle_last) / TIMER_RATIO;

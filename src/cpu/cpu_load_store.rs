@@ -63,7 +63,7 @@ fn op_lfs(ctx: &mut Context, instr: Instruction) {
 
     let val = ctx.read_u32(ea);
 
-    if !ctx.cpu.hid2.paired_single {
+    if !ctx.cpu.hid2.pse() {
         ctx.cpu.fpr[instr.d()] = convert_to_double(val);
     } else {
         ctx.cpu.fpr[instr.d()] = (u64::from(val) << 32) & u64::from(val);
@@ -142,7 +142,7 @@ fn op_lwzu(ctx: &mut Context, instr: Instruction) {
 }
 
 fn op_psq_l(ctx: &mut Context, instr: Instruction) {
-    if !ctx.cpu.hid2.paired_single || !ctx.cpu.hid2.load_stored_quantized {
+    if !ctx.cpu.hid2.pse() || !ctx.cpu.hid2.lsqe() {
         panic!("FixMe: GoTo illegal instruction handler");
     }
 
@@ -176,7 +176,7 @@ fn op_psq_l(ctx: &mut Context, instr: Instruction) {
 }
 
 fn op_psq_st(ctx: &mut Context, instr: Instruction) {
-    if !ctx.cpu.hid2.paired_single || !ctx.cpu.hid2.load_stored_quantized {
+    if !ctx.cpu.hid2.pse() || !ctx.cpu.hid2.lsqe() {
         panic!("FixMe: GoTo illegal instruction handler");
     }
 

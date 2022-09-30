@@ -10,7 +10,7 @@ fn op_fcmpu(_ctx: &mut Context, _instr: Instruction) {
     println!("FixMe: fcmpu");
 }
 
-fn op_fctiwzx(ctx: &mut Context, instr: Instruction) {
+fn op_fctiwzx(_ctx: &mut Context, _instr: Instruction) {
     println!("FixMe: fctiwzx");
 }
 
@@ -18,7 +18,7 @@ fn op_fdivsx(_ctx: &mut Context, _instr: Instruction) {
     println!("FixMe: fdivsx");
 }
 
-fn op_fmrx(ctx: &mut Context, instr: Instruction) {
+fn op_fmrx(_ctx: &mut Context, _instr: Instruction) {
     //    self.fpr[instr.d()] = self.fpr[instr.b()];
 
     //    if instr.rc() {
@@ -34,7 +34,7 @@ fn op_fmulx(_ctx: &mut Context, _instr: Instruction) {
     println!("FixMe: fmulx");
 }
 
-fn op_fnabsx(ctx: &mut Context, instr: Instruction) {
+fn op_fnabsx(_ctx: &mut Context, _instr: Instruction) {
     //    self.fpr[instr.d()] = self.fpr[instr.b()] | (1 << 63);
 
     //    if instr.rc() {
@@ -62,7 +62,7 @@ fn op_fsubx(_ctx: &mut Context, instr: Instruction) {
     }
 }
 
-fn op_mtfsb1x(ctx: &mut Context, instr: Instruction) {
+fn op_mtfsb1x(_ctx: &mut Context, _instr: Instruction) {
     //    self.fpscr.set_bit(instr.crbd(), true);
 
     //    if instr.rc() {

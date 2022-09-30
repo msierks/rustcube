@@ -9,20 +9,19 @@ use super::Context;
 const NUM_TEXT: usize = 7;
 const NUM_DATA: usize = 11;
 
-#[derive(Default, Debug)]
+#[derive(Default)]
 struct Header {
-    text_offset: [u32; NUM_TEXT],
-    data_offset: [u32; NUM_DATA],
+    //text_offset: [u32; NUM_TEXT],
+    //data_offset: [u32; NUM_DATA],
     text_address: [u32; NUM_TEXT],
     data_address: [u32; NUM_DATA],
-    text_size: [u32; NUM_TEXT],
-    data_size: [u32; NUM_DATA],
-    bss_address: u32,
-    bss_size: u32,
+    //text_size: [u32; NUM_TEXT],
+    //data_size: [u32; NUM_DATA],
+    //bss_address: u32,
+    //bss_size: u32,
     entry_point: u32,
 }
 
-#[derive(Debug)]
 pub struct Dol {
     header: Header,
     text_sections: Vec<Vec<u8>>,
@@ -79,14 +78,14 @@ impl Dol {
         }
 
         let header = Header {
-            text_offset,
-            data_offset,
+            //text_offset,
+            //data_offset,
             text_address,
             data_address,
-            text_size,
-            data_size,
-            bss_address: BigEndian::read_u32(&buff[0xD8..]),
-            bss_size: BigEndian::read_u32(&buff[0xDC..]),
+            //text_size,
+            //data_size,
+            //bss_address: BigEndian::read_u32(&buff[0xD8..]),
+            //bss_size: BigEndian::read_u32(&buff[0xDC..]),
             entry_point: BigEndian::read_u32(&buff[0xE0..]),
         };
 

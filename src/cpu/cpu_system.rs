@@ -26,7 +26,7 @@ fn op_mfspr(ctx: &mut Context, instr: Instruction) {
         _ => (),
     }
 
-    if i < SPR_IBAT0U || i > SPR_DBAT3L {
+    if !(SPR_IBAT0U..=SPR_DBAT3L).contains(&i) {
         ctx.tick(1);
     } else {
         ctx.tick(3);
@@ -93,7 +93,7 @@ fn op_mtspr(ctx: &mut Context, instr: Instruction) {
                 SPR_TBL => ctx.timers.set_timebase_lower(v),
                 SPR_TBU => ctx.timers.set_timebase_upper(v),
                 SPR_WPAR => {
-                    ctx.cpu.spr[i] = ctx.cpu.spr[i] & !0x1F;
+                    ctx.cpu.spr[i] &= !0x1F;
                     info!("WPAR set to {:#x}", ctx.cpu.spr[i]);
                     //ctx.gp_fifo.reset();
                 }

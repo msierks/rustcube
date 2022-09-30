@@ -204,7 +204,7 @@ impl Context {
         if self.watchpoints.contains(&addr) {
             self.hit_watchpoint = Some(Access {
                 kind: AccessKind::Read,
-                addr: addr,
+                addr,
             })
         }
 
@@ -459,8 +459,7 @@ impl Context {
     }
 
     pub fn remove_breakpoint(&mut self, addr: u32) {
-        self.breakpoints
-            .retain_mut(|x| if *x != addr { true } else { false });
+        self.breakpoints.retain_mut(|x| *x != addr);
     }
 }
 

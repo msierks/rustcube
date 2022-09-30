@@ -48,11 +48,6 @@ impl Instruction {
     }
 
     #[inline(always)]
-    pub fn crbd(self) -> u8 {
-        ((self.0 >> 21) & 0x1F) as u8
-    }
-
-    #[inline(always)]
     pub fn crfd(self) -> usize {
         ((self.0 >> 23) & 7) as usize
     }

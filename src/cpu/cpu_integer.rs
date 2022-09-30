@@ -140,12 +140,10 @@ fn op_cmp(ctx: &mut Context, instr: Instruction) {
     let a = ctx.cpu.gpr[instr.a()] as i32;
     let b = ctx.cpu.gpr[instr.b()] as i32;
 
-    let mut c = if a < b {
-        0x8
-    } else if a > b {
-        0x4
-    } else {
-        0x2
+    let mut c = match a.cmp(&b) {
+        Ordering::Less => 0x8,
+        Ordering::Greater => 0x4,
+        Ordering::Equal => 0x2,
     };
 
     c |= ctx.cpu.xer.summary_overflow() as u32;
@@ -161,12 +159,10 @@ fn op_cmpi(ctx: &mut Context, instr: Instruction) {
     let a = ctx.cpu.gpr[instr.a()] as i32;
     let b = i32::from(instr.simm());
 
-    let mut c = if a < b {
-        0x8
-    } else if a > b {
-        0x4
-    } else {
-        0x2
+    let mut c = match a.cmp(&b) {
+        Ordering::Less => 0x8,
+        Ordering::Greater => 0x4,
+        Ordering::Equal => 0x2,
     };
 
     c |= ctx.cpu.xer.summary_overflow() as u32;
@@ -182,12 +178,10 @@ fn op_cmpl(ctx: &mut Context, instr: Instruction) {
     let a = ctx.cpu.gpr[instr.a()];
     let b = ctx.cpu.gpr[instr.b()];
 
-    let mut c = if a < b {
-        0x8
-    } else if a > b {
-        0x4
-    } else {
-        0x2
+    let mut c = match a.cmp(&b) {
+        Ordering::Less => 0x8,
+        Ordering::Greater => 0x4,
+        Ordering::Equal => 0x2,
     };
 
     c |= ctx.cpu.xer.summary_overflow() as u32;
@@ -203,12 +197,10 @@ fn op_cmpli(ctx: &mut Context, instr: Instruction) {
     let a = ctx.cpu.gpr[instr.a()];
     let b = instr.uimm();
 
-    let mut c = if a < b {
-        0x8
-    } else if a > b {
-        0x4
-    } else {
-        0x2
+    let mut c = match a.cmp(&b) {
+        Ordering::Less => 0x8,
+        Ordering::Greater => 0x4,
+        Ordering::Equal => 0x2,
     };
 
     c |= ctx.cpu.xer.summary_overflow() as u32;
