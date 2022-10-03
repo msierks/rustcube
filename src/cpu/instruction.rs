@@ -38,6 +38,11 @@ impl Instruction {
     }
 
     #[inline(always)]
+    pub fn c(self) -> usize {
+        ((self.0 >> 6) & 0x1F) as usize
+    }
+
+    #[inline(always)]
     pub fn oe(self) -> bool {
         ((self.0 >> 10) & 1) == 1
     }
@@ -45,6 +50,11 @@ impl Instruction {
     #[inline(always)]
     pub fn rc(self) -> bool {
         self.0 & 1 == 1
+    }
+
+    #[inline(always)]
+    pub fn crbd(self) -> u8 {
+        ((self.0 >> 21) & 0x1F) as u8
     }
 
     #[inline(always)]
@@ -148,6 +158,16 @@ impl Instruction {
 
     pub fn tbr(self) -> usize {
         (((self.0 >> 6) & 0x3E0) | ((self.0 >> 16) & 0x1F)) as usize
+    }
+
+    #[inline(always)]
+    pub fn fm(self) -> u8 {
+        ((self.0 >> 17) & 0xFF) as u8
+    }
+
+    #[inline(always)]
+    pub fn to(self) -> u8 {
+        ((self.0 >> 21) & 0x1F) as u8
     }
 }
 

@@ -1,5 +1,6 @@
+#[allow(dead_code)]
+pub mod disassembler;
 mod gqr;
-
 pub mod instruction;
 pub mod mmu;
 pub mod util;
