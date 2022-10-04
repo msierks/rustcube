@@ -1,7 +1,5 @@
-fn op_crxor(ctx: &mut Context, instr: Instruction) {
-    let d = ctx.cpu.cr.get_bit(instr.a()) ^ ctx.cpu.cr.get_bit(instr.b());
-
-    ctx.cpu.cr.set_bit(instr.d(), d);
+fn op_eieio(_ctx: &mut Context, _instr: Instruction) {
+    unimplemented!("op_eieio");
 }
 
 fn op_isync(_ctx: &mut Context, _instr: Instruction) {
@@ -33,6 +31,14 @@ fn op_mfspr(ctx: &mut Context, instr: Instruction) {
     }
 
     // TODO: check privilege level
+}
+
+fn op_mfsr(_ctx: &mut Context, _instr: Instruction) {
+    unimplemented!("op_mfsr");
+}
+
+fn op_mfsrin(_ctx: &mut Context, _instr: Instruction) {
+    unimplemented!("op_mfsrin");
 }
 
 fn op_mftb(ctx: &mut Context, instr: Instruction) {
@@ -109,6 +115,10 @@ fn op_mtsr(ctx: &mut Context, instr: Instruction) {
     // TODO: check privilege level -> supervisor level instruction
 }
 
+fn op_mtsrin(_ctx: &mut Context, _instr: Instruction) {
+    unimplemented!("op_mtsrin");
+}
+
 fn op_rfi(ctx: &mut Context, _instr: Instruction) {
     let mask = 0x87C0_FFFF;
 
@@ -125,4 +135,8 @@ fn op_sc(ctx: &mut Context, _instr: Instruction) {
 
 fn op_sync(_ctx: &mut Context, _instr: Instruction) {
     // don't do anything
+}
+
+fn op_tlbsync(_ctx: &mut Context, _instr: Instruction) {
+    unimplemented!("op_tlbsync");
 }

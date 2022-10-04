@@ -21,6 +21,7 @@ const NUM_GQR: usize = 8;
 const NUM_SR: usize = 16;
 
 const OPTABLE_SIZE: usize = 64;
+const OPTABLE4_SIZE: usize = 1024;
 const OPTABLE19_SIZE: usize = 1024;
 const OPTABLE31_SIZE: usize = 1024;
 const OPTABLE59_SIZE: usize = 32;
@@ -154,6 +155,8 @@ pub struct Cpu {
     mmu: Mmu,
     /// Primary Opcode Table
     optable: [fn(&mut Context, Instruction); OPTABLE_SIZE],
+    /// SubOpcode 4 Table
+    optable4: [fn(&mut Context, Instruction); OPTABLE4_SIZE],
     /// SubOpcode 19 Table
     optable19: [fn(&mut Context, Instruction); OPTABLE19_SIZE],
     /// SubOpcode 31 Table
@@ -167,29 +170,58 @@ pub struct Cpu {
 impl Default for Cpu {
     fn default() -> Self {
         let mut optable = [ILLEGAL_OP.1; OPTABLE_SIZE];
+        let mut optable4 = [ILLEGAL_OP.1; OPTABLE4_SIZE];
         let mut optable19 = [ILLEGAL_OP.1; OPTABLE19_SIZE];
         let mut optable31 = [ILLEGAL_OP.1; OPTABLE31_SIZE];
         let mut optable59 = [ILLEGAL_OP.1; OPTABLE59_SIZE];
         let mut optable63 = [ILLEGAL_OP.1; OPTABLE63_SIZE];
 
         for op in OPCODE_TABLE.iter() {
-            optable[op.0 as usize] = op.2;
+            optable[op.0] = op.2;
+        }
+
+        for op in OPCODE4X_TABLE.iter() {
+            optable4[op.0] = op.2;
+        }
+
+        for n in 0..32 {
+            let fill = n << 5;
+            for op in OPCODE4A_TABLE.iter() {
+                let xo_x = (op.0) | fill;
+                optable4[xo_x] = op.2;
+            }
+        }
+
+        for n in 0..16 {
+            let fill = n << 6;
+            for op in OPCODE4AA_TABLE.iter() {
+                let xo_x = (op.0) | fill;
+                optable4[xo_x] = op.2;
+            }
         }
 
         for op in OPCODE19_TABLE.iter() {
-            optable19[op.0 as usize] = op.2;
+            optable19[op.0] = op.2;
         }
 
         for op in OPCODE31_TABLE.iter() {
-            optable31[op.0 as usize] = op.2;
+            optable31[op.0] = op.2;
         }
 
         for op in OPCODE59_TABLE.iter() {
-            optable59[op.0 as usize] = op.2;
+            optable59[op.0] = op.2;
         }
 
-        for op in OPCODE63_TABLE.iter() {
-            optable63[op.0 as usize] = op.2;
+        for op in OPCODE63X_TABLE.iter() {
+            optable63[op.0] = op.2;
+        }
+
+        for n in 0..32 {
+            let fill = n << 5;
+            for op in OPCODE63A_TABLE.iter() {
+                let xo_x = (op.0) | fill;
+                optable63[xo_x] = op.2;
+            }
         }
 
         let mut cpu = Cpu {
@@ -221,6 +253,7 @@ impl Default for Cpu {
             exceptions: EXCEPTION_SYSTEM_RESET,
             mmu: Default::default(),
             optable,
+            optable4,
             optable19,
             optable31,
             optable59,
@@ -405,10 +438,13 @@ pub enum Opcode {
     Bx,
     Rlwimix,
     Rlwinmx,
+    Rlwnmx,
     Ori,
     Oris,
+    Xori,
     Xoris,
     Andirc,
+    Andisrc,
     Lwz,
     Lwzu,
     Lbz,
@@ -420,97 +456,216 @@ pub enum Opcode {
     Lhz,
     Lhzu,
     Lha,
+    Lhau,
     Sth,
     Sthu,
     Lmw,
     Stmw,
     Lfs,
+    Lfsu,
     Lfd,
+    Lfdu,
     Stfs,
     Stfsu,
     Stfd,
-    Psql,
-    Psqst,
+    Stfdu,
+    PsqL,
+    PsqLu,
+    PsqSt,
+    PsqStu,
+    Table4,
     Table19,
     Table31,
     Table59,
     Table63,
     Illegal,
+    // Table4,
+    PsCmpu0,
+    PsqLx,
+    PsqStx,
+    PsSum0x,
+    PsSum1x,
+    PsMuls0x,
+    PsMuls1x,
+    PsMadds0x,
+    PsMadds1x,
+    PsDivx,
+    PsSubx,
+    PsAddx,
+    PsSelx,
+    PsResx,
+    PsMulx,
+    PsRsqrtex,
+    PsMsubx,
+    PsMaddx,
+    PsNmsubx,
+    PsNmaddx,
+    PsCmpo0,
+    PsqLux,
+    PsqStux,
+    PsNegx,
+    PsCmpu1,
+    PsMrx,
+    PsCmpo1,
+    PsNabsx,
+    PsAbsx,
+    PsMerge00x,
+    PsMerge01x,
+    PsMerge10x,
+    PsMerge11x,
+    DcbzL,
     // Table19
+    Mcrf,
     Bclrx,
+    Crnor,
     Rfi,
+    Crandc,
     Isync,
     Crxor,
+    Crnand,
+    Crand,
+    Creqv,
+    Crorc,
+    Cror,
     Bcctrx,
     // Table31
     Cmp,
+    Tw,
     Subfcx,
     Addcx,
     Mulhwux,
     Mfcr,
+    Lwarx,
     Lwzx,
     Slwx,
     Cntlzwx,
     Andx,
     Cmpl,
     Subfx,
+    Dcbst,
+    Lwzux,
     Andcx,
+    Mulhwx,
     Mfmsr,
     Dcbf,
     Lbzx,
     Negx,
+    Lbzux,
     Norx,
     Subfex,
-    Mtcrf,
     Addex,
+    Mtcrf,
     Mtmsr,
+    Stwcxrc,
     Stwx,
+    Stwux,
     Subfzex,
     Addzex,
     Mtsr,
     Stbx,
+    Subfmex,
+    Addmex,
     Mullwx,
+    Mtsrin,
+    Dcbtst,
+    Stbux,
     Addx,
+    Dcbt,
+    Lhzx,
+    Eqvx,
+    Tlbie,
+    Eciwx,
+    Lhzux,
     Xorx,
     Mfspr,
+    Lhax,
     Mftb,
+    Lhaux,
+    Sthx,
+    Orcx,
+    Ecowx,
+    Sthux,
     Orx,
     Divwux,
     Mtspr,
     Dcbi,
+    Nandx,
     Divwx,
+    Mcrxr,
+    Lswx,
+    Lwbrx,
+    Lfsx,
     Srwx,
+    Tlbsync,
+    Lfsux,
+    Mfsr,
+    Lswi,
     Sync,
+    Lfdx,
+    Lfdux,
+    Mfsrin,
+    Stswx,
+    Stwbrx,
+    Stfsx,
+    Stfsux,
+    Stswi,
+    Stfdx,
+    Stfdux,
+    Lhbrx,
     Srawx,
     Srawix,
+    Eieio,
+    Sthbrx,
     Extshx,
     Extsbx,
     Icbi,
+    Stfiwx,
+    Dcbz,
     // Table59
     Fdivsx,
     Fsubsx,
     Faddsx,
+    Fresx,
     Fmulsx,
+    Fmsubsx,
+    Fmaddsx,
+    Fnmsubsx,
+    Fnmaddsx,
     // Table63
     Fcmpu,
     Frspx,
+    Fctiwx,
     Fctiwzx,
+    Fdivx,
     Fsubx,
+    Faddx,
+    Fselx,
     Fmulx,
+    Frsqrtex,
+    Fmsubx,
+    Fmaddx,
+    Fnmsubx,
+    Fnmaddx,
     Fcmpo,
     Mtfsb1x,
     Fnegx,
+    Mcrfs,
+    Mtfsb0x,
     Fmrx,
+    Mtfsfix,
     Fnabsx,
+    Fabsx,
+    Mffsx,
     Mtfsfx,
 }
 
-type OpcodeTableItem = (u16, Opcode, fn(&mut Context, Instruction));
+type OpcodeTableItem = (usize, Opcode, fn(&mut Context, Instruction));
 
 pub const ILLEGAL_OP: (Opcode, fn(&mut Context, Instruction)) = (Opcode::Illegal, op_illegal);
 
-pub const OPCODE_TABLE: [OpcodeTableItem; 44] = [
+pub const OPCODE_TABLE: [OpcodeTableItem; 54] = [
     (3, Opcode::Twi, op_twi),
+    (4, Opcode::Table4, op_subtable4),
     (7, Opcode::Mulli, op_mulli),
     (8, Opcode::Subfic, op_subfic),
     (10, Opcode::Cmpli, op_cmpli),
@@ -525,10 +680,13 @@ pub const OPCODE_TABLE: [OpcodeTableItem; 44] = [
     (19, Opcode::Table19, op_subtable19),
     (20, Opcode::Rlwimix, op_rlwimix),
     (21, Opcode::Rlwinmx, op_rlwinmx),
+    (23, Opcode::Rlwnmx, op_rlwnmx),
     (24, Opcode::Ori, op_ori),
     (25, Opcode::Oris, op_oris),
+    (26, Opcode::Xori, op_xori),
     (27, Opcode::Xoris, op_xoris),
     (28, Opcode::Andirc, op_andi_rc),
+    (29, Opcode::Andisrc, op_andis_rc),
     (31, Opcode::Table31, op_subtable31),
     (32, Opcode::Lwz, op_lwz),
     (33, Opcode::Lwzu, op_lwzu),
@@ -541,97 +699,245 @@ pub const OPCODE_TABLE: [OpcodeTableItem; 44] = [
     (40, Opcode::Lhz, op_lhz),
     (41, Opcode::Lhzu, op_lhzu),
     (42, Opcode::Lha, op_lha),
+    (43, Opcode::Lhau, op_lhau),
     (44, Opcode::Sth, op_sth),
     (45, Opcode::Sthu, op_sthu),
     (46, Opcode::Lmw, op_lmw),
     (47, Opcode::Stmw, op_stmw),
     (48, Opcode::Lfs, op_lfs),
+    (49, Opcode::Lfsu, op_lfsu),
     (50, Opcode::Lfd, op_lfd),
+    (51, Opcode::Lfdu, op_lfdu),
     (52, Opcode::Stfs, op_stfs),
     (53, Opcode::Stfsu, op_stfsu),
     (54, Opcode::Stfd, op_stfd),
-    (56, Opcode::Psql, op_psq_l),
+    (55, Opcode::Stfdu, op_stfdu),
+    (56, Opcode::PsqL, op_psq_l),
+    (57, Opcode::PsqLu, op_psq_lu),
     (59, Opcode::Table59, op_subtable59),
-    (60, Opcode::Psqst, op_psq_st),
+    (60, Opcode::PsqSt, op_psq_st),
+    (61, Opcode::PsqStu, op_psq_stu),
     (63, Opcode::Table63, op_subtable63),
 ];
 
-pub const OPCODE19_TABLE: [OpcodeTableItem; 5] = [
+pub const OPCODE4X_TABLE: [OpcodeTableItem; 13] = [
+    (0, Opcode::PsCmpu0, op_ps_cmpu0),
+    (32, Opcode::PsCmpo0, op_ps_cmpo0),
+    (40, Opcode::PsNegx, op_ps_negx),
+    (64, Opcode::PsCmpu1, op_ps_cmpu1),
+    (72, Opcode::PsMrx, op_ps_mrx),
+    (96, Opcode::PsCmpo1, op_ps_cmpo1),
+    (136, Opcode::PsNabsx, op_ps_nabsx),
+    (264, Opcode::PsAbsx, op_ps_absx),
+    (528, Opcode::PsMerge00x, op_ps_merge00x),
+    (560, Opcode::PsMerge01x, op_ps_merge01x),
+    (592, Opcode::PsMerge10x, op_ps_merge10x),
+    (624, Opcode::PsMerge11x, op_ps_merge11x),
+    (1014, Opcode::DcbzL, op_dcbz_l),
+];
+
+pub const OPCODE4A_TABLE: [OpcodeTableItem; 17] = [
+    (10, Opcode::PsSum0x, op_ps_sum0x),
+    (11, Opcode::PsSum1x, op_ps_sum1x),
+    (12, Opcode::PsMuls0x, op_ps_muls0x),
+    (13, Opcode::PsMuls1x, op_ps_muls1x),
+    (14, Opcode::PsMadds0x, op_ps_madds0x),
+    (15, Opcode::PsMadds1x, op_ps_madds1x),
+    (18, Opcode::PsDivx, op_ps_divx),
+    (20, Opcode::PsSubx, op_ps_subx),
+    (21, Opcode::PsAddx, op_ps_addx),
+    (23, Opcode::PsSelx, op_ps_selx),
+    (24, Opcode::PsResx, op_ps_resx),
+    (25, Opcode::PsMulx, op_ps_mulx),
+    (26, Opcode::PsRsqrtex, op_ps_rsqrtex),
+    (28, Opcode::PsMsubx, op_ps_msubx),
+    (29, Opcode::PsMaddx, op_ps_maddx),
+    (30, Opcode::PsNmsubx, op_ps_nmsubx),
+    (31, Opcode::PsNmaddx, op_ps_nmaddx),
+];
+
+pub const OPCODE4AA_TABLE: [OpcodeTableItem; 4] = [
+    (6, Opcode::PsqLx, op_psq_lx),
+    (7, Opcode::PsqStx, op_psq_stx),
+    (38, Opcode::PsqLux, op_psq_lux),
+    (39, Opcode::PsqStux, op_psq_stux),
+];
+
+pub const OPCODE19_TABLE: [OpcodeTableItem; 13] = [
+    (0, Opcode::Mcrf, op_mcrf),
     (16, Opcode::Bclrx, op_bclrx),
+    (33, Opcode::Crnor, op_crnor),
     (50, Opcode::Rfi, op_rfi),
+    (128, Opcode::Crandc, op_crandc),
     (150, Opcode::Isync, op_isync),
     (193, Opcode::Crxor, op_crxor),
+    (225, Opcode::Crnand, op_crnand),
+    (257, Opcode::Crand, op_crand),
+    (289, Opcode::Creqv, op_creqv),
+    (417, Opcode::Crorc, op_crorc),
+    (449, Opcode::Cror, op_cror),
     (528, Opcode::Bcctrx, op_bcctrx),
 ];
 
-pub const OPCODE31_TABLE: [OpcodeTableItem; 43] = [
+pub const OPCODE31_TABLE: [OpcodeTableItem; 108] = [
     (0, Opcode::Cmp, op_cmp),
+    (4, Opcode::Tw, op_tw),
     (8, Opcode::Subfcx, op_subfcx),
     (10, Opcode::Addcx, op_addcx),
     (11, Opcode::Mulhwux, op_mulhwux),
     (19, Opcode::Mfcr, op_mfcr),
+    (20, Opcode::Lwarx, op_lwarx),
     (23, Opcode::Lwzx, op_lwzx),
     (24, Opcode::Slwx, op_slwx),
     (26, Opcode::Cntlzwx, op_cntlzwx),
     (28, Opcode::Andx, op_andx),
     (32, Opcode::Cmpl, op_cmpl),
     (40, Opcode::Subfx, op_subfx),
+    (54, Opcode::Dcbst, op_dcbst),
+    (55, Opcode::Lwzux, op_lwzux),
     (60, Opcode::Andcx, op_andcx),
+    (75, Opcode::Mulhwx, op_mulhwx),
     (83, Opcode::Mfmsr, op_mfmsr),
     (86, Opcode::Dcbf, op_dcbf),
     (87, Opcode::Lbzx, op_lbzx),
     (104, Opcode::Negx, op_negx),
+    (119, Opcode::Lbzux, op_lbzux),
     (124, Opcode::Norx, op_norx),
     (136, Opcode::Subfex, op_subfex),
     (138, Opcode::Addex, op_addex),
     (144, Opcode::Mtcrf, op_mtcrf),
     (146, Opcode::Mtmsr, op_mtmsr),
+    (150, Opcode::Stwcxrc, op_stwcx_rc),
     (151, Opcode::Stwx, op_stwx),
+    (183, Opcode::Stwux, op_stwux),
     (200, Opcode::Subfzex, op_subfzex),
     (202, Opcode::Addzex, op_addzex),
     (210, Opcode::Mtsr, op_mtsr),
     (215, Opcode::Stbx, op_stbx),
+    (232, Opcode::Subfmex, op_subfmex),
+    (234, Opcode::Addmex, op_addmex),
     (235, Opcode::Mullwx, op_mullwx),
+    (242, Opcode::Mtsrin, op_mtsrin),
+    (246, Opcode::Dcbtst, op_dcbtst),
+    (247, Opcode::Stbux, op_stbux),
     (266, Opcode::Addx, op_addx),
+    (278, Opcode::Dcbt, op_dcbt),
+    (279, Opcode::Lhzx, op_lhzx),
+    (284, Opcode::Eqvx, op_eqvx),
+    (306, Opcode::Tlbie, op_tlbie),
+    (310, Opcode::Eciwx, op_eciwx),
+    (311, Opcode::Lhzux, op_lhzux),
     (316, Opcode::Xorx, op_xorx),
     (339, Opcode::Mfspr, op_mfspr),
+    (343, Opcode::Lhax, op_lhax),
     (371, Opcode::Mftb, op_mftb),
+    (375, Opcode::Lhaux, op_lhaux),
+    (407, Opcode::Sthx, op_sthx),
+    (412, Opcode::Orcx, op_orcx),
+    (438, Opcode::Ecowx, op_ecowx),
+    (439, Opcode::Sthux, op_sthux),
     (444, Opcode::Orx, op_orx),
     (459, Opcode::Divwux, op_divwux),
     (467, Opcode::Mtspr, op_mtspr),
     (470, Opcode::Dcbi, op_dcbi),
+    (476, Opcode::Nandx, op_nandx),
     (491, Opcode::Divwx, op_divwx),
+    (512, Opcode::Mcrxr, op_mcrxr),
+    (520, Opcode::Subfcx, op_subfcx),   // oe = 1
+    (522, Opcode::Addcx, op_addcx),     // oe = 1
+    (523, Opcode::Mulhwux, op_mulhwux), // 21(reserved) = 1
+    (533, Opcode::Lswx, op_lswx),
+    (534, Opcode::Lwbrx, op_lwbrx),
+    (535, Opcode::Lfsx, op_lfsx),
     (536, Opcode::Srwx, op_srwx),
+    (552, Opcode::Subfx, op_subfx), // oe = 1
+    (566, Opcode::Tlbsync, op_tlbsync),
+    (576, Opcode::Lfsux, op_lfsux),
+    (587, Opcode::Mulhwx, op_mulhwx), // 21(reserved) = 1
+    (595, Opcode::Mfsr, op_mfsr),
+    (597, Opcode::Lswi, op_lswi),
     (598, Opcode::Sync, op_sync),
+    (599, Opcode::Lfdx, op_lfdx),
+    (616, Opcode::Negx, op_negx), // oe = 1
+    (631, Opcode::Lfdux, op_lfdux),
+    (648, Opcode::Subfex, op_subfex), // oe = 1
+    (650, Opcode::Addex, op_addex),   // oe = 1
+    (659, Opcode::Mfsrin, op_mfsrin),
+    (661, Opcode::Stswx, op_stswx),
+    (662, Opcode::Stwbrx, op_stwbrx),
+    (663, Opcode::Stfsx, op_stfsx),
+    (695, Opcode::Stfsux, op_stfsux),
+    (712, Opcode::Subfzex, op_subfzex), // oe = 1
+    (714, Opcode::Addzex, op_addzex),   // oe = 1
+    (725, Opcode::Stswi, op_stswi),
+    (727, Opcode::Stfdx, op_stfdx),
+    (744, Opcode::Subfmex, op_subfmex), // oe = 1
+    (746, Opcode::Addmex, op_addmex),   // oe = 1
+    (747, Opcode::Mullwx, op_mullwx),   // oe = 1
+    (759, Opcode::Stfdux, op_stfdux),
+    (778, Opcode::Addx, op_addx), // oe = 1
+    (790, Opcode::Lhbrx, op_lhbrx),
     (792, Opcode::Srawx, op_srawx),
     (824, Opcode::Srawix, op_srawix),
+    (854, Opcode::Eieio, op_eieio),
+    (918, Opcode::Sthbrx, op_sthbrx),
     (922, Opcode::Extshx, op_extshx),
     (954, Opcode::Extsbx, op_extsbx),
+    (971, Opcode::Divwux, op_divwux), // oe = 1
     (982, Opcode::Icbi, op_icbi),
+    (983, Opcode::Stfiwx, op_stfiwx),
+    (1003, Opcode::Divwx, op_divwx), // oe = 1
+    (1014, Opcode::Dcbz, op_dcbz),
 ];
 
-pub const OPCODE59_TABLE: [OpcodeTableItem; 4] = [
+pub const OPCODE59_TABLE: [OpcodeTableItem; 9] = [
     (18, Opcode::Fdivsx, op_fdivsx),
     (20, Opcode::Fsubsx, op_fsubsx),
     (21, Opcode::Faddsx, op_faddsx),
+    (24, Opcode::Fresx, op_fresx),
     (25, Opcode::Fmulsx, op_fmulsx),
+    (28, Opcode::Fmsubsx, op_fmsubsx),
+    (29, Opcode::Fmaddsx, op_fmaddsx),
+    (30, Opcode::Fnmsubsx, op_fnmsubsx),
+    (31, Opcode::Fnmaddsx, op_fnmaddsx),
 ];
 
-pub const OPCODE63_TABLE: [OpcodeTableItem; 11] = [
+pub const OPCODE63X_TABLE: [OpcodeTableItem; 15] = [
     (0, Opcode::Fcmpu, op_fcmpu),
     (12, Opcode::Frspx, op_frspx),
+    (14, Opcode::Fctiwx, op_fctiwx),
     (15, Opcode::Fctiwzx, op_fctiwzx),
-    (20, Opcode::Fsubx, op_fsubx),
-    (25, Opcode::Fmulx, op_fmulx),
     (32, Opcode::Fcmpo, op_fcmpo),
     (38, Opcode::Mtfsb1x, op_mtfsb1x),
     (40, Opcode::Fnegx, op_fnegx),
+    (64, Opcode::Mcrfs, op_mcrfs),
+    (70, Opcode::Mtfsb0x, op_mtfsb0x),
     (72, Opcode::Fmrx, op_fmrx),
+    (134, Opcode::Mtfsfix, op_mtfsfix),
     (136, Opcode::Fnabsx, op_fnabsx),
+    (264, Opcode::Fabsx, op_fabsx),
+    (583, Opcode::Mffsx, op_mffsx),
     (711, Opcode::Mtfsfx, op_mtfsfx),
 ];
 
+pub const OPCODE63A_TABLE: [OpcodeTableItem; 10] = [
+    (18, Opcode::Fdivx, op_fdivx),
+    (20, Opcode::Fsubx, op_fsubx),
+    (21, Opcode::Faddx, op_faddx),
+    (23, Opcode::Fselx, op_fselx),
+    (25, Opcode::Fmulx, op_fmulx),
+    (26, Opcode::Frsqrtex, op_frsqrtex),
+    (28, Opcode::Fmsubx, op_fmsubx),
+    (29, Opcode::Fmaddx, op_fmaddx),
+    (30, Opcode::Fnmsubx, op_fnmsubx),
+    (31, Opcode::Fnmaddx, op_fnmaddx),
+];
+
 fn op_illegal(_ctx: &mut Context, _instr: Instruction) {}
+
+fn op_subtable4(ctx: &mut Context, instr: Instruction) {
+    ctx.cpu.optable4[instr.xo_x()](ctx, instr);
+}
 
 fn op_subtable19(ctx: &mut Context, instr: Instruction) {
     ctx.cpu.optable19[instr.xo_x()](ctx, instr);

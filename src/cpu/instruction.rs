@@ -63,6 +63,11 @@ impl Instruction {
     }
 
     #[inline(always)]
+    pub fn crfs(self) -> usize {
+        ((self.0 >> 18) & 7) as usize
+    }
+
+    #[inline(always)]
     pub fn l(self) -> bool {
         (self.0 & 0x20_0000) != 0
     }
@@ -168,6 +173,16 @@ impl Instruction {
     #[inline(always)]
     pub fn to(self) -> u8 {
         ((self.0 >> 21) & 0x1F) as u8
+    }
+
+    #[inline(always)]
+    pub fn nb(self) -> u8 {
+        ((self.0 >> 11) & 0x1F) as u8
+    }
+
+    #[inline(always)]
+    pub fn imm(self) -> u8 {
+        ((self.0 >> 12) & 0xF) as u8
     }
 }
 
