@@ -10,7 +10,7 @@ on:
 jobs:
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v2
 
@@ -28,7 +28,7 @@ jobs:
 
       - name: Install missing dependencies
         run: |
-          sudo apt-get install -y libx11-dev xserver-xorg-dev xorg-dev
+          sudo apt-get install -y libx11-dev xserver-xorg-dev xorg-dev libpango1.0 libgraphene-1.0-dev libgtk-4-bin libgtk-4-common libgtk-4-dev
 
       - name: Lint
         run: |
