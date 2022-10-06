@@ -1,9 +1,7 @@
-#[allow(unused_variables)]
 fn op_dcbf(_ctx: &mut Context, _instr: Instruction) {
     //println!("FixMe: dcbf");
 }
 
-#[allow(unused_variables)]
 fn op_dcbi(_ctx: &mut Context, _instr: Instruction) {
     //println!("FixMe: dcbi");
 }
@@ -36,7 +34,6 @@ fn op_ecowx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ecowx");
 }
 
-#[allow(unused_variables)]
 fn op_icbi(_ctx: &mut Context, _instr: Instruction) {
     //println!("FixMe: icbi");
 }
@@ -76,7 +73,9 @@ fn op_lbzx(ctx: &mut Context, instr: Instruction) {
     ctx.cpu.gpr[instr.d()] = u32::from(ctx.read_u8(ea));
 }
 
-fn op_lfd(ctx: &mut Context, instr: Instruction) {
+fn op_lfd(_ctx: &mut Context, _instr: Instruction) {
+    unimplemented!("op_lfd");
+    /*
     let ea = if instr.a() == 0 {
         instr.simm() as u32
     } else {
@@ -84,6 +83,7 @@ fn op_lfd(ctx: &mut Context, instr: Instruction) {
     };
 
     ctx.cpu.fpr[instr.d()] = ctx.read_u64(ea);
+    */
 }
 
 fn op_lfdu(_ctx: &mut Context, _instr: Instruction) {
@@ -98,20 +98,23 @@ fn op_lfdx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_lfdx");
 }
 
-fn op_lfs(ctx: &mut Context, instr: Instruction) {
-    let ea = if instr.a() == 0 {
-        instr.simm() as u32
-    } else {
-        ctx.cpu.gpr[instr.a()].wrapping_add(instr.simm() as u32)
-    };
+fn op_lfs(_ctx: &mut Context, _instr: Instruction) {
+    unimplemented!("op_lfs");
+    /*
+        let ea = if instr.a() == 0 {
+            instr.simm() as u32
+        } else {
+            ctx.cpu.gpr[instr.a()].wrapping_add(instr.simm() as u32)
+        };
 
-    let val = ctx.read_u32(ea);
+        let val = ctx.read_u32(ea);
 
-    if !ctx.cpu.hid2.pse() {
-        ctx.cpu.fpr[instr.d()] = convert_to_double(val);
-    } else {
-        ctx.cpu.fpr[instr.d()] = (u64::from(val) << 32) & u64::from(val);
-    }
+        if !ctx.cpu.hid2.pse() {
+            ctx.cpu.fpr[instr.d()] = convert_to_double(val);
+        } else {
+            ctx.cpu.fpr[instr.d()] = (u64::from(val) << 32) & u64::from(val);
+        }
+    */
 }
 
 fn op_lfsu(_ctx: &mut Context, _instr: Instruction) {
@@ -241,38 +244,41 @@ fn op_lwzx(ctx: &mut Context, instr: Instruction) {
     ctx.cpu.gpr[instr.d()] = ctx.read_u32(ea);
 }
 
-fn op_psq_l(ctx: &mut Context, instr: Instruction) {
-    if !ctx.cpu.hid2.pse() || !ctx.cpu.hid2.lsqe() {
-        panic!("FixMe: GoTo illegal instruction handler");
-    }
-
-    let ea = if instr.a() == 0 {
-        sign_ext_12(instr.uimm_1()) as u32
-    } else {
-        ctx.cpu.gpr[instr.a()].wrapping_add(sign_ext_12(instr.uimm_1()) as u32)
-    };
-
-    let gqr = Gqr(ctx.cpu.gqr[instr.i()]);
-
-    match gqr.ld_type() {
-        0 => {
-            if instr.w() {
-                let value = ctx.read_u32(ea);
-
-                let ps0 = value;
-                let ps1 = 1.0;
-
-                ctx.cpu.fpr[instr.d()] = (u64::from(ps0) << 32) | (ps1 as u64);
-            } else {
-                let value = (ctx.read_u32(ea), ctx.read_u32(ea + 4));
-
-                ctx.cpu.fpr[instr.d()] = (u64::from(value.0) << 32) | u64::from(value.1);
-            }
+fn op_psq_l(_ctx: &mut Context, _instr: Instruction) {
+    unimplemented!("op_psq_l");
+    /*
+        if !ctx.cpu.hid2.pse() || !ctx.cpu.hid2.lsqe() {
+            panic!("FixMe: GoTo illegal instruction handler");
         }
-        4 | 6 => panic!("FixMe:..."),
-        5 | 7 => panic!("FixMe:..."),
-        _ => panic!("unrecognized ld_type"),
-    }
+
+        let ea = if instr.a() == 0 {
+            sign_ext_12(instr.uimm_1()) as u32
+        } else {
+            ctx.cpu.gpr[instr.a()].wrapping_add(sign_ext_12(instr.uimm_1()) as u32)
+        };
+
+        let gqr = Gqr(ctx.cpu.gqr[instr.i()]);
+
+        match gqr.ld_type() {
+            0 => {
+                if instr.w() {
+                    let value = ctx.read_u32(ea);
+
+                    let ps0 = value;
+                    let ps1 = 1.0;
+
+                    ctx.cpu.fpr[instr.d()] = (u64::from(ps0) << 32) | (ps1 as u64);
+                } else {
+                    let value = (ctx.read_u32(ea), ctx.read_u32(ea + 4));
+
+                    ctx.cpu.fpr[instr.d()] = (u64::from(value.0) << 32) | u64::from(value.1);
+                }
+            }
+            4 | 6 => panic!("FixMe:..."),
+            5 | 7 => panic!("FixMe:..."),
+            _ => panic!("unrecognized ld_type"),
+        }
+    */
 }
 
 fn op_psq_lu(_ctx: &mut Context, _instr: Instruction) {
@@ -287,34 +293,37 @@ fn op_psq_lx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_psq_lx");
 }
 
-fn op_psq_st(ctx: &mut Context, instr: Instruction) {
-    if !ctx.cpu.hid2.pse() || !ctx.cpu.hid2.lsqe() {
-        panic!("FixMe: GoTo illegal instruction handler");
-    }
-
-    let ea = if instr.a() == 0 {
-        sign_ext_12(instr.uimm_1()) as u32
-    } else {
-        ctx.cpu.gpr[instr.a()].wrapping_add(sign_ext_12(instr.uimm_1()) as u32)
-    };
-
-    let gqr = Gqr(ctx.cpu.gqr[instr.i()]);
-
-    match gqr.st_type() {
-        0 => {
-            // single-precision floating-point (no-conversion)
-            if instr.w() {
-                let ps0 = (ctx.cpu.fpr[instr.d()] >> 32) as u32;
-
-                ctx.write_u32(ea, ps0);
-            } else {
-                ctx.write_u64(ea, ctx.cpu.fpr[instr.d()]);
-            }
+fn op_psq_st(_ctx: &mut Context, _instr: Instruction) {
+    unimplemented!("op_psq_st");
+    /*
+        if !ctx.cpu.hid2.pse() || !ctx.cpu.hid2.lsqe() {
+            panic!("FixMe: GoTo illegal instruction handler");
         }
-        4 | 6 => panic!("FixMe:..."), // unsigned 8 bit integer | signed 8 bit integer
-        5 | 7 => panic!("FixMe:..."), // unsigned 16 bit integer | signed 16 bit integer
-        _ => panic!("unrecognized st_type"),
-    }
+
+        let ea = if instr.a() == 0 {
+            sign_ext_12(instr.uimm_1()) as u32
+        } else {
+            ctx.cpu.gpr[instr.a()].wrapping_add(sign_ext_12(instr.uimm_1()) as u32)
+        };
+
+        let gqr = Gqr(ctx.cpu.gqr[instr.i()]);
+
+        match gqr.st_type() {
+            0 => {
+                // single-precision floating-point (no-conversion)
+                if instr.w() {
+                    let ps0 = (ctx.cpu.fpr[instr.d()] >> 32) as u32;
+
+                    ctx.write_u32(ea, ps0);
+                } else {
+                    ctx.write_u64(ea, ctx.cpu.fpr[instr.d()]);
+                }
+            }
+            4 | 6 => panic!("FixMe:..."), // unsigned 8 bit integer | signed 8 bit integer
+            5 | 7 => panic!("FixMe:..."), // unsigned 16 bit integer | signed 16 bit integer
+            _ => panic!("unrecognized st_type"),
+        }
+    */
 }
 
 fn op_psq_stu(_ctx: &mut Context, _instr: Instruction) {
@@ -361,14 +370,17 @@ fn op_stbx(ctx: &mut Context, instr: Instruction) {
     ctx.write_u8(ea, ctx.cpu.gpr[instr.d()] as u8);
 }
 
-fn op_stfd(ctx: &mut Context, instr: Instruction) {
-    let ea = if instr.a() == 0 {
-        instr.simm() as u32
-    } else {
-        ctx.cpu.gpr[instr.a()].wrapping_add(instr.simm() as u32)
-    };
+fn op_stfd(_ctx: &mut Context, _instr: Instruction) {
+    unimplemented!("op_stfd");
+    /*
+        let ea = if instr.a() == 0 {
+            instr.simm() as u32
+        } else {
+            ctx.cpu.gpr[instr.a()].wrapping_add(instr.simm() as u32)
+        };
 
-    ctx.write_u64(ea, ctx.cpu.fpr[instr.s()]);
+        ctx.write_u64(ea, ctx.cpu.fpr[instr.s()]);
+    */
 }
 
 fn op_stfdu(_ctx: &mut Context, _instr: Instruction) {
@@ -387,27 +399,33 @@ fn op_stfiwx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_stfiwx");
 }
 
-fn op_stfs(ctx: &mut Context, instr: Instruction) {
-    let ea = if instr.a() == 0 {
-        instr.simm() as u32
-    } else {
-        ctx.cpu.gpr[instr.a()].wrapping_add(instr.simm() as u32)
-    };
+fn op_stfs(_ctx: &mut Context, _instr: Instruction) {
+    unimplemented!("op_stfs");
+    /*
+        let ea = if instr.a() == 0 {
+            instr.simm() as u32
+        } else {
+            ctx.cpu.gpr[instr.a()].wrapping_add(instr.simm() as u32)
+        };
 
-    let val = convert_to_single(ctx.cpu.fpr[instr.s()]);
+        let val = convert_to_single(ctx.cpu.fpr[instr.s()]);
 
-    ctx.write_u32(ea, val);
+        ctx.write_u32(ea, val);
+    */
 }
 
-fn op_stfsu(ctx: &mut Context, instr: Instruction) {
-    if instr.a() == 0 {
-        panic!("stfsu: invalid instruction");
-    }
+fn op_stfsu(_ctx: &mut Context, _instr: Instruction) {
+    unimplemented!("op_stfsu");
+    /*
+        if instr.a() == 0 {
+            panic!("stfsu: invalid instruction");
+        }
 
-    let ea = ctx.cpu.gpr[instr.a()].wrapping_add(instr.simm() as u32);
-    let val = convert_to_single(ctx.cpu.fpr[instr.s()]);
+        let ea = ctx.cpu.gpr[instr.a()].wrapping_add(instr.simm() as u32);
+        let val = convert_to_single(ctx.cpu.fpr[instr.s()]);
 
-    ctx.write_u32(ea, val);
+        ctx.write_u32(ea, val);
+    */
 }
 
 fn op_stfsux(_ctx: &mut Context, _instr: Instruction) {

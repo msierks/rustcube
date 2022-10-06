@@ -8,7 +8,7 @@ extern crate log;
 
 //mod audio_interface;
 //mod command_processor;
-mod cpu;
+pub mod cpu;
 //pub mod debugger;
 mod dol;
 //mod dsp_interface;

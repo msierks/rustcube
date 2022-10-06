@@ -122,11 +122,11 @@ fn op_mtsrin(_ctx: &mut Context, _instr: Instruction) {
 fn op_rfi(ctx: &mut Context, _instr: Instruction) {
     let mask = 0x87C0_FFFF;
 
-    ctx.cpu.msr = ((ctx.cpu.msr.0 & !mask) | (ctx.cpu.srr1 & mask)).into();
+    ctx.cpu.msr = ((ctx.cpu.msr.0 & !mask) | (ctx.cpu.spr[SPR_SRR1] & mask)).into();
 
     ctx.cpu.msr.0 &= 0xFFFB_FFFF;
 
-    ctx.cpu.nia = ctx.cpu.srr0 & 0xFFFF_FFFE;
+    ctx.cpu.nia = ctx.cpu.spr[SPR_SRR0] & 0xFFFF_FFFE;
 }
 
 fn op_sc(ctx: &mut Context, _instr: Instruction) {

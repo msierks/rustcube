@@ -1,0 +1,469 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <object id="window" class="GtkApplicationWindow">
+    <property name="title">Rustcube Debugger</property>
+    <child>
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <child>
+          <object class="GtkBox">
+            <style>
+              <class name="toolbar"/>
+            </style>
+            <child>
+              <object class="GtkButton" id="button_continue">
+                <child>
+                  <object class="GtkBox">
+                    <property name="orientation">vertical</property>
+                    <child>
+                      <object class="GtkImage">
+                        <property name="icon_name">media-playback-start</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="label">Continue</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkButton" id="button_stop">
+                <child>
+                  <object class="GtkBox">
+                    <property name="orientation">vertical</property>
+                    <child>
+                      <object class="GtkImage">
+                        <property name="icon_name">media-playback-pause</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="label">Pause</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkButton" id="button_step">
+                <child>
+                  <object class="GtkBox">
+                    <property name="orientation">vertical</property>
+                    <child>
+                      <object class="GtkImage">
+                        <property name="icon_name">media-playlist-repeat</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="label">Step</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="GtkPaned">
+            <property name="orientation">vertical</property>
+            <property name="position">800</property>
+            <child>
+              <object class="GtkPaned">
+                <property name="position">800</property>
+                <child>
+                  <object class="GtkScrolledWindow" id="disassembly_scrolled_window">
+                    <property name="vexpand">1</property>
+                    <child>
+                      <object class="GtkColumnView" id="disassembly_column_view">
+                        <property name="show-column-separators">1</property>
+                        <style>
+                          <class name="disassembly-column-view"/>
+                        </style>
+                        <child>
+                          <object class="GtkColumnViewColumn" id="disassembly_address_column">
+                            <property name="title">Address</property>
+                            <property name="resizable">1</property>
+                            <property name="header-menu">disassembly_header_menu</property>
+                            <property name="factory">
+                              <object class="GtkBuilderListItemFactory">
+                                <property name="bytes"><![CDATA[
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="GtkListItem">
+    <property name="child">
+      <object class="GtkLabel">
+        <property name="xalign">0</property>
+        <binding name="label">
+          <lookup type="DisassembledInstruction" name="address">
+            <lookup name="item">GtkListItem</lookup>
+          </lookup>
+        </binding>
+        <binding name="name">
+          <lookup type="DisassembledInstruction" name="class">
+              <lookup name="item">GtkListItem</lookup>
+          </lookup>
+        </binding>
+        <child>
+          <object class="GtkGestureClick">
+            <property name="button">0</property>
+            <signal name="pressed" handler="pressed_cb"/>
+          </object>
+        </child>
+      </object>
+    </property>
+  </template>
+</interface>
+                        ]]></property>
+                              </object>
+                            </property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkColumnViewColumn" id="disassembly_instruction_column">
+                            <property name="title">Hex</property>
+                            <property name="resizable">1</property>
+                            <property name="header-menu">disassembly_header_menu</property>
+                            <property name="factory">
+                              <object class="GtkBuilderListItemFactory">
+                                <property name="bytes"><![CDATA[
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="GtkListItem">
+    <property name="child">
+      <object class="GtkLabel">
+        <property name="xalign">0</property>
+        <binding name="label">
+          <lookup type="DisassembledInstruction" name="instruction">
+            <lookup name="item">GtkListItem</lookup>
+          </lookup>
+        </binding>
+        <binding name="name">
+          <lookup type="DisassembledInstruction" name="class">
+            <lookup name="item">GtkListItem</lookup>
+          </lookup>
+        </binding>
+        <child>
+          <object class="GtkGestureClick">
+            <property name="button">0</property>
+            <signal name="pressed" handler="pressed_cb"/>
+          </object>
+        </child>
+      </object>
+    </property>
+  </template>
+</interface>
+                        ]]></property>
+                              </object>
+                            </property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkColumnViewColumn" id="disassembly_opcode_column">
+                            <property name="title">Opcode</property>
+                            <property name="resizable">1</property>
+                            <property name="header-menu">disassembly_header_menu</property>
+                            <property name="factory">
+                              <object class="GtkBuilderListItemFactory">
+                                <property name="bytes"><![CDATA[
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="GtkListItem">
+    <property name="child">
+      <object class="GtkLabel">
+        <property name="xalign">0</property>
+        <binding name="label">
+          <lookup type="DisassembledInstruction" name="opcode">
+            <lookup name="item">GtkListItem</lookup>
+          </lookup>
+        </binding>
+        <binding name="name">
+          <lookup type="DisassembledInstruction" name="class">
+            <lookup name="item">GtkListItem</lookup>
+          </lookup>
+        </binding>
+        <child>
+          <object class="GtkGestureClick">
+            <property name="button">0</property>
+            <signal name="pressed" handler="pressed_cb"/>
+          </object>
+        </child>
+      </object>
+    </property>
+  </template>
+</interface>
+                        ]]></property>
+                              </object>
+                            </property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkColumnViewColumn" id="disassembly_operand_column">
+                            <property name="title">Operands</property>
+                            <property name="resizable">1</property>
+                            <property name="expand">1</property>
+                            <property name="header-menu">disassembly_header_menu</property>
+                            <property name="factory">
+                              <object class="GtkBuilderListItemFactory">
+                                <property name="bytes"><![CDATA[
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="GtkListItem">
+    <property name="child">
+      <object class="GtkLabel">
+        <property name="xalign">0</property>
+        <binding name="label">
+          <lookup type="DisassembledInstruction" name="operands">
+            <lookup name="item">GtkListItem</lookup>
+          </lookup>
+        </binding>
+        <binding name="name">
+          <lookup type="DisassembledInstruction" name="class">
+            <lookup name="item">GtkListItem</lookup>
+          </lookup>
+        </binding>
+        <child>
+          <object class="GtkGestureClick">
+            <property name="button">0</property>
+            <signal name="pressed" handler="pressed_cb"/>
+          </object>
+        </child>
+      </object>
+    </property>
+  </template>
+</interface>
+                        ]]></property>
+                              </object>
+                            </property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkScrolledWindow">
+                    <property name="vexpand">1</property>
+                    <child>
+                      <object class="GtkTreeView" id="registers_tree_view">
+                        <property name="model">register_list_store</property>
+                        <style>
+                          <class name="registers-tree-view"/>
+                        </style>
+                        <child>
+                          <object class="GtkTreeViewColumn" id="register_name_column">
+                            <property name="title">Name</property>
+                            <child>
+                              <object class="GtkCellRendererText" id="register_name_renderer"/>
+                              <attributes>
+                                <attribute name="text">0</attribute>
+                                <attribute name="background-rgba">3</attribute>
+                              </attributes>
+                            </child>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkTreeViewColumn" id="register_value_hex_column">
+                            <property name="title">Hex</property>
+                            <child>
+                              <object class="GtkCellRendererText" id="register_value_hex_renderer"/>
+                              <attributes>
+                                <attribute name="text">1</attribute>
+                                <attribute name="background-rgba">3</attribute>
+                              </attributes>
+                            </child>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkTreeViewColumn" id="register_value_int_column">
+                            <property name="title">Integer</property>
+                            <child>
+                              <object class="GtkCellRendererText" id="register_value_int_renderer"/>
+                              <attributes>
+                                <attribute name="text">2</attribute>
+                                <attribute name="background-rgba">3</attribute>
+                              </attributes>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkPaned">
+                <property name="position">900</property>
+                <child>
+                  <object class="GtkScrolledWindow">
+                    <property name="vexpand">1</property>
+
+                    <child>
+                      <object class="GtkColumnView" id="memory_column_view">
+                        <property name="show-column-separators">1</property>
+                        <style>
+                          <class name="memory-column-view"/>
+                        </style>
+                        <child>
+                          <object class="GtkColumnViewColumn" id="memory_address_column">
+                            <property name="title">Address</property>
+                            <property name="resizable">1</property>
+                            <property name="factory">
+                              <object class="GtkBuilderListItemFactory">
+                                <property name="bytes"><![CDATA[
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="GtkListItem">
+    <property name="child">
+      <object class="GtkLabel">
+        <property name="xalign">0</property>
+        <binding name="label">
+          <lookup type="MemoryDumpObject" name="address">
+            <lookup name="item">GtkListItem</lookup>
+          </lookup>
+        </binding>
+      </object>
+    </property>
+  </template>
+</interface>
+                        ]]></property>
+                              </object>
+                            </property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkColumnViewColumn" id="memory_hex_column">
+                            <property name="title">Hex dump</property>
+                            <property name="resizable">1</property>
+                            <property name="factory">
+                              <object class="GtkBuilderListItemFactory">
+                                <property name="bytes"><![CDATA[
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="GtkListItem">
+    <property name="child">
+      <object class="GtkLabel">
+        <property name="xalign">0</property>
+        <binding name="label">
+          <lookup type="MemoryDumpObject" name="hex">
+            <lookup name="item">GtkListItem</lookup>
+          </lookup>
+        </binding>
+      </object>
+    </property>
+  </template>
+</interface>
+                        ]]></property>
+                              </object>
+                            </property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkColumnViewColumn" id="memory_ascii_column">
+                            <property name="title">ASCII</property>
+                            <property name="resizable">1</property>
+                            <property name="factory">
+                              <object class="GtkBuilderListItemFactory">
+                                <property name="bytes"><![CDATA[
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="GtkListItem">
+    <property name="child">
+      <object class="GtkLabel">
+        <property name="xalign">0</property>
+        <binding name="label">
+          <lookup type="MemoryDumpObject" name="ascii">
+            <lookup name="item">GtkListItem</lookup>
+          </lookup>
+        </binding>
+      </object>
+    </property>
+  </template>
+</interface>
+                        ]]></property>
+                              </object>
+                            </property>
+                          </object>
+                        </child>
+
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkScrolledWindow">
+                    <property name="vexpand">1</property>
+                    <child>
+                      <object class="GtkListView" id="callstack_list_view">
+                        <style>
+                          <class name="stack-tree-view"/>
+                        </style>
+
+
+                            <property name="factory">
+                              <object class="GtkBuilderListItemFactory">
+                                <property name="bytes"><![CDATA[
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="GtkListItem">
+    <property name="child">
+      <object class="GtkLabel">
+        <property name="xalign">0</property>
+        <binding name="label">
+          <lookup type="CallstackObject" name="value">
+            <lookup name="item">GtkListItem</lookup>
+          </lookup>
+        </binding>
+      </object>
+    </property>
+  </template>
+</interface>
+                        ]]></property>
+                              </object>
+                            </property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+  </object>
+  <menu id="disassembly_header_menu">
+    <section>
+      <item>
+        <attribute name="label" translatable="yes">Address</attribute>
+        <attribute name="action">disassemblercolumnview.show-address</attribute>
+      </item>
+      <item>
+        <attribute name="label" translatable="yes">Hex</attribute>
+        <attribute name="action">disassemblercolumnview.show-instruction</attribute>
+      </item>
+      <item>
+        <attribute name="label" translatable="yes">Opcode</attribute>
+        <attribute name="action">disassemblercolumnview.show-opcode</attribute>
+      </item>
+      <item>
+        <attribute name="label" translatable="yes">Operand</attribute>
+        <attribute name="action">disassemblercolumnview.show-operand</attribute>
+      </item>
+    </section>
+  </menu>
+  <object class="GtkListStore" id="register_list_store">
+    <columns>
+      <column type="gchararray"/>
+      <column type="gchararray"/>
+      <column type="gchararray"/>
+      <column type="GdkRGBA"/>
+    </columns>
+  </object>
+</interface>

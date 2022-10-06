@@ -1,23 +1,18 @@
 #[allow(dead_code)]
 pub mod disassembler;
-mod gqr;
 pub mod instruction;
 pub mod mmu;
 pub mod util;
 
-use std::fmt;
-
-use self::gqr::Gqr;
 use self::instruction::Instruction;
 use self::util::*;
 use super::Context;
 use mmu::{translate_address, Mmu};
 use std::cmp::Ordering;
 
-const NUM_FPR: usize = 32;
-const NUM_GPR: usize = 32;
-const NUM_SPR: usize = 1022;
-const NUM_GQR: usize = 8;
+pub const NUM_FPR: usize = 32;
+pub const NUM_GPR: usize = 32;
+pub const NUM_SPR: usize = 1022;
 const NUM_SR: usize = 16;
 
 const OPTABLE_SIZE: usize = 64;
@@ -27,60 +22,61 @@ const OPTABLE31_SIZE: usize = 1024;
 const OPTABLE59_SIZE: usize = 32;
 const OPTABLE63_SIZE: usize = 1024;
 
-const SPR_XER: usize = 1;
-const SPR_LR: usize = 8;
-const SPR_CTR: usize = 9;
-//const SPR_DSISR: usize = 18;
-//const SPR_DAR: usize = 19;
-const SPR_DEC: usize = 22;
-//const SPR_SDR1: usize = 25;
-const SPR_SRR0: usize = 26;
-const SPR_SRR1: usize = 27;
-//const SPR_SPRG0: usize = 272;
-//const SPR_EAR: usize = 282;
-const SPR_TBL: usize = 284;
-const SPR_TBU: usize = 285;
-//const SPR_PVR: usize = 287;
-const SPR_IBAT0U: usize = 528;
-const SPR_IBAT0L: usize = 529;
-const SPR_IBAT1U: usize = 530;
-const SPR_IBAT1L: usize = 531;
-const SPR_IBAT2U: usize = 532;
-const SPR_IBAT2L: usize = 533;
-const SPR_IBAT3U: usize = 534;
-const SPR_IBAT3L: usize = 535;
-const SPR_DBAT0U: usize = 536;
-const SPR_DBAT0L: usize = 537;
-const SPR_DBAT1U: usize = 538;
-const SPR_DBAT1L: usize = 539;
-const SPR_DBAT2U: usize = 540;
-const SPR_DBAT2L: usize = 541;
-const SPR_DBAT3U: usize = 542;
-const SPR_DBAT3L: usize = 543;
-//const SPR_GQR0: usize = 912;
-const SPR_HID2: usize = 920;
-const SPR_WPAR: usize = 921;
-//const SPR_DMAU: usize = 922;
-//const SPR_UMMCR0: usize = 936;
-//const SPR_UPMC1: usize = 937;
-//const SPR_USIA: usize = 939;
-//const SPR_UMMCR1: usize = 940;
-//const SPR_UPMC3: usize = 941;
-//const SPR_UPMC4: usize = 942;
-//const SPR_MMCR0: usize = 952;
-//const SPR_PMC1: usize = 953;
-//const SPR_PMC2: usize = 954;
-//const SPR_SIA: usize = 955;
-//const SPR_MMCR1: usize = 956;
-//const SPR_PMC3: usize = 957;
-//const SPR_PMC4: usize = 958;
-//const SPR_IABR: usize = 1010;
-//const SPR_HID0: usize = 1008;
-//const SPR_HID1: usize = 1009;
-//const SPR_DABR: usize = 1013;
-//const SPR_L2CR: usize = 1017;
-//const SPR_ICTC: usize = 1019;
-//const SPR_THRM1: usize = 1020;
+pub const SPR_XER: usize = 1;
+pub const SPR_LR: usize = 8;
+pub const SPR_CTR: usize = 9;
+pub const SPR_DSISR: usize = 18;
+pub const SPR_DAR: usize = 19;
+pub const SPR_DEC: usize = 22;
+pub const SPR_SDR1: usize = 25;
+pub const SPR_SRR0: usize = 26;
+pub const SPR_SRR1: usize = 27;
+pub const SPR_SPRG0: usize = 272;
+pub const SPR_EAR: usize = 282;
+pub const SPR_TBL: usize = 284;
+pub const SPR_TBU: usize = 285;
+pub const SPR_PVR: usize = 287;
+pub const SPR_IBAT0U: usize = 528;
+pub const SPR_IBAT0L: usize = 529;
+pub const SPR_IBAT1U: usize = 530;
+pub const SPR_IBAT1L: usize = 531;
+pub const SPR_IBAT2U: usize = 532;
+pub const SPR_IBAT2L: usize = 533;
+pub const SPR_IBAT3U: usize = 534;
+pub const SPR_IBAT3L: usize = 535;
+pub const SPR_DBAT0U: usize = 536;
+pub const SPR_DBAT0L: usize = 537;
+pub const SPR_DBAT1U: usize = 538;
+pub const SPR_DBAT1L: usize = 539;
+pub const SPR_DBAT2U: usize = 540;
+pub const SPR_DBAT2L: usize = 541;
+pub const SPR_DBAT3U: usize = 542;
+pub const SPR_DBAT3L: usize = 543;
+pub const SPR_GQR0: usize = 912;
+pub const SPR_HID2: usize = 920;
+pub const SPR_WPAR: usize = 921;
+pub const SPR_DMAU: usize = 922;
+pub const SPR_UMMCR0: usize = 936;
+pub const SPR_UPMC1: usize = 937;
+pub const SPR_UPMC2: usize = 938;
+pub const SPR_USIA: usize = 939;
+pub const SPR_UMMCR1: usize = 940;
+pub const SPR_UPMC3: usize = 941;
+pub const SPR_UPMC4: usize = 942;
+pub const SPR_MMCR0: usize = 952;
+pub const SPR_PMC1: usize = 953;
+pub const SPR_PMC2: usize = 954;
+pub const SPR_SIA: usize = 955;
+pub const SPR_MMCR1: usize = 956;
+pub const SPR_PMC3: usize = 957;
+pub const SPR_PMC4: usize = 958;
+pub const SPR_IABR: usize = 1010;
+pub const SPR_HID0: usize = 1008;
+pub const SPR_HID1: usize = 1009;
+pub const SPR_DABR: usize = 1013;
+pub const SPR_L2CR: usize = 1017;
+pub const SPR_ICTC: usize = 1019;
+pub const SPR_THRM1: usize = 1020;
 
 const EXCEPTION_SYSTEM_RESET: u32 = 0x1;
 //const EXCEPTION_MACHINE_CHECK: u32 = 0x2;
@@ -98,15 +94,17 @@ const EXCEPTION_PERFORMANCE_MONITOR: u32 = 0x1000; // Gekko Only
                                                    //const EXCEPTION_IABR: u32 = 0x2000; // Gekko Only
 const EXCEPTION_THERMAL_MANAGEMENT: u32 = 0x4000; // Gekko Only
 
+const PROCESSOR_VERSION: u32 = 0x0008_3214;
+
 pub struct Cpu {
     /// Current Instruction Address
-    pub cia: u32,
+    cia: u32,
     /// Next Instruction Address
     nia: u32,
     /// General-Purpose Registers
-    pub gpr: [u32; NUM_GPR],
+    gpr: [u32; NUM_GPR],
     /// Floating-Point Registers
-    fpr: [u64; NUM_FPR],
+    fpr: [Fpr; NUM_FPR],
     /// Special-Purpose Registers
     spr: [u32; NUM_SPR],
     /// Condition Register
@@ -115,40 +113,12 @@ pub struct Cpu {
     //fpscr: Fpscr,
     /// Integer Exception Register
     xer: Xer,
-    /// Link Register
-    pub lr: u32,
-    //// Count Register
-    //ctr: u32,
     /// Machine State Register
     pub msr: MachineStateRegister,
     /// Segment Registers
     sr: [u32; NUM_SR],
-    /// Machine Status Save/Restore Register 0
-    srr0: u32,
-    /// Machine Status Save/Restore Register 1
-    srr1: u32,
-    //// Decrementer Register
-    //dec: u32,
-    //// Hardware Implementation-Dependent Register 0
-    //hid0: u32,
     /// Hardware Implementation-Dependent Register 1
     hid2: Hid2,
-    /// Graphics Quantization Registers
-    gqr: [u32; NUM_GQR],
-    //// L2 Cache Control Register
-    //l2cr: u32,
-    //// Monitor Mode Control Register 0
-    //mmcr0: u32,
-    //// Monitor Mode Control Register 1
-    //mmcr1: u32,
-    //// Performance Monitor Counter Register 1
-    //pmc1: u32,
-    //// Performance Monitor Counter Register 2
-    //pmc2: u32,
-    //// Performance Monitor Counter Register 3
-    //pmc3: u32,
-    //// Performance Monitor Counter Register 4
-    //pmc4: u32,
     /// Excceptions
     exceptions: u32,
     /// Memory Management Unit
@@ -224,32 +194,22 @@ impl Default for Cpu {
             }
         }
 
+        let mut spr = [0; NUM_SPR];
+
+        spr[SPR_PVR] = PROCESSOR_VERSION;
+
         let mut cpu = Cpu {
             cia: 0,
             nia: 0,
-            gpr: [0; NUM_GPR],
-            fpr: [0; NUM_FPR],
-            spr: [0; NUM_SPR],
+            gpr: Default::default(),
+            fpr: Default::default(),
+            spr,
             cr: Default::default(),
             //fpscr: Default::default(),
             xer: Default::default(),
-            lr: 0,
-            //ctr: 0,
             msr: 0x40.into(),
             sr: [0; NUM_SR],
-            srr0: 0,
-            srr1: 0,
-            //dec: 0,
-            //hid0: 0,
             hid2: Default::default(),
-            gqr: [0; NUM_GQR],
-            //l2cr: 0,
-            //mmcr0: 0,
-            //mmcr1: 0,
-            //pmc1: 0,
-            //pmc2: 0,
-            //pmc3: 0,
-            //pmc4: 0,
             exceptions: EXCEPTION_SYSTEM_RESET,
             mmu: Default::default(),
             optable,
@@ -368,6 +328,22 @@ impl Cpu {
         self.cia
     }
 
+    pub fn gpr(&self) -> &[u32; NUM_GPR] {
+        &self.gpr
+    }
+
+    pub fn fpr(&self) -> &[Fpr; NUM_FPR] {
+        &self.fpr
+    }
+
+    pub fn spr(&self) -> &[u32; NUM_SPR] {
+        &self.spr
+    }
+
+    pub fn lr(&self) -> u32 {
+        self.spr[SPR_LR]
+    }
+
     fn update_cr0(&mut self, r: u32) {
         let value = r as i32;
 
@@ -389,16 +365,6 @@ impl Cpu {
             // real addressing mode
             ea
         }
-    }
-}
-
-impl fmt::Debug for Cpu {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "MSR: {:?} gpr: {:?}, sr: {:?}, cr:{:?}",
-            self.msr, self.gpr, self.sr, self.cr
-        )
     }
 }
 
@@ -1071,5 +1037,56 @@ bitfield! {
 impl From<u32> for Hid2 {
     fn from(v: u32) -> Self {
         Hid2(v)
+    }
+}
+
+bitfield! {
+    #[derive(Copy, Clone, Default)]
+    pub struct Fpr(u64);
+    impl Debug;
+    u32;
+    ps1, set_ps1 : 31, 0;
+    ps0, set_ps0 : 63, 32;
+}
+
+impl Fpr {
+    pub fn as_float(self) -> f64 {
+        f64::from_bits(self.0)
+    }
+
+    pub fn as_u64(self) -> u64 {
+        self.0
+    }
+
+    pub fn as_ps0(self) -> f32 {
+        f32::from_bits(self.ps0())
+    }
+
+    pub fn as_ps1(self) -> f32 {
+        f32::from_bits(self.ps1())
+    }
+
+    pub fn as_ps0_u32(self) -> u32 {
+        self.ps0()
+    }
+
+    pub fn as_ps1_u32(self) -> u32 {
+        self.ps1()
+    }
+
+    pub fn to_float(val: f64) -> Fpr {
+        Fpr(f64::to_bits(val))
+    }
+
+    pub fn to_ps_float(ps0: f32, ps1: f32) -> Fpr {
+        Fpr(((f32::to_bits(ps0) as u64) << 32) ^ f32::to_bits(ps1) as u64)
+    }
+
+    pub fn set_ps0_float(&mut self, val: f32) {
+        self.set_ps0(f32::to_bits(val));
+    }
+
+    pub fn set_ps1_float(&mut self, val: f32) {
+        self.set_ps1(f32::to_bits(val));
     }
 }

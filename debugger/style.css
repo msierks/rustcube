@@ -1,0 +1,50 @@
+.toolbar {
+  border-bottom: 1px solid lightgrey;
+}
+.toolbar button {
+  padding: 10px;
+  border: none;
+}
+/* Delete later */
+list row label {
+  font-family: 'Monospace';
+  font-size: 14px;
+}
+
+.disassembly-column-view {
+  font-family: 'Monospace';
+  font-size: 14px;
+}
+.disassembly-column-view listview row cell {
+  padding: 0;
+}
+.disassembly-column-view listview row cell label {
+  padding: 2px 4px;
+}
+
+#current-instruction {
+  background-color: #00ff0066;
+}
+#breakpoint-instruction {
+  background-color: #ff000066;
+}
+.memory-column-view {
+  font-family: 'Monospace';
+  font-size: 14px;
+  border-width: 20px;
+}
+.memory-column-view listview row cell {
+  padding: 0;
+}
+.memory-column-view listview row cell label {
+  padding: 2px 4px;
+}
+
+.dump-tree-view button, .registers-tree-view button, .stack-tree-view button {
+  padding: 0px 10px 0px 5px;
+  font-size: 14px;
+}
+.registers-tree-view, .stack-tree-view {
+  font-family: 'Monospace';
+  font-size: 14px;
+}
