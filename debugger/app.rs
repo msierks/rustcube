@@ -1,10 +1,14 @@
-use crate::gobject::{CallstackObject, DisassembledInstruction, MemoryDumpObject};
-use crate::{BgEvent, Callstack, Disassembly, Event, Memory, Registers};
+use crate::gobject::{
+    BreakpointObject, CallstackObject, DisassembledInstruction, MemoryDumpObject,
+};
+use crate::{
+    BgEvent, BreakpointAccessType, BreakpointType, Breakpoints, Callstack, Disassembly, Event,
+    Memory, Registers,
+};
 use async_channel::Sender;
 use gtk::glib;
 use gtk::glib::clone;
 use gtk::prelude::*;
-use rustcube::cpu;
 
 pub struct App {
     pub tx: Sender<Event>,
@@ -15,6 +19,8 @@ pub struct App {
     registers: Registers,
     callstack_list_store: gtk::gio::ListStore,
     memory_list_store: gtk::gio::ListStore,
+    breakpoint_list_store: gtk::gio::ListStore,
+    button_continue: gtk::Button,
 }
 
 impl App {
@@ -40,6 +46,22 @@ impl App {
             .object("button_stop")
             .expect("Couldn't get button_stop");
 
+        let button_new_breakpoint: gtk::Button = builder
+            .object("button_new_breakpoint")
+            .expect("Couldn't get button_new_breakpoint");
+
+        let button_clear_breakpoint: gtk::Button = builder
+            .object("button_clear_breakpoint")
+            .expect("Couldn't get button_clear_breakpoint");
+
+        let button_delete_breakpoint: gtk::Button = builder
+            .object("button_delete_breakpoint")
+            .expect("Couldn't get button_delete_breakpoint");
+
+        let dialog_breakpoint: gtk::Dialog = builder
+            .object("new_breakpoint_dialog")
+            .expect("Couldn't get new_breakpoint_dialog");
+
         button_step.connect_clicked(clone!(@strong btx => move |_| {
             let btx = btx.clone();
             glib::MainContext::default().spawn_local(async move {
@@ -47,8 +69,9 @@ impl App {
             });
         }));
 
-        button_continue.connect_clicked(clone!(@strong btx => move |_| {
+        button_continue.connect_clicked(clone!(@strong btx, @weak button_continue => move |_| {
             let btx = btx.clone();
+            button_continue.set_sensitive(false);
             glib::MainContext::default().spawn_local(async move {
                 let _ = btx.send(BgEvent::Continue).await;
             });
@@ -61,13 +84,144 @@ impl App {
             });
         }));
 
+        button_new_breakpoint.connect_clicked(clone!(@strong dialog_breakpoint => move |_| {
+            dialog_breakpoint.show();
+        }));
+
+        let breakpoint_list_store = gtk::gio::ListStore::new(BreakpointObject::static_type());
+
+        let breakpoint_selection = gtk::SingleSelection::new(Some(&breakpoint_list_store));
+
+        button_delete_breakpoint.connect_clicked(
+            clone!(@strong btx, @weak breakpoint_selection => move |_| {
+
+                match breakpoint_selection.selected_item() {
+                    Some(bp) => {
+                        let btx = btx.clone();
+                        let bg_event = match bp.property::<String>("type").as_str() {
+                            "Instruction" => {
+                                BgEvent::BreakpointRemove(BreakpointType::Break, bp.property::<u32>("num"))
+                            },
+                            "Memory" => {
+                                BgEvent::BreakpointRemove(BreakpointType::Watch, bp.property::<u32>("num"))
+                            }
+                            _ => unreachable!(),
+                        };
+
+                        glib::MainContext::default().spawn_local(async move {
+                            let _ = btx.send(bg_event).await;
+                        });
+                    },
+                    None => (),
+                }
+            }),
+        );
+
+        button_clear_breakpoint.connect_clicked(clone!(@strong btx => move |_| {
+            let btx = btx.clone();
+            glib::MainContext::default().spawn_local(async move {
+                let _ = btx.send(BgEvent::BreakpointClear).await;
+            });
+        }));
+
+        let check_button_instruction: gtk::CheckButton = builder
+            .object("instruction_check_button")
+            .expect("Couldn't get instruction_check_button");
+
+        let entry_instruction_breakpoint: gtk::Entry = builder
+            .object("entry_instruction_breakpoint")
+            .expect("Couldn't get entry_instruction_breakpoint");
+
+        let entry_memory_breakpoint_start: gtk::Entry = builder
+            .object("entry_memory_breakpoint_start")
+            .expect("Couldn't get entry_memory_breakpoint_start");
+
+        let entry_memory_breakpoint_end: gtk::Entry = builder
+            .object("entry_memory_breakpoint_end")
+            .expect("Couldn't get entry_memory_breakpoint_end");
+
+        let memory_condition_read_check_button: gtk::CheckButton = builder
+            .object("memory_condition_read_check_button")
+            .expect("Couldn't get memory_condition_read_check_button");
+
+        let memory_condition_write_check_button: gtk::CheckButton = builder
+            .object("memory_condition_write_check_button")
+            .expect("Couldn't get memory_condition_write_check_button");
+
+        let memory_condition_read_write_check_button: gtk::CheckButton = builder
+            .object("memory_condition_read_write_check_button")
+            .expect("Couldn't get memory_condition_read_write_check_button");
+
+        check_button_instruction.connect_toggled(
+            clone!(@weak entry_instruction_breakpoint, @weak entry_memory_breakpoint_start, @weak entry_memory_breakpoint_end, @weak memory_condition_read_check_button, @weak memory_condition_write_check_button, @weak memory_condition_read_write_check_button  => move |check_button_instruction| {
+                if check_button_instruction.is_active() {
+                    entry_instruction_breakpoint.set_sensitive(true);
+                    entry_memory_breakpoint_start.set_sensitive(false);
+                    entry_memory_breakpoint_end.set_sensitive(false);
+                    memory_condition_read_check_button.set_sensitive(false);
+                    memory_condition_write_check_button.set_sensitive(false);
+                    memory_condition_read_write_check_button.set_sensitive(false);
+                } else {
+                    entry_instruction_breakpoint.set_sensitive(false);
+                    entry_memory_breakpoint_start.set_sensitive(true);
+                    entry_memory_breakpoint_end.set_sensitive(true);
+                    memory_condition_read_check_button.set_sensitive(true);
+                    memory_condition_write_check_button.set_sensitive(true);
+                    memory_condition_read_write_check_button.set_sensitive(true);
+                }
+            }),
+        );
+
+        dialog_breakpoint.connect_response(
+            clone!(@strong btx, @weak entry_instruction_breakpoint, @weak entry_memory_breakpoint_start, @weak entry_memory_breakpoint_end, @weak memory_condition_read_check_button, @weak memory_condition_write_check_button, @weak memory_condition_read_write_check_button => move |dialog_breakpoint, response| {
+                if response == gtk::ResponseType::Ok {
+                    let btx = btx.clone();
+
+                    if check_button_instruction.is_active() {
+                        // breakpoint
+                        let addr:u32 = u32::from_str_radix(&entry_instruction_breakpoint.buffer().text(), 16).unwrap();
+
+                        glib::MainContext::default().spawn_local(async move {
+                            let _ = btx.send(BgEvent::Breakpoint(BreakpointType::Break, addr, 0, false, false)).await;
+                        });
+                    } else {
+                        // Watchpoint
+                        let start_addr:u32 = u32::from_str_radix(&entry_memory_breakpoint_start.buffer().text(), 16).unwrap();
+                        let end_addr:u32 = u32::from_str_radix(&entry_memory_breakpoint_end.buffer().text(), 16).unwrap();
+
+                        let (break_on_write, break_on_read) = if memory_condition_read_check_button.is_active() {
+                            (false, true)
+                        } else if memory_condition_write_check_button.is_active() {
+                            (true, false)
+                        } else if memory_condition_read_write_check_button.is_active() {
+                            (true, true)
+                        } else {
+                            unreachable!()
+                        };
+
+                        glib::MainContext::default().spawn_local(async move {
+                            let _ = btx.send(BgEvent::Breakpoint(BreakpointType::Watch, start_addr, end_addr, break_on_write, break_on_read)).await;
+                        });
+                    }
+                }
+
+                dialog_breakpoint.hide();
+
+                // reset fields
+                check_button_instruction.set_active(true);
+                entry_instruction_breakpoint.buffer().set_text("");
+                entry_memory_breakpoint_start.buffer().set_text("");
+                entry_memory_breakpoint_end.buffer().set_text("");
+                memory_condition_read_check_button.set_active(true);
+            }));
+
         let disassembly_list_store =
             gtk::gio::ListStore::new(DisassembledInstruction::static_type());
 
         let sel = gtk::NoSelection::new(Some(&disassembly_list_store));
         let disassembly_column_view: gtk::ColumnView = builder
             .object("disassembly_column_view")
-            .expect("disassembly_column_view");
+            .expect("Couldn't get disassembly_column_view");
 
         disassembly_column_view.set_model(Some(&sel));
 
@@ -94,6 +248,15 @@ impl App {
         let register_store: gtk::ListStore = builder
             .object("register_list_store")
             .expect("Couldn't get register_list_store");
+
+        //let breakpoint_list_store = gtk::gio::ListStore::new(BreakpointObject::static_type());
+
+        //let breakpoint_selection = gtk::SingleSelection::new(Some(&breakpoint_list_store));
+        let breakpoint_column_view: gtk::ColumnView = builder
+            .object("breakpoint_column_view")
+            .expect("Couldn't get breakpoint_column_view");
+
+        breakpoint_column_view.set_model(Some(&breakpoint_selection));
 
         // Setup Actions
 
@@ -197,6 +360,20 @@ impl App {
             None
         }));
 
+        let memory_jump_entry: gtk::Entry = builder
+            .object("memory_jump_entry")
+            .expect("Couldn't get memory_jump_entry");
+
+        memory_jump_entry.connect_activate(clone!(@strong btx => move |entry| {
+            let btx = btx.clone();
+            let text = entry.buffer().text();
+            if let Ok(addr) = u32::from_str_radix(text.trim_start_matches("0x"), 16) {
+                    glib::MainContext::default().spawn_local(async move {
+                        let _ = btx.send(BgEvent::MemoryDump(addr)).await;
+                    });
+            }
+        }));
+
         window.show();
 
         let registers = Registers::default();
@@ -210,20 +387,69 @@ impl App {
             registers,
             callstack_list_store,
             memory_list_store,
+            breakpoint_list_store,
+            button_continue,
+        }
+    }
+
+    pub fn paused(&mut self) {
+        self.button_continue.set_sensitive(true);
+    }
+
+    pub fn update_breakpoints(&mut self, bps: Breakpoints) {
+        self.breakpoint_list_store.remove_all();
+
+        for bp in bps.breakpoints.iter() {
+            // create new row
+            let (type_, addr) = match bp.type_ {
+                BreakpointType::Break => (
+                    String::from("Instruction"),
+                    format!("{:08x}", bp.start_address),
+                ),
+                BreakpointType::Watch => {
+                    let addr = if bp.start_address < bp.end_address {
+                        format!("{:08x}-{:08x}", bp.start_address, bp.end_address)
+                    } else {
+                        format!("{:08x}", bp.start_address)
+                    };
+                    (String::from("Memory"), addr)
+                }
+            };
+
+            let condition = match bp.access_type {
+                BreakpointAccessType::Write => String::from("W"),
+                BreakpointAccessType::Read => String::from("R"),
+                BreakpointAccessType::ReadWrite => String::from("RW"),
+            };
+            let row = BreakpointObject::new(
+                type_,
+                bp.num,
+                addr,
+                condition,
+                bp.start_address,
+                bp.end_address,
+            );
+
+            self.breakpoint_list_store.append(&row);
         }
     }
 
     pub fn update_callstack(&mut self, callstack: Callstack) {
         self.callstack_list_store.remove_all();
 
-        for (i, address) in callstack.addresses.iter().enumerate() {
-            let value = if i != 0 {
-                format!("{:08x} address", address)
-            } else {
-                format!("{:08x} lr", address)
-            };
-            let row = CallstackObject::new(value);
-            self.callstack_list_store.append(&row);
+        if callstack.addresses.is_empty() {
+            self.callstack_list_store
+                .append(&CallstackObject::new("Invalid Callstack".to_string()));
+        } else {
+            for (i, address) in callstack.addresses.iter().enumerate() {
+                let value = if i != 0 {
+                    format!("{:08x} address", address)
+                } else {
+                    format!("{:08x} lr", address)
+                };
+                let row = CallstackObject::new(value);
+                self.callstack_list_store.append(&row);
+            }
         }
     }
 
@@ -324,6 +550,7 @@ impl App {
 
         let color_updated = gtk::gdk::RGBA::new(0.0, 255.0, 0.0, 0.4);
         let color_same = gtk::gdk::RGBA::new(0.0, 0.0, 0.0, 0.0);
+        let weight = 700;
 
         // General-purpose registers
         for (i, reg) in regs.gpr.iter().enumerate() {
@@ -340,6 +567,7 @@ impl App {
                     (1, &format!("{:08x}", reg)),
                     (2, &format!("{}", reg)),
                     (3, &background_color),
+                    (4, &weight),
                 ],
             )
         }
@@ -356,93 +584,54 @@ impl App {
                 &self.register_store.append(),
                 &[
                     (0, &format!("f{}", i)),
-                    (1, &format!("{:08x}", reg.as_u64())),
+                    (1, &format!("{:016x}", reg.as_u64())),
                     (2, &format!("{}", reg.as_u64())),
                     (3, &background_color),
+                    (4, &weight),
                 ],
             )
         }
 
-        for (name, value) in [
-            ("XER", regs.spr[cpu::SPR_XER]),
-            ("LR", regs.spr[cpu::SPR_LR]),
-            ("CTR", regs.spr[cpu::SPR_CTR]),
-            ("DSISR", regs.spr[cpu::SPR_DSISR]),
-            ("DAR", regs.spr[cpu::SPR_DAR]),
-            ("DEC", regs.spr[cpu::SPR_DEC]),
-            ("SDR1", regs.spr[cpu::SPR_SDR1]),
-            ("SRR0", regs.spr[cpu::SPR_SRR0]),
-            ("SRR1", regs.spr[cpu::SPR_SRR1]),
-            ("SPRG0", regs.spr[cpu::SPR_SPRG0]),
-            ("SPRG1", regs.spr[cpu::SPR_SPRG0 + 1]),
-            ("SPRG2", regs.spr[cpu::SPR_SPRG0 + 2]),
-            ("SPRG3", regs.spr[cpu::SPR_SPRG0 + 3]),
-            ("EAR", regs.spr[cpu::SPR_EAR]),
-            ("TBL", regs.spr[cpu::SPR_TBL]),
-            ("TBU", regs.spr[cpu::SPR_TBU]),
-            ("PVR", regs.spr[cpu::SPR_PVR]),
-            ("IBAT0U", regs.spr[cpu::SPR_IBAT0U]),
-            ("IBAT0L", regs.spr[cpu::SPR_IBAT0L]),
-            ("IBAT1U", regs.spr[cpu::SPR_IBAT1U]),
-            ("IBAT1L", regs.spr[cpu::SPR_IBAT1L]),
-            ("IBAT2U", regs.spr[cpu::SPR_IBAT2U]),
-            ("IBAT2L", regs.spr[cpu::SPR_IBAT2L]),
-            ("IBAT3U", regs.spr[cpu::SPR_IBAT3U]),
-            ("IBAT3L", regs.spr[cpu::SPR_IBAT3L]),
-            ("DBAT0U", regs.spr[cpu::SPR_DBAT0U]),
-            ("DBAT0L", regs.spr[cpu::SPR_DBAT0L]),
-            ("DBAT1U", regs.spr[cpu::SPR_DBAT1U]),
-            ("DBAT1L", regs.spr[cpu::SPR_DBAT1L]),
-            ("DBAT2U", regs.spr[cpu::SPR_DBAT2U]),
-            ("DBAT2L", regs.spr[cpu::SPR_DBAT2L]),
-            ("DBAT3U", regs.spr[cpu::SPR_DBAT3U]),
-            ("DBAT3L", regs.spr[cpu::SPR_DBAT3L]),
-            ("GQR0", regs.spr[cpu::SPR_GQR0]),
-            ("GQR1", regs.spr[cpu::SPR_GQR0 + 1]),
-            ("GQR2", regs.spr[cpu::SPR_GQR0 + 2]),
-            ("GQR3", regs.spr[cpu::SPR_GQR0 + 3]),
-            ("GQR4", regs.spr[cpu::SPR_GQR0 + 4]),
-            ("GQR5", regs.spr[cpu::SPR_GQR0 + 5]),
-            ("GQR6", regs.spr[cpu::SPR_GQR0 + 6]),
-            ("GQR7", regs.spr[cpu::SPR_GQR0 + 7]),
-            ("HID0", regs.spr[cpu::SPR_HID0]),
-            ("HID1", regs.spr[cpu::SPR_HID1]),
-            ("HID2", regs.spr[cpu::SPR_HID2]),
-            ("WPAR", regs.spr[cpu::SPR_WPAR]),
-            ("DMAU", regs.spr[cpu::SPR_DMAU]),
-            ("DMAL", regs.spr[cpu::SPR_DMAU + 1]),
-            ("UMMCR0", regs.spr[cpu::SPR_UMMCR0]),
-            ("UPMC1", regs.spr[cpu::SPR_UPMC1]),
-            ("UPMC2", regs.spr[cpu::SPR_UPMC2]),
-            ("UPMC3", regs.spr[cpu::SPR_UPMC3]),
-            ("UPMC4", regs.spr[cpu::SPR_UPMC4]),
-            ("USIA", regs.spr[cpu::SPR_USIA]),
-            ("UMMCR1", regs.spr[cpu::SPR_UMMCR1]),
-            ("MMCR0", regs.spr[cpu::SPR_MMCR0]),
-            ("PMC1", regs.spr[cpu::SPR_PMC1]),
-            ("PMC2", regs.spr[cpu::SPR_PMC2]),
-            ("PMC3", regs.spr[cpu::SPR_PMC3]),
-            ("PMC4", regs.spr[cpu::SPR_PMC4]),
-            ("SIA", regs.spr[cpu::SPR_SIA]),
-            ("MMCR1", regs.spr[cpu::SPR_MMCR1]),
-            ("IABR", regs.spr[cpu::SPR_IABR]),
-            ("DABR", regs.spr[cpu::SPR_DABR]),
-            ("L2CR", regs.spr[cpu::SPR_L2CR]),
-            ("ICTC", regs.spr[cpu::SPR_ICTC]),
-            ("THRM1", regs.spr[cpu::SPR_THRM1]),
-        ]
-        .iter()
-        {
+        // Special-purpose registers u32
+        for (i, spr_32) in regs.spr_32.iter().enumerate() {
+            let background_color = if self.registers.spr_32[i].1 != spr_32.1 {
+                &color_updated
+            } else {
+                &color_same
+            };
+
             self.register_store.set(
                 &self.register_store.append(),
                 &[
-                    (0, name),
-                    (1, &format!("{:08x}", value)),
-                    (2, &format!("{}", value)),
-                    (3, &color_same),
+                    (0, &spr_32.0),
+                    (1, &format!("{:08x}", spr_32.1)),
+                    (2, &format!("{}", spr_32.1)),
+                    (3, &background_color),
+                    (4, &weight),
                 ],
             )
         }
+
+        // Special Purpose Register u64
+        for (i, spr_64) in regs.spr_64.iter().enumerate() {
+            let background_color = if self.registers.spr_64[i].1 != spr_64.1 {
+                &color_updated
+            } else {
+                &color_same
+            };
+
+            self.register_store.set(
+                &self.register_store.append(),
+                &[
+                    (0, &spr_64.0),
+                    (1, &format!("{:016x}", spr_64.1)),
+                    (2, &format!("{}", spr_64.1)),
+                    (3, &background_color),
+                    (4, &weight),
+                ],
+            )
+        }
+
         self.registers = regs;
     }
 }

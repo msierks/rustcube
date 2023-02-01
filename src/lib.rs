@@ -1,5 +1,3 @@
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::many_single_char_names))]
-
 #[macro_use]
 extern crate bitfield;
 
@@ -11,6 +9,7 @@ extern crate log;
 pub mod cpu;
 //pub mod debugger;
 mod dol;
+mod dsp;
 //mod dsp_interface;
 //mod dvd_interface;
 //mod exi;
@@ -24,13 +23,14 @@ mod mem;
 //mod serial_interface;
 //mod video_interface;
 mod timers;
+mod utils;
 
 //use self::ai::AudioInterface;
 use self::cpu::Cpu;
 //pub use self::cpu::Fpr;
 //use self::di::DvdInterface;
 use self::dol::Dol;
-//use self::dsp::DspInterface;
+use self::dsp::DspInterface;
 //use self::exi::ExternalInterface;
 //use self::gp_fifo::GpFifo;
 use self::mem::Memory;
@@ -41,6 +41,7 @@ use self::timers::Timers;
 //use self::vi::VideoInterface;
 //use self::video::cp;
 //use self::video::cp::CommandProcessor;
+use crate::utils::Halveable;
 
 use byteorder::{BigEndian, ByteOrder};
 use std::cell::RefCell;
@@ -60,15 +61,16 @@ pub enum Event {
 }
 
 #[derive(Debug, Copy, Clone)]
-enum AccessKind {
-    Read,
-    Write,
+struct Access {
+    pub addr: u32,
+    pub write: bool,
 }
 
-#[derive(Debug, Copy, Clone)]
-struct Access {
-    pub kind: AccessKind,
-    pub addr: u32,
+pub struct Watchpoint {
+    pub start_addr: u32,
+    pub end_addr: u32,
+    pub break_on_write: bool,
+    pub break_on_read: bool,
 }
 
 pub struct Context {
@@ -78,7 +80,7 @@ pub struct Context {
     mem: Memory,
     //cp: CommandProcessor,
     //di: DvdInterface,
-    //dsp: DspInterface,
+    dsp: DspInterface,
     //exi: ExternalInterface,
     //gp_fifo: GpFifo,
     //pe: PixelEngine,
@@ -86,7 +88,7 @@ pub struct Context {
     //si: SerialInterface,
     //vi: VideoInterface,
     timers: Timers,
-    watchpoints: Vec<u32>,
+    watchpoints: Vec<Watchpoint>,
     breakpoints: Vec<u32>,
     hit_watchpoint: Option<Access>,
 }
@@ -103,7 +105,7 @@ impl Default for Context {
             mem: Default::default(),
             //cp: Default::default(),
             //di: Default::default(),
-            //dsp: Default::default(),
+            dsp: Default::default(),
             //exi,
             //gp_fifo: Default::default(),
             //pe: Default::default(),
@@ -167,9 +169,9 @@ impl Context {
         if let Some(access) = self.hit_watchpoint {
             self.hit_watchpoint = None;
 
-            return Some(match access.kind {
-                AccessKind::Read => Event::WatchRead(access.addr),
-                AccessKind::Write => Event::WatchWrite(access.addr),
+            return Some(match access.write {
+                false => Event::WatchRead(access.addr),
+                true => Event::WatchWrite(access.addr),
             });
         }
 
@@ -188,6 +190,22 @@ impl Context {
         self.timers.tick(cycles);
     }
 
+    fn check_watchpoints(&mut self, addr: u32, size: usize, write: bool) {
+        if self.watchpoints.is_empty() {
+            return;
+        }
+
+        for wp in self.watchpoints.iter() {
+            if addr + (size as u32) - 1 >= wp.start_addr
+                && addr <= wp.end_addr
+                && (wp.break_on_read != write || wp.break_on_write == write)
+            {
+                self.hit_watchpoint = Some(Access { addr: addr, write });
+                break;
+            }
+        }
+    }
+
     pub fn read_instruction(&mut self, addr: u32) -> u32 {
         use Address::*;
 
@@ -195,18 +213,11 @@ impl Context {
             Memory => mem::read_u32(self, addr),
             Bootrom(offset) => BigEndian::read_u32(&self.bootrom.borrow()[offset as usize..]),
             _ => panic!(
-                "read_instruction not implemented for {:#?} address {:#x}",
+                "read_instruction not implemented for {:?} address {:#x}",
                 map(addr),
                 addr
             ),
         };
-
-        if self.watchpoints.contains(&addr) {
-            self.hit_watchpoint = Some(Access {
-                kind: AccessKind::Read,
-                addr,
-            })
-        }
 
         val
     }
@@ -219,19 +230,17 @@ impl Context {
         let ret = match map(addr) {
             Memory => self.mem.read_u8(addr),
             Bootrom(offset) => self.bootrom.borrow()[offset as usize],
-            _ => panic!(
-                "read_u8 not implemented for {:#?} address {:#x}",
-                map(addr),
-                addr
-            ),
+            _ => {
+                warn!(
+                    "read_u8 not implemented for {:?} address {:#x}",
+                    map(addr),
+                    addr
+                );
+                0
+            }
         };
 
-        if self.watchpoints.contains(&ea) {
-            self.hit_watchpoint = Some(Access {
-                kind: AccessKind::Read,
-                addr: ea,
-            })
-        }
+        self.check_watchpoints(addr, 1, false);
 
         ret
     }
@@ -243,22 +252,20 @@ impl Context {
 
         let ret = match map(addr) {
             Memory => mem::read_u16(self, addr),
-            //DspInterface(reg) => dsp::read_u16(self, reg),
+            DspInterface(reg) => dsp::read_u16(self, reg),
             //VideoInterface(reg) => vi::read_u16(self, reg),
             //PixelEngine(reg) => pe::read_u16(self, reg),
-            _ => panic!(
-                "read_u16 not implemented for {:#?} address {:#x}",
-                map(addr),
-                addr
-            ),
+            _ => {
+                warn!(
+                    "read_u16 not implemented for {:?} address {:#x}",
+                    map(addr),
+                    addr
+                );
+                0
+            }
         };
 
-        if self.watchpoints.contains(&ea) {
-            self.hit_watchpoint = Some(Access {
-                kind: AccessKind::Read,
-                addr: ea,
-            })
-        }
+        self.check_watchpoints(addr, 2, false);
 
         ret
     }
@@ -270,13 +277,14 @@ impl Context {
 
         let ret = match map(addr) {
             Memory => mem::read_u32(self, addr),
+            Bootrom(offset) => BigEndian::read_u32(&self.bootrom.borrow()[offset as usize..]),
             //DvdInterface(reg) => di::read_u32(self, reg),
             //ExternalInterface(chan, reg) => exi::read_u32(self, chan, reg),
             //ProcessorInterface(reg) => pi::read_u32(self, reg),
             //SerialInterface(reg) => si::read_u32(self, reg),
             //AudioInterface(reg) => ai::read_u32(self, reg),
             _ => {
-                //info!(
+                //warn!(
                 //    "read_u32 not implemented for {:#?} address {:#x}",
                 //    map(addr),
                 //    addr
@@ -285,12 +293,26 @@ impl Context {
             }
         };
 
-        if self.watchpoints.contains(&ea) {
-            self.hit_watchpoint = Some(Access {
-                kind: AccessKind::Read,
-                addr: ea,
-            })
-        }
+        self.check_watchpoints(addr, 4, false);
+
+        ret
+    }
+
+    pub fn debug_read_u32(&mut self, ea: u32) -> u32 {
+        let addr = self.cpu.translate_data_address(ea);
+
+        use Address::*;
+
+        let ret = match map(addr) {
+            Memory => mem::read_u32(self, addr),
+            Bootrom(offset) => BigEndian::read_u32(&self.bootrom.borrow()[offset as usize..]),
+            //DvdInterface(reg) => di::read_u32(self, reg),
+            //ExternalInterface(chan, reg) => exi::read_u32(self, chan, reg),
+            //ProcessorInterface(reg) => pi::read_u32(self, reg),
+            //SerialInterface(reg) => si::read_u32(self, reg),
+            //AudioInterface(reg) => ai::read_u32(self, reg),
+            _ => 0,
+        };
 
         ret
     }
@@ -302,19 +324,17 @@ impl Context {
 
         let ret = match map(addr) {
             Memory => mem::read_u64(self, addr),
-            _ => panic!(
-                "read_u64 not implemented for {:#?} address {:#x}",
-                map(addr),
-                addr
-            ),
+            _ => {
+                warn!(
+                    "read_u64 not implemented for {:?} address {:#x}",
+                    map(addr),
+                    addr
+                );
+                0
+            }
         };
 
-        if self.watchpoints.contains(&ea) {
-            self.hit_watchpoint = Some(Access {
-                kind: AccessKind::Read,
-                addr: ea,
-            })
-        }
+        self.check_watchpoints(addr, 8, false);
 
         ret
     }
@@ -326,19 +346,14 @@ impl Context {
 
         match map(addr) {
             Memory => mem::write(self, addr, data),
-            _ => unimplemented!(
-                "write not implemented for {:#?} address {:#x}",
+            _ => warn!(
+                "write not implemented for {:?} address {:#x}",
                 map(addr),
                 addr
             ),
         };
 
-        if self.watchpoints.contains(&ea) {
-            self.hit_watchpoint = Some(Access {
-                kind: AccessKind::Write,
-                addr: ea,
-            })
-        }
+        self.check_watchpoints(addr, data.len(), true);
     }
 
     pub fn write_u8(&mut self, ea: u32, val: u8) {
@@ -350,18 +365,13 @@ impl Context {
             Memory => self.mem.write_u8(addr, val),
             //GpFifo => gp_fifo::write_u8(self, val),
             _ => panic!(
-                "write_u8 not implemented for {:#?} address {:#x}",
+                "write_u8 not implemented for {:?} address {:#x}",
                 map(addr),
                 addr
             ),
         }
 
-        if self.watchpoints.contains(&ea) {
-            self.hit_watchpoint = Some(Access {
-                kind: AccessKind::Write,
-                addr: ea,
-            })
-        }
+        self.check_watchpoints(addr, 1, true);
     }
 
     pub fn write_u16(&mut self, ea: u32, val: u16) {
@@ -372,23 +382,18 @@ impl Context {
         match map(addr) {
             Memory => mem::write_u16(self, addr, val),
             //CommandProcessor(reg) => cp::write_u16(self, reg, val),
-            //DspInterface(reg) => dsp::write_u16(self, reg, val),
-            //MemoryInterface(_) => {} //ignore
+            DspInterface(reg) => dsp::write_u16(self, reg, val),
+            MemoryInterface(_) => {} //ignore
             //VideoInterface(reg) => vi::write_u16(self, reg, val),
             //PixelEngine(reg) => pe::write_u16(self, reg, val),
-            _ => panic!(
-                "write_u16 not implemented for {:#?} address {:#x}",
+            _ => info!(
+                "write_u16 not implemented for {:?} address {:#x}",
                 map(addr),
                 addr
             ),
         }
 
-        if self.watchpoints.contains(&ea) {
-            self.hit_watchpoint = Some(Access {
-                kind: AccessKind::Write,
-                addr: ea,
-            })
-        }
+        self.check_watchpoints(addr, 2, true);
     }
 
     pub fn write_u32(&mut self, ea: u32, val: u32) {
@@ -398,10 +403,10 @@ impl Context {
 
         match map(addr) {
             Memory => mem::write_u32(self, addr, val),
-            //DspInterface(reg) => {
-            //    dsp::write_u16(self, reg, (val >> 16) as u16);
-            //    dsp::write_u16(self, reg + 2, val as u16);
-            //}
+            DspInterface(reg) => {
+                dsp::write_u16(self, reg, val.hi());
+                dsp::write_u16(self, reg + 2, val.lo());
+            }
             //VideoInterface(reg) => {
             //    vi::write_u16(self, reg, (val >> 16) as u16);
             //    vi::write_u16(self, reg + 2, val as u16);
@@ -412,19 +417,14 @@ impl Context {
             //SerialInterface(reg) => si::write_u32(self, reg, val),
             //AudioInterface(reg) => ai::write_u32(self, reg, val),
             //GpFifo => gp_fifo::write_u32(self, val),
-            _ => info!(
-                "write_u32 not implemented for {:#?} address {:#x}",
+            _ => warn!(
+                "write_u32 not implemented for {:?} address {:#x}",
                 map(addr),
                 addr
             ),
         }
 
-        if self.watchpoints.contains(&ea) {
-            self.hit_watchpoint = Some(Access {
-                kind: AccessKind::Write,
-                addr: ea,
-            })
-        }
+        self.check_watchpoints(addr, 4, true);
     }
 
     pub fn write_u64(&mut self, ea: u32, val: u64) {
@@ -435,31 +435,57 @@ impl Context {
         match map(addr) {
             Memory => mem::write_u64(self, addr, val),
             //GpFifo => gp_fifo::write_u64(self, val),
-            _ => panic!(
-                "write_u64 not implemented for {:#?} address {:#x}",
+            _ => warn!(
+                "write_u64 not implemented for {:?} address {:#x}",
                 map(addr),
                 addr
             ),
         }
 
-        if self.watchpoints.contains(&ea) {
-            self.hit_watchpoint = Some(Access {
-                kind: AccessKind::Write,
-                addr: ea,
-            })
-        }
+        self.check_watchpoints(ea, 8, true);
     }
 
     pub fn breakpoints(&self) -> &Vec<u32> {
         &self.breakpoints
     }
 
+    pub fn breakpoints_clear(&mut self) {
+        self.breakpoints.clear();
+    }
+
     pub fn add_breakpoint(&mut self, addr: u32) {
         self.breakpoints.push(addr);
     }
 
-    pub fn remove_breakpoint(&mut self, addr: u32) {
-        self.breakpoints.retain_mut(|x| *x != addr);
+    pub fn remove_breakpoint(&mut self, index: usize) {
+        self.breakpoints.remove(index);
+    }
+
+    pub fn watchpoints(&self) -> &Vec<Watchpoint> {
+        &self.watchpoints
+    }
+
+    pub fn watchpoints_clear(&mut self) {
+        self.watchpoints.clear();
+    }
+
+    pub fn add_watchpoint(
+        &mut self,
+        start_addr: u32,
+        end_addr: u32,
+        break_on_write: bool,
+        break_on_read: bool,
+    ) {
+        self.watchpoints.push(Watchpoint {
+            start_addr,
+            end_addr,
+            break_on_write,
+            break_on_read,
+        });
+    }
+
+    pub fn remove_watchpoint(&mut self, index: usize) {
+        self.watchpoints.remove(index);
     }
 }
 

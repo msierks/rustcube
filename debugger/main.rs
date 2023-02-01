@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate log;
+
 mod app;
 mod background;
 mod gobject;
@@ -9,7 +12,7 @@ use getopts::Options;
 use gtk::glib;
 use gtk::prelude::*;
 use rustcube::cpu::disassembler::DecodedInstruction;
-use rustcube::cpu::{NUM_FPR, NUM_GPR, NUM_SPR};
+use rustcube::cpu::{NUM_FPR, NUM_GPR};
 use std::env;
 use std::path::Path;
 
@@ -20,7 +23,8 @@ pub type DynResult<T> = Result<T, Box<dyn std::error::Error>>;
 pub struct Registers {
     gpr: [u32; NUM_GPR],
     fpr: [rustcube::cpu::Fpr; NUM_FPR],
-    spr: [u32; NUM_SPR],
+    spr_32: [(&'static str, u32); 48],
+    spr_64: [(&'static str, u64); 10],
 }
 
 impl Default for Registers {
@@ -28,7 +32,8 @@ impl Default for Registers {
         Registers {
             gpr: Default::default(),
             fpr: Default::default(),
-            spr: [0; NUM_SPR],
+            spr_32: [("", 0); 48],
+            spr_64: [("", 0); 10],
         }
     }
 }
@@ -47,12 +52,37 @@ pub struct Memory {
     data: Vec<(u32, [u8; 16])>,
 }
 
+pub enum BreakpointType {
+    Break,
+    Watch,
+}
+
+enum BreakpointAccessType {
+    Read,
+    Write,
+    ReadWrite,
+}
+
+pub struct Breakpoint {
+    type_: BreakpointType,
+    num: u32,
+    start_address: u32,
+    end_address: u32,
+    access_type: BreakpointAccessType,
+}
+
+pub struct Breakpoints {
+    breakpoints: Vec<Breakpoint>,
+}
+
 pub enum Event {
+    Breakpoints(Box<Breakpoints>),
     Callstack(Box<Callstack>),
     Closed,
     Disassembly(Box<Disassembly>),
     Registers(Box<Registers>),
     Memory(Box<Memory>),
+    Paused,
 }
 
 fn print_usage(program: &str, opts: &Options) {
@@ -99,7 +129,9 @@ fn main() -> DynResult<()> {
     };
 
     let app = gtk::Application::new(Some(APP_ID), Default::default());
+
     app.connect_startup(|_| load_css());
+
     app.connect_activate(move |app| {
         let (tx, rx) = async_channel::unbounded();
         let tx2 = tx.clone();
@@ -135,11 +167,13 @@ fn main() -> DynResult<()> {
         let event_handler = async move {
             while let Ok(event) = rx.recv().await {
                 match event {
+                    Event::Breakpoints(bps) => app.update_breakpoints(*bps),
                     Event::Callstack(cs) => app.update_callstack(*cs),
                     Event::Closed => unimplemented!(),
                     Event::Disassembly(disassembly) => app.update_disassembly(*disassembly),
                     Event::Registers(regs) => app.update_registers(*regs),
                     Event::Memory(mem) => app.update_memory(*mem),
+                    Event::Paused => app.paused(),
                 }
             }
         };

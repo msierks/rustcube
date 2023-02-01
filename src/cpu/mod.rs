@@ -12,7 +12,7 @@ use std::cmp::Ordering;
 
 pub const NUM_FPR: usize = 32;
 pub const NUM_GPR: usize = 32;
-pub const NUM_SPR: usize = 1022;
+pub const NUM_SPR: usize = 1023;
 const NUM_SR: usize = 16;
 
 const OPTABLE_SIZE: usize = 64;

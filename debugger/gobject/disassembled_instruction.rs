@@ -20,7 +20,6 @@ impl DisassembledInstruction {
             ("operands", &operands),
             ("class", &class),
         ])
-        .expect("Failed to create `DisassembledInstruction`.")
     }
 }
 
@@ -62,7 +61,7 @@ mod imp {
                         "address",
                         "Address",
                         "Whether to auto-update or not",
-                        None, // Default value
+                        None,
                         glib::ParamFlags::READWRITE,
                     ),
                     glib::ParamSpecString::new(
@@ -98,7 +97,7 @@ mod imp {
             PROPERTIES.as_ref()
         }
 
-        fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
+        fn set_property(&self, _id: usize, value: &Value, pspec: &ParamSpec) {
             match pspec.name() {
                 "address" => {
                     let address = value
@@ -134,7 +133,7 @@ mod imp {
             }
         }
 
-        fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> Value {
+        fn property(&self, _id: usize, pspec: &glib::ParamSpec) -> Value {
             match pspec.name() {
                 "address" => self.address.borrow().to_value(),
                 "instruction" => self.instruction.borrow().to_value(),
@@ -145,8 +144,8 @@ mod imp {
             }
         }
 
-        fn constructed(&self, obj: &Self::Type) {
-            self.parent_constructed(obj);
+        fn constructed(&self) {
+            self.parent_constructed();
         }
     }
 }

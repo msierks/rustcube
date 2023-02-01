@@ -8,7 +8,6 @@ glib::wrapper! {
 impl MemoryDumpObject {
     pub fn new(address: String, hex: String, ascii: String) -> Self {
         Object::new(&[("address", &address), ("hex", &hex), ("ascii", &ascii)])
-            .expect("Failed to create `MemoryDumpObject`.")
     }
 }
 
@@ -70,7 +69,7 @@ mod imp {
             PROPERTIES.as_ref()
         }
 
-        fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
+        fn set_property(&self, _id: usize, value: &Value, pspec: &ParamSpec) {
             match pspec.name() {
                 "address" => {
                     let address = value
@@ -94,7 +93,7 @@ mod imp {
             }
         }
 
-        fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> Value {
+        fn property(&self, _id: usize, pspec: &glib::ParamSpec) -> Value {
             match pspec.name() {
                 "address" => self.address.borrow().to_value(),
                 "hex" => self.hexdump.borrow().to_value(),
@@ -103,8 +102,8 @@ mod imp {
             }
         }
 
-        fn constructed(&self, obj: &Self::Type) {
-            self.parent_constructed(obj);
+        fn constructed(&self) {
+            self.parent_constructed();
         }
     }
 }

@@ -54,6 +54,8 @@ fn op_mftb(ctx: &mut Context, instr: Instruction) {
     } else {
         panic!("mftb unknown tbr {:#x}", instr.tbr());
     }
+
+    ctx.tick(1);
 }
 
 fn op_mtmsr(ctx: &mut Context, instr: Instruction) {

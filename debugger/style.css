@@ -22,16 +22,36 @@ list row label {
   padding: 2px 4px;
 }
 
+.breakpoint-column-view {
+  font-family: 'Monospace';
+  font-size: 14px;
+}
+.breakpoint-column-view listview row cell {
+  padding: 0;
+}
+.breakpoint-column-view listview row cell label {
+  padding: 2px 4px;
+}
+
 #current-instruction {
   background-color: #00ff0066;
 }
 #breakpoint-instruction {
   background-color: #ff000066;
 }
+.memory-toolbar label {
+  padding: 0 4px;
+}
+.memory-toolbar entry {
+  padding: 0 4px;
+}
 .memory-column-view {
   font-family: 'Monospace';
   font-size: 14px;
   border-width: 20px;
+}
+.memory-column-view header button {
+  padding: 0 4px;
 }
 .memory-column-view listview row cell {
   padding: 0;

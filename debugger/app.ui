@@ -75,7 +75,7 @@
             <property name="position">800</property>
             <child>
               <object class="GtkPaned">
-                <property name="position">800</property>
+                <property name="position">600</property>
                 <child>
                   <object class="GtkScrolledWindow" id="disassembly_scrolled_window">
                     <property name="vexpand">1</property>
@@ -247,50 +247,189 @@
                   </object>
                 </child>
                 <child>
-                  <object class="GtkScrolledWindow">
-                    <property name="vexpand">1</property>
+                  <object class="GtkNotebook">
                     <child>
-                      <object class="GtkTreeView" id="registers_tree_view">
-                        <property name="model">register_list_store</property>
-                        <style>
-                          <class name="registers-tree-view"/>
-                        </style>
+                      <object class="GtkScrolledWindow">
+                        <property name="vexpand">1</property>
                         <child>
-                          <object class="GtkTreeViewColumn" id="register_name_column">
-                            <property name="title">Name</property>
+                          <object class="GtkTreeView" id="registers_tree_view">
+                            <property name="model">register_list_store</property>
+                            <style>
+                              <class name="registers-tree-view"/>
+                            </style>
                             <child>
-                              <object class="GtkCellRendererText" id="register_name_renderer"/>
-                              <attributes>
-                                <attribute name="text">0</attribute>
-                                <attribute name="background-rgba">3</attribute>
-                              </attributes>
+                              <object class="GtkTreeViewColumn" id="register_name_column">
+                                <property name="title">Name</property>
+                                <child>
+                                  <object class="GtkCellRendererText" id="register_name_renderer"/>
+                                  <attributes>
+                                    <attribute name="text">0</attribute>
+                                    <attribute name="background-rgba">3</attribute>
+                                    <attribute name="weight">4</attribute>
+                                  </attributes>
+                                </child>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkTreeViewColumn" id="register_value_hex_column">
+                                <property name="title">Hex</property>
+                                <child>
+                                  <object class="GtkCellRendererText" id="register_value_hex_renderer"/>
+                                  <attributes>
+                                    <attribute name="text">1</attribute>
+                                    <attribute name="background-rgba">3</attribute>
+                                  </attributes>
+                                </child>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkTreeViewColumn" id="register_value_int_column">
+                                <property name="title">Integer</property>
+                                <child>
+                                  <object class="GtkCellRendererText" id="register_value_int_renderer"/>
+                                  <attributes>
+                                    <attribute name="text">2</attribute>
+                                    <attribute name="background-rgba">3</attribute>
+                                  </attributes>
+                                </child>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child type="tab">
+                      <object class="GtkLabel" id="notebook-tab">
+                        <property name="label">Registers</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkBox">
+                        <property name="orientation">vertical</property>
+                        <child>
+                          <object class="GtkBox">
+                            <style>
+                              <class name="toolbar"/>
+                            </style>
+                            <child>
+                              <object class="GtkButton" id="button_new_breakpoint">
+                                <property name="label">New</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkButton" id="button_delete_breakpoint">
+                                <property name="label">Delete</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkButton" id="button_clear_breakpoint">
+                                <property name="label">Clear</property>
+                              </object>
                             </child>
                           </object>
                         </child>
                         <child>
-                          <object class="GtkTreeViewColumn" id="register_value_hex_column">
-                            <property name="title">Hex</property>
+                          <object class="GtkScrolledWindow">
+                            <property name="vexpand">1</property>
                             <child>
-                              <object class="GtkCellRendererText" id="register_value_hex_renderer"/>
-                              <attributes>
-                                <attribute name="text">1</attribute>
-                                <attribute name="background-rgba">3</attribute>
-                              </attributes>
+                              <object class="GtkColumnView" id="breakpoint_column_view">
+                                <property name="show-column-separators">1</property>
+                                <style>
+                                  <class name="breakpoint-column-view"/>
+                                </style>
+                                <child>
+                                  <object class="GtkColumnViewColumn">
+                                    <property name="title">Type</property>
+                                    <property name="resizable">1</property>
+                                    <property name="expand">1</property>
+                                    <property name="factory">
+                                      <object class="GtkBuilderListItemFactory">
+                                        <property name="bytes"><![CDATA[
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="GtkListItem">
+    <property name="child">
+      <object class="GtkLabel">
+        <property name="xalign">0</property>
+        <binding name="label">
+          <lookup type="BreakpointObject" name="type">
+            <lookup name="item">GtkListItem</lookup>
+          </lookup>
+        </binding>
+      </object>
+    </property>
+  </template>
+</interface>
+                        ]]></property>
+                                      </object>
+                                    </property>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkColumnViewColumn">
+                                    <property name="title">Address</property>
+                                    <property name="resizable">1</property>
+                                    <property name="expand">1</property>
+                                    <property name="factory">
+                                      <object class="GtkBuilderListItemFactory">
+                                        <property name="bytes"><![CDATA[
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="GtkListItem">
+    <property name="child">
+      <object class="GtkLabel">
+        <property name="xalign">0</property>
+        <binding name="label">
+          <lookup type="BreakpointObject" name="address">
+            <lookup name="item">GtkListItem</lookup>
+          </lookup>
+        </binding>
+      </object>
+    </property>
+  </template>
+</interface>
+                        ]]></property>
+                                      </object>
+                                    </property>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkColumnViewColumn">
+                                    <property name="title">Condition</property>
+                                    <property name="resizable">1</property>
+                                    <property name="expand">1</property>
+                                    <property name="factory">
+                                      <object class="GtkBuilderListItemFactory">
+                                        <property name="bytes"><![CDATA[
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="GtkListItem">
+    <property name="child">
+      <object class="GtkLabel">
+        <property name="xalign">0</property>
+        <binding name="label">
+          <lookup type="BreakpointObject" name="condition">
+            <lookup name="item">GtkListItem</lookup>
+          </lookup>
+        </binding>
+      </object>
+    </property>
+  </template>
+</interface>
+                        ]]></property>
+                                      </object>
+                                    </property>
+                                  </object>
+                                </child>
+                              </object>
                             </child>
                           </object>
                         </child>
-                        <child>
-                          <object class="GtkTreeViewColumn" id="register_value_int_column">
-                            <property name="title">Integer</property>
-                            <child>
-                              <object class="GtkCellRendererText" id="register_value_int_renderer"/>
-                              <attributes>
-                                <attribute name="text">2</attribute>
-                                <attribute name="background-rgba">3</attribute>
-                              </attributes>
-                            </child>
-                          </object>
-                        </child>
+                      </object>
+                    </child>
+                    <child type="tab">
+                      <object class="GtkLabel">
+                        <property name="label">Breakpoints</property>
                       </object>
                     </child>
                   </object>
@@ -299,30 +438,48 @@
             </child>
             <child>
               <object class="GtkPaned">
-                <property name="position">900</property>
+                <property name="position">650</property>
                 <child>
-                  <object class="GtkScrolledWindow">
-                    <property name="vexpand">1</property>
-
+                  <object class="GtkBox">
+                    <property name="orientation">vertical</property>
                     <child>
-                      <object class="GtkColumnView" id="memory_column_view">
-                        <property name="show-column-separators">1</property>
+                      <object class="GtkBox">
                         <style>
-                          <class name="memory-column-view"/>
+                          <class name="memory-toolbar"/>
                         </style>
                         <child>
-                          <object class="GtkColumnViewColumn" id="memory_address_column">
-                            <property name="title">Address</property>
-                            <property name="resizable">1</property>
-                            <property name="factory">
-                              <object class="GtkBuilderListItemFactory">
-                                <property name="bytes"><![CDATA[
+                          <object class="GtkLabel">
+                            <property name="label">Jump to address:</property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkEntry" id="memory_jump_entry"/>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkScrolledWindow">
+                        <property name="vexpand">1</property>
+                        <child>
+                          <object class="GtkColumnView" id="memory_column_view">
+                            <property name="show-column-separators">1</property>
+                            <style>
+                              <class name="memory-column-view"/>
+                            </style>
+                            <child>
+                              <object class="GtkColumnViewColumn" id="memory_address_column">
+                                <property name="title">Address</property>
+                                <property name="resizable">1</property>
+                                <property name="factory">
+                                  <object class="GtkBuilderListItemFactory">
+                                    <property name="bytes"><![CDATA[
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
   <template class="GtkListItem">
     <property name="child">
       <object class="GtkLabel">
         <property name="xalign">0</property>
+        <property name="selectable">True</property>
         <binding name="label">
           <lookup type="MemoryDumpObject" name="address">
             <lookup name="item">GtkListItem</lookup>
@@ -333,23 +490,24 @@
   </template>
 </interface>
                         ]]></property>
+                                  </object>
+                                </property>
                               </object>
-                            </property>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="GtkColumnViewColumn" id="memory_hex_column">
-                            <property name="title">Hex dump</property>
-                            <property name="resizable">1</property>
-                            <property name="factory">
-                              <object class="GtkBuilderListItemFactory">
-                                <property name="bytes"><![CDATA[
+                            </child>
+                            <child>
+                              <object class="GtkColumnViewColumn" id="memory_hex_column">
+                                <property name="title">00 01 02 03  04 05 06 07  08 09 0a 0b  0c 0d 0e 0f</property>
+                                <property name="resizable">1</property>
+                                <property name="factory">
+                                  <object class="GtkBuilderListItemFactory">
+                                    <property name="bytes"><![CDATA[
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
   <template class="GtkListItem">
     <property name="child">
       <object class="GtkLabel">
         <property name="xalign">0</property>
+        <property name="selectable">True</property>
         <binding name="label">
           <lookup type="MemoryDumpObject" name="hex">
             <lookup name="item">GtkListItem</lookup>
@@ -360,23 +518,24 @@
   </template>
 </interface>
                         ]]></property>
+                                  </object>
+                                </property>
                               </object>
-                            </property>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="GtkColumnViewColumn" id="memory_ascii_column">
-                            <property name="title">ASCII</property>
-                            <property name="resizable">1</property>
-                            <property name="factory">
-                              <object class="GtkBuilderListItemFactory">
-                                <property name="bytes"><![CDATA[
+                            </child>
+                            <child>
+                              <object class="GtkColumnViewColumn" id="memory_ascii_column">
+                                <property name="title">ASCII</property>
+                                <property name="resizable">1</property>
+                                <property name="factory">
+                                  <object class="GtkBuilderListItemFactory">
+                                    <property name="bytes"><![CDATA[
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
   <template class="GtkListItem">
     <property name="child">
       <object class="GtkLabel">
         <property name="xalign">0</property>
+        <property name="selectable">True</property>
         <binding name="label">
           <lookup type="MemoryDumpObject" name="ascii">
             <lookup name="item">GtkListItem</lookup>
@@ -387,11 +546,12 @@
   </template>
 </interface>
                         ]]></property>
+                                  </object>
+                                </property>
                               </object>
-                            </property>
+                            </child>
                           </object>
                         </child>
-
                       </object>
                     </child>
                   </object>
@@ -404,11 +564,9 @@
                         <style>
                           <class name="stack-tree-view"/>
                         </style>
-
-
-                            <property name="factory">
-                              <object class="GtkBuilderListItemFactory">
-                                <property name="bytes"><![CDATA[
+                        <property name="factory">
+                          <object class="GtkBuilderListItemFactory">
+                            <property name="bytes"><![CDATA[
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
   <template class="GtkListItem">
@@ -425,8 +583,8 @@
   </template>
 </interface>
                         ]]></property>
-                              </object>
-                            </property>
+                          </object>
+                        </property>
                       </object>
                     </child>
                   </object>
@@ -464,6 +622,146 @@
       <column type="gchararray"/>
       <column type="gchararray"/>
       <column type="GdkRGBA"/>
+      <column type="gint"/>
     </columns>
+  </object>
+  <object class="GtkDialog" id="new_breakpoint_dialog">
+    <property name="transient-for">window</property>
+    <property name="modal">1</property>
+    <child>
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <property name="halign">start</property>
+        <property name="spacing">12</property>
+        <property name="margin-start">12</property>
+        <property name="margin-end">12</property>
+        <property name="margin-top">12</property>
+        <property name="margin-bottom">12</property>
+        <child>
+          <object class="GtkCheckButton" id="instruction_check_button">
+            <property name="label">Instruction</property>
+            <property name="active">1</property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkFrame">
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <property name="spacing">12</property>
+                <property name="margin-start">12</property>
+                <property name="margin-end">12</property>
+                <property name="margin-top">12</property>
+                <property name="margin-bottom">12</property>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label">Address:</property>
+                    <property name="halign">start</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkEntry" id="entry_instruction_breakpoint"/>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="GtkCheckButton" id="check_button_memory">
+            <property name="label">Memory</property>
+            <property name="group">instruction_check_button</property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkFrame">
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <property name="spacing">12</property>
+                <property name="margin-start">12</property>
+                <property name="margin-end">12</property>
+                <property name="margin-top">12</property>
+                <property name="margin-bottom">12</property>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label">Start Address:</property>
+                    <property name="halign">start</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkEntry" id="entry_memory_breakpoint_start">
+                    <property name="sensitive">0</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label">End Address:</property>
+                    <property name="halign">start</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkEntry" id="entry_memory_breakpoint_end">
+                    <property name="sensitive">0</property>
+                  </object>
+                </child>
+                <child type="label">
+                  <object class="GtkLabel">
+                    <property name="label">Condition:</property>
+                    <property name="halign">start</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkBox">
+                    <property name="spacing">12</property>
+                    <property name="halign">end</property>
+                    <child>
+                      <object class="GtkCheckButton" id="memory_condition_read_check_button">
+                        <property name="label">Read</property>
+                        <property name="active">1</property>
+                        <property name="sensitive">0</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkCheckButton" id="memory_condition_write_check_button">
+                        <property name="label">Write</property>
+                        <property name="group">memory_condition_read_check_button</property>
+                        <property name="sensitive">0</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkCheckButton" id="memory_condition_read_write_check_button">
+                        <property name="label">read or write</property>
+                        <property name="group">memory_condition_read_check_button</property>
+                        <property name="sensitive">0</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="GtkBox">
+            <property name="spacing">12</property>
+            <property name="halign">end</property>
+            <child type="action">
+              <object class="GtkButton" id="button_ok">
+                <property name="label">OK</property>
+              </object>
+            </child>
+            <child type="action">
+              <object class="GtkButton" id="button_cancel">
+                <property name="label">Cancel</property>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+    <action-widgets>
+      <action-widget response="cancel">button_cancel</action-widget>
+      <action-widget response="ok" default="true">button_ok</action-widget>
+    </action-widgets>
   </object>
 </interface>

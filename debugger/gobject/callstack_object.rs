@@ -7,7 +7,7 @@ glib::wrapper! {
 
 impl CallstackObject {
     pub fn new(value: String) -> Self {
-        Object::new(&[("value", &value)]).expect("Failed to create `CallstackObject`.")
+        Object::new(&[("value", &value)])
     }
 }
 
@@ -51,7 +51,7 @@ mod imp {
             PROPERTIES.as_ref()
         }
 
-        fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
+        fn set_property(&self, _id: usize, value: &Value, pspec: &ParamSpec) {
             match pspec.name() {
                 "value" => {
                     let value = value
@@ -63,15 +63,15 @@ mod imp {
             }
         }
 
-        fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> Value {
+        fn property(&self, _id: usize, pspec: &glib::ParamSpec) -> Value {
             match pspec.name() {
                 "value" => self.value.borrow().to_value(),
                 _ => unimplemented!(),
             }
         }
 
-        fn constructed(&self, obj: &Self::Type) {
-            self.parent_constructed(obj);
+        fn constructed(&self) {
+            self.parent_constructed();
         }
     }
 }
