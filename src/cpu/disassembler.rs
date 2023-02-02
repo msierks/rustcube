@@ -20,8 +20,8 @@ pub struct Disassembler {
     optable63: [Opcode; OPTABLE63_SIZE],
 }
 
-impl Disassembler {
-    pub fn default() -> Self {
+impl Default for Disassembler {
+    fn default() -> Self {
         let mut optable = [ILLEGAL_OP.0; OPTABLE_SIZE];
         let mut optable4 = [ILLEGAL_OP.0; OPTABLE4_SIZE];
         let mut optable19 = [ILLEGAL_OP.0; OPTABLE19_SIZE];
@@ -86,7 +86,9 @@ impl Disassembler {
             optable63,
         }
     }
+}
 
+impl Disassembler {
     pub fn decode(&self, addr: u32, code: u32) -> DecodedInstruction {
         let instr = Instruction(code);
 
@@ -526,7 +528,7 @@ pub fn operands(instr: Instruction, opcode: Opcode, addr: u32) -> String {
                 target = target.wrapping_add(addr);
             }
 
-            format!("{:#x}", target)
+            format!("{target:#x}")
         }
         Opcode::Rlwimix | Opcode::Rlwinmx => format!(
             "r{},r{},{},{},{}",

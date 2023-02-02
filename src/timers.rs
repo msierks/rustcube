@@ -29,12 +29,12 @@ impl Timers {
     }
 
     pub fn set_timebase_lower(&mut self, val: u32) {
-        println!("Set Timebase Lower {}", val);
+        println!("Set Timebase Lower {val}");
         self.timebase = (self.timebase & !0xFFFF_FFFF) | val as u64;
     }
 
     pub fn set_timebase_upper(&mut self, val: u32) {
-        println!("Set Timebase Upper {}", val);
+        println!("Set Timebase Upper {val}");
         self.timebase = (self.timebase & 0xFFFF_FFFF) | (val as u64) << 32;
     }
 }

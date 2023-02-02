@@ -76,7 +76,7 @@ fn op_mtspr(ctx: &mut Context, instr: Instruction) {
             if ctx.cpu.msr.privilege_level() {
                 // FixMe: properly handle this case
                 ctx.cpu.exceptions |= EXCEPTION_PROGRAM;
-                panic!("mtspr: user privilege level prevents setting spr {:#?}", i);
+                panic!("mtspr: user privilege level prevents setting spr {i:#?}");
             }
 
             match i {

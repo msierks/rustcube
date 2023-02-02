@@ -79,7 +79,7 @@ impl Instruction {
 
     #[inline(always)]
     pub fn uimm(self) -> u32 {
-        (self.0 & 0xFFFF) as u32
+        self.0 & 0xFFFF
     }
 
     #[inline(always)]

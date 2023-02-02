@@ -11,7 +11,7 @@ use std::path::Path;
 pub type DynResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 fn print_usage(program: &str, opts: &Options) {
-    let brief = format!("Usage: {} [options] IPL_FILE", program);
+    let brief = format!("Usage: {program} [options] IPL_FILE");
     print!("{}", opts.usage(&brief));
 }
 

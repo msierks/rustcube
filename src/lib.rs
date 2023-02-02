@@ -145,7 +145,7 @@ impl Context {
 
         let mut bootrom = self.bootrom.borrow_mut();
 
-        match file.read_exact(&mut **bootrom) {
+        match file.read_exact(&mut bootrom) {
             Ok(_) => {}
             Err(e) => {
                 panic!("{}", e);
@@ -196,11 +196,11 @@ impl Context {
         }
 
         for wp in self.watchpoints.iter() {
-            if addr + (size as u32) - 1 >= wp.start_addr
+            if addr + (size as u32) > wp.start_addr
                 && addr <= wp.end_addr
                 && (wp.break_on_read != write || wp.break_on_write == write)
             {
-                self.hit_watchpoint = Some(Access { addr: addr, write });
+                self.hit_watchpoint = Some(Access { addr, write });
                 break;
             }
         }
@@ -585,7 +585,7 @@ fn descrambler(data: &mut [u8]) {
         nacc += 1;
         acc = (2 * u16::from(acc) + u16::from(x)) as u8;
         if nacc == 8 {
-            data[it as usize] ^= acc;
+            data[it] ^= acc;
             it += 1;
             nacc = 0;
         }

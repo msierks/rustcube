@@ -41,8 +41,10 @@ impl ExternalInterface {
             devices: Default::default(),
         };
 
-        exi.devices[0 * NUM_CHANNELS + 1] = Some(Box::new(DeviceIpl::new(bootrom)));
-        exi.devices[2 * NUM_CHANNELS + 0] = Some(Box::new(DeviceAd16::default()));
+        let device_ad16 = DeviceAd16::default();
+
+        exi.devices[1] = Some(Box::new(DeviceIpl::new(bootrom)));
+        exi.devices[2 * NUM_CHANNELS] = Some(Box::new(device_ad16));
 
         exi
     }
@@ -113,7 +115,7 @@ pub fn read_u32(ctx: &mut Context, channel: u32, register: u32) -> u32 {
         DMA_CONTROL => ctx.exi.control[c].into(),
         IMM_DATA => ctx.exi.imm_data[c],
         _ => {
-            panic!("read_u32 unrecognized register {:#x}", register);
+            panic!("read_u32 unrecognized register {register:#x}");
         }
     }
 }
@@ -140,9 +142,8 @@ pub fn write_u32(ctx: &mut Context, channel: u32, register: u32, val: u32) {
 
             ctx.exi.status[c] = status;
 
-            match ctx.exi.devices[device_index].as_mut() {
-                Some(device) => device.device_select(),
-                None => (),
+            if let Some(device) = ctx.exi.devices[device_index].as_mut() {
+                device.device_select();
             }
         }
         DMA_ADDRESS => ctx.exi.dma_address[c] = val,
@@ -190,7 +191,7 @@ pub fn write_u32(ctx: &mut Context, channel: u32, register: u32, val: u32) {
             ctx.exi.control[c] = control;
         }
         IMM_DATA => ctx.exi.imm_data[c] = val,
-        _ => panic!("write_u32 unrecognized register {:#x}:{}", register, val),
+        _ => panic!("write_u32 unrecognized register {register:#x}:{val}"),
     }
 }
 
@@ -207,11 +208,11 @@ pub trait Device {
             len -= 1;
             let mut byte: u8 = 0;
             self.transfer_byte(&mut byte);
-            result |= (byte as u32) << 24 - (position * 8);
+            result |= (byte as u32) << (24 - (position * 8));
             position += 1;
         }
 
-        return result;
+        result
     }
 
     fn imm_write(&mut self, mut value: u32, mut len: u8) {
@@ -266,13 +267,13 @@ impl Device for DeviceAd16 {
 
                     if self.position > 1 && self.position < 6 {
                         let pos = self.position - 2;
-                        *byte = (self.register >> 24 - (pos * 8)) as u8;
+                        *byte = (self.register >> (24 - (pos * 8))) as u8;
                     }
                 }
                 AD16_COMMAND_READ => {
                     if self.position < 4 {
                         let pos = self.position - 1;
-                        *byte = (self.register >> 24 - (pos * 8)) as u8;
+                        *byte = (self.register >> (24 - (pos * 8))) as u8;
                     }
                 }
                 AD16_COMMAND_WRITE => {
@@ -390,12 +391,12 @@ impl Device for DeviceIpl {
                     0x2001_0000 => {
                         device_name = "UART";
 
-                        self.address = self.address >> 6;
+                        self.address >>= 6;
                     }
                     _ => {
                         device_name = "MaskROM";
 
-                        self.address = self.address >> 6;
+                        self.address >>= 6;
 
                         if self.address > BOOTROM_SIZE as u32 {
                             panic!("Exi DeviceIPL: position out of range: {:#x}", self.address);
