@@ -94,25 +94,21 @@ impl App {
 
         button_delete_breakpoint.connect_clicked(
             clone!(@strong btx, @weak breakpoint_selection => move |_| {
+                if let Some(bp) = breakpoint_selection.selected_item() {
+                    let btx = btx.clone();
+                    let bg_event = match bp.property::<String>("type").as_str() {
+                        "Instruction" => {
+                            BgEvent::BreakpointRemove(BreakpointType::Break, bp.property::<u32>("num"))
+                        },
+                        "Memory" => {
+                            BgEvent::BreakpointRemove(BreakpointType::Watch, bp.property::<u32>("num"))
+                        }
+                        _ => unreachable!(),
+                    };
 
-                match breakpoint_selection.selected_item() {
-                    Some(bp) => {
-                        let btx = btx.clone();
-                        let bg_event = match bp.property::<String>("type").as_str() {
-                            "Instruction" => {
-                                BgEvent::BreakpointRemove(BreakpointType::Break, bp.property::<u32>("num"))
-                            },
-                            "Memory" => {
-                                BgEvent::BreakpointRemove(BreakpointType::Watch, bp.property::<u32>("num"))
-                            }
-                            _ => unreachable!(),
-                        };
-
-                        glib::MainContext::default().spawn_local(async move {
-                            let _ = btx.send(bg_event).await;
-                        });
-                    },
-                    None => (),
+                    glib::MainContext::default().spawn_local(async move {
+                        let _ = btx.send(bg_event).await;
+                    });
                 }
             }),
         );
@@ -449,9 +445,9 @@ impl App {
         } else {
             for (i, address) in callstack.addresses.iter().enumerate() {
                 let value = if i != 0 {
-                    format!("{:08x} address", address)
+                    format!("{address:08x} address")
                 } else {
-                    format!("{:08x} lr", address)
+                    format!("{address:08x} lr")
                 };
                 let row = CallstackObject::new(value);
                 self.callstack_list_store.append(&row);
@@ -564,9 +560,9 @@ impl App {
             self.register_store.set(
                 &self.register_store.append(),
                 &[
-                    (0, &format!("r{}", i)),
-                    (1, &format!("{:08x}", reg)),
-                    (2, &format!("{}", reg)),
+                    (0, &format!("r{i}")),
+                    (1, &format!("{reg:08x}")),
+                    (2, &format!("{reg}")),
                     (3, &background_color),
                     (4, &weight),
                 ],
@@ -584,7 +580,7 @@ impl App {
             self.register_store.set(
                 &self.register_store.append(),
                 &[
-                    (0, &format!("f{}", i)),
+                    (0, &format!("f{i}")),
                     (1, &format!("{:016x}", reg.as_u64())),
                     (2, &format!("{}", reg.as_u64())),
                     (3, &background_color),

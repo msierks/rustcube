@@ -35,6 +35,8 @@ jobs:
         run: |
           cargo fmt -- --check
           cargo clippy -- -D warnings
+          cargo fmt -p debugger -- --check
+          cargo clippy -p debugger -- -D warnings
 
       - name: Test
         run: |

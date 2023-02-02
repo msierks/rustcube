@@ -89,8 +89,8 @@ pub async fn run(mut ctx: rustcube::Context, tx: Sender<Event>, rx: Receiver<BgE
             }
             BgEvent::Continue => {
                 while rx.is_empty() {
-                    match ctx.step() {
-                        Some(event) => match event {
+                    if let Some(event) = ctx.step() {
+                        match event {
                             ctxEvent::Break => {
                                 info!("Breakpoint {:#x}", ctx.cpu().pc());
                                 break;
@@ -104,8 +104,7 @@ pub async fn run(mut ctx: rustcube::Context, tx: Sender<Event>, rx: Receiver<BgE
                                 break;
                             }
                             ctxEvent::Halted => break,
-                        },
-                        None => (),
+                        }
                     }
                 }
 
@@ -121,14 +120,13 @@ pub async fn run(mut ctx: rustcube::Context, tx: Sender<Event>, rx: Receiver<BgE
                 let _ = tx.send(Event::Memory(memory)).await;
             }
             BgEvent::Step => {
-                match ctx.step() {
-                    Some(event) => match event {
+                if let Some(event) = ctx.step() {
+                    match event {
                         ctxEvent::Break => info!("Breakpoint {:#x}", ctx.cpu().pc()),
                         ctxEvent::WatchRead(addr) => info!("Watchpoint Read {:#x}", addr),
                         ctxEvent::WatchWrite(addr) => info!("Watchpoint Write {:#x}", addr),
                         ctxEvent::Halted => (),
-                    },
-                    None => (),
+                    }
                 }
 
                 let regs = Box::new(Registers::new(&ctx));
