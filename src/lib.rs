@@ -12,7 +12,7 @@ mod dol;
 mod dsp;
 //mod dsp_interface;
 //mod dvd_interface;
-//mod exi;
+mod exi;
 //pub mod gamecube;
 //mod gp_fifo;
 //mod interconnect;
@@ -31,7 +31,7 @@ use self::cpu::Cpu;
 //use self::di::DvdInterface;
 use self::dol::Dol;
 use self::dsp::DspInterface;
-//use self::exi::ExternalInterface;
+use self::exi::ExternalInterface;
 //use self::gp_fifo::GpFifo;
 use self::mem::Memory;
 //use self::pe::PixelEngine;
@@ -81,7 +81,7 @@ pub struct Context {
     //cp: CommandProcessor,
     //di: DvdInterface,
     dsp: DspInterface,
-    //exi: ExternalInterface,
+    exi: ExternalInterface,
     //gp_fifo: GpFifo,
     //pe: PixelEngine,
     //pi: ProcessorInterface,
@@ -96,7 +96,7 @@ pub struct Context {
 impl Default for Context {
     fn default() -> Self {
         let bootrom = Rc::new(RefCell::new(vec![0; BOOTROM_SIZE]));
-        //let exi = ExternalInterface::new(bootrom.clone());
+        let exi = ExternalInterface::new(bootrom.clone());
 
         Context {
             //ai: Default::default(),
@@ -106,7 +106,7 @@ impl Default for Context {
             //cp: Default::default(),
             //di: Default::default(),
             dsp: Default::default(),
-            //exi,
+            exi,
             //gp_fifo: Default::default(),
             //pe: Default::default(),
             //pi: Default::default(),
@@ -279,7 +279,7 @@ impl Context {
             Memory => mem::read_u32(self, addr),
             Bootrom(offset) => BigEndian::read_u32(&self.bootrom.borrow()[offset as usize..]),
             //DvdInterface(reg) => di::read_u32(self, reg),
-            //ExternalInterface(chan, reg) => exi::read_u32(self, chan, reg),
+            ExternalInterface(chan, reg) => exi::read_u32(self, chan, reg),
             //ProcessorInterface(reg) => pi::read_u32(self, reg),
             //SerialInterface(reg) => si::read_u32(self, reg),
             //AudioInterface(reg) => ai::read_u32(self, reg),
@@ -412,7 +412,7 @@ impl Context {
             //    vi::write_u16(self, reg + 2, val as u16);
             //}
             //DvdInterface(reg) => di::write_u32(self, reg, val),
-            //ExternalInterface(chan, reg) => exi::write_u32(self, chan, reg, val),
+            ExternalInterface(chan, reg) => exi::write_u32(self, chan, reg, val),
             //ProcessorInterface(reg) => pi::write_u32(self, reg, val),
             //SerialInterface(reg) => si::write_u32(self, reg, val),
             //AudioInterface(reg) => ai::write_u32(self, reg, val),

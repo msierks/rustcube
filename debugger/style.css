@@ -50,16 +50,22 @@ list row label {
   font-size: 14px;
   border-width: 20px;
 }
-.memory-column-view header button {
-  padding: 0 4px;
+.memory-column-view box label:first-child {
+  border-bottom-color: #cccccc;
+  border-bottom-style: solid;
+  border-bottom-width: 1px;
 }
-.memory-column-view listview row cell {
-  padding: 0;
+.memory-column-view > box:first-child > label,
+.memory-column-view > box:nth-child(2) > label {
+  border-right-color: #cccccc;
+  border-right-style: solid;
+  border-right-width: 1px;
 }
-.memory-column-view listview row cell label {
+.memory-column-view > box > label {
   padding: 2px 4px;
+  color: black;
+  background-color: white;
 }
-
 .dump-tree-view button, .registers-tree-view button, .stack-tree-view button {
   padding: 0px 10px 0px 5px;
   font-size: 14px;

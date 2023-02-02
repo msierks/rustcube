@@ -461,93 +461,63 @@
                       <object class="GtkScrolledWindow">
                         <property name="vexpand">1</property>
                         <child>
-                          <object class="GtkColumnView" id="memory_column_view">
-                            <property name="show-column-separators">1</property>
+                          <object class="GtkBox">
                             <style>
                               <class name="memory-column-view"/>
                             </style>
+                            <property name="orientation">horizontal</property>
+                            <style>
+                              <class name="memory-fixme"/>
+                            </style>
                             <child>
-                              <object class="GtkColumnViewColumn" id="memory_address_column">
-                                <property name="title">Address</property>
-                                <property name="resizable">1</property>
-                                <property name="factory">
-                                  <object class="GtkBuilderListItemFactory">
-                                    <property name="bytes"><![CDATA[
-<?xml version="1.0" encoding="UTF-8"?>
-<interface>
-  <template class="GtkListItem">
-    <property name="child">
-      <object class="GtkLabel">
-        <property name="xalign">0</property>
-        <property name="selectable">True</property>
-        <binding name="label">
-          <lookup type="MemoryDumpObject" name="address">
-            <lookup name="item">GtkListItem</lookup>
-          </lookup>
-        </binding>
-      </object>
-    </property>
-  </template>
-</interface>
-                        ]]></property>
+                              <object class="GtkBox">
+                                <property name="orientation">vertical</property>
+                                <child>
+                                  <object class="GtkLabel">
+                                    <property name="xalign">0</property>
+                                    <property name="label">Address</property>
                                   </object>
-                                </property>
+                                </child>
+                                <child>
+                                  <object class="GtkLabel" id="label_memory_address">
+                                    <property name="xalign">0</property>
+                                    <property name="selectable">True</property>
+                                  </object>
+                                </child>
                               </object>
                             </child>
                             <child>
-                              <object class="GtkColumnViewColumn" id="memory_hex_column">
-                                <property name="title">00 01 02 03  04 05 06 07  08 09 0a 0b  0c 0d 0e 0f</property>
-                                <property name="resizable">1</property>
-                                <property name="factory">
-                                  <object class="GtkBuilderListItemFactory">
-                                    <property name="bytes"><![CDATA[
-<?xml version="1.0" encoding="UTF-8"?>
-<interface>
-  <template class="GtkListItem">
-    <property name="child">
-      <object class="GtkLabel">
-        <property name="xalign">0</property>
-        <property name="selectable">True</property>
-        <binding name="label">
-          <lookup type="MemoryDumpObject" name="hex">
-            <lookup name="item">GtkListItem</lookup>
-          </lookup>
-        </binding>
-      </object>
-    </property>
-  </template>
-</interface>
-                        ]]></property>
+                              <object class="GtkBox">
+                                <property name="orientation">vertical</property>
+                                <child>
+                                  <object class="GtkLabel">
+                                    <property name="xalign">0</property>
+                                    <property name="label">00 01 02 03  04 05 06 07  08 09 0a 0b  0c 0d 0e 0f</property>
                                   </object>
-                                </property>
+                                </child>
+                                <child>
+                                  <object class="GtkLabel" id="label_memory_hex">
+                                    <property name="xalign">0</property>
+                                    <property name="selectable">True</property>
+                                  </object>
+                                </child>
                               </object>
                             </child>
                             <child>
-                              <object class="GtkColumnViewColumn" id="memory_ascii_column">
-                                <property name="title">ASCII</property>
-                                <property name="resizable">1</property>
-                                <property name="factory">
-                                  <object class="GtkBuilderListItemFactory">
-                                    <property name="bytes"><![CDATA[
-<?xml version="1.0" encoding="UTF-8"?>
-<interface>
-  <template class="GtkListItem">
-    <property name="child">
-      <object class="GtkLabel">
-        <property name="xalign">0</property>
-        <property name="selectable">True</property>
-        <binding name="label">
-          <lookup type="MemoryDumpObject" name="ascii">
-            <lookup name="item">GtkListItem</lookup>
-          </lookup>
-        </binding>
-      </object>
-    </property>
-  </template>
-</interface>
-                        ]]></property>
+                              <object class="GtkBox">
+                                <property name="orientation">vertical</property>
+                                <child>
+                                  <object class="GtkLabel">
+                                    <property name="xalign">0</property>
+                                    <property name="label">ASCII</property>
                                   </object>
-                                </property>
+                                </child>
+                                <child>
+                                  <object class="GtkLabel" id="label_memory_ascii">
+                                    <property name="xalign">0</property>
+                                    <property name="selectable">True</property>
+                                  </object>
+                                </child>
                               </object>
                             </child>
                           </object>

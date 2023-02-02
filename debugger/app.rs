@@ -1,6 +1,4 @@
-use crate::gobject::{
-    BreakpointObject, CallstackObject, DisassembledInstruction, MemoryDumpObject,
-};
+use crate::gobject::{BreakpointObject, CallstackObject, DisassembledInstruction};
 use crate::{
     BgEvent, BreakpointAccessType, BreakpointType, Breakpoints, Callstack, Disassembly, Event,
     Memory, Registers,
@@ -18,9 +16,11 @@ pub struct App {
     register_store: gtk::ListStore,
     registers: Registers,
     callstack_list_store: gtk::gio::ListStore,
-    memory_list_store: gtk::gio::ListStore,
     breakpoint_list_store: gtk::gio::ListStore,
     button_continue: gtk::Button,
+    label_memory_address: gtk::Label,
+    label_memory_hex: gtk::Label,
+    label_memory_ascii: gtk::Label,
 }
 
 impl App {
@@ -233,14 +233,6 @@ impl App {
             .expect("Couldn't get callstack_list_view");
         callstack_list_view.set_model(Some(&sel));
 
-        let memory_list_store = gtk::gio::ListStore::new(MemoryDumpObject::static_type());
-
-        let sel = gtk::NoSelection::new(Some(&memory_list_store));
-        let memory_column_view: gtk::ColumnView = builder
-            .object("memory_column_view")
-            .expect("Couldn't get memory_column_view");
-        memory_column_view.set_model(Some(&sel));
-
         let window: gtk::ApplicationWindow = builder.object("window").expect("Couldn't get window");
 
         window.set_application(Some(app));
@@ -374,6 +366,18 @@ impl App {
             }
         }));
 
+        let label_memory_address: gtk::Label = builder
+            .object("label_memory_address")
+            .expect("Couldn't get label_memory_address");
+
+        let label_memory_hex: gtk::Label = builder
+            .object("label_memory_hex")
+            .expect("Couldn't get label_memory_hex");
+
+        let label_memory_ascii: gtk::Label = builder
+            .object("label_memory_ascii")
+            .expect("Couldn't get label_memory_ascii");
+
         window.show();
 
         let registers = Registers::default();
@@ -386,9 +390,11 @@ impl App {
             register_store,
             registers,
             callstack_list_store,
-            memory_list_store,
             breakpoint_list_store,
             button_continue,
+            label_memory_address,
+            label_memory_hex,
+            label_memory_ascii,
         }
     }
 
@@ -515,34 +521,29 @@ impl App {
     }
 
     pub fn update_memory(&mut self, memory: Memory) {
-        for (i, data) in memory.data.iter().enumerate() {
-            let address = format!("{:08x}", data.0);
-            let hex = format!(
+        let (mut address, mut hex, mut ascii) = (Vec::new(), Vec::new(), Vec::new());
+
+        for data in memory.data.iter() {
+            address.push(format!("{:08x}", data.0));
+            hex.push(format!(
                 "{:02x} {:02x} {:02x} {:02x}  {:02x} {:02x} {:02x} {:02x}  {:02x} {:02x} {:02x} {:02x}  {:02x} {:02x} {:02x} {:02x}",
                 data.1[0], data.1[1], data.1[2], data.1[3], data.1[4], data.1[5], data.1[6], data.1[7], data.1[8], data.1[9], data.1[10], data.1[11], data.1[12], data.1[13], data.1[14], data.1[15]
-            );
-            let mut ascii = String::with_capacity(16);
+            ));
+
+            let mut a = String::with_capacity(16);
             for ch in data.1.iter() {
                 if ch.is_ascii_graphic() {
-                    ascii.push(*ch as char);
+                    a.push(*ch as char);
                 } else {
-                    ascii.push('.');
+                    a.push('.');
                 }
             }
-
-            match self.memory_list_store.item(i as u32) {
-                Some(object) => {
-                    object.set_property("address", address);
-                    object.set_property("hex", hex);
-                    object.set_property("ascii", ascii);
-                    //FixMe: update data
-                }
-                None => {
-                    let object = MemoryDumpObject::new(address, hex, ascii);
-                    self.memory_list_store.append(&object);
-                }
-            }
+            ascii.push(a);
         }
+
+        self.label_memory_address.set_text(&address.join("\n"));
+        self.label_memory_hex.set_text(&hex.join("\n"));
+        self.label_memory_ascii.set_text(&ascii.join("\n"));
     }
 
     pub fn update_registers(&mut self, regs: Registers) {

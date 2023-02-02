@@ -194,11 +194,13 @@ impl Callstack {
 
         if lr != 0 {
             addresses.push(lr);
+
             let mut sp = ctx.cpu().gpr()[1];
 
             while sp != 0 {
                 let address = ctx.read_u32(sp + 4);
-                sp = ctx.read_u32(sp);
+
+                sp = ctx.read_u32(address);
 
                 if address != 0 {
                     addresses.push(address);
