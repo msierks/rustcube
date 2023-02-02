@@ -1,4 +1,4 @@
-# rustcube [![Build status](https://ci.appveyor.com/api/projects/status/ganyydat21is3coa/branch/master?svg=true)](https://ci.appveyor.com/project/msierks/rustcube/branch/master)
+# rustcube
 
 A Gamecube emulator in the Rust programming language. Work is in progress to boot the Gamecube BIOS.
 
