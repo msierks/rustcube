@@ -1,3 +1,15 @@
+pub fn get_ea(ctx: &Context, instr: Instruction) -> u32 {
+    if instr.a() == 0 {
+        i32::from(instr.simm()) as u32
+    } else {
+        ctx.cpu.gpr[instr.a()].wrapping_add(i32::from(instr.simm()) as u32)
+    }
+}
+
+pub fn get_ea_u(ctx: &Context, instr: Instruction) -> u32 {
+    ctx.cpu.gpr[instr.a()].wrapping_add(i32::from(instr.simm()) as u32)
+}
+
 fn op_dcbf(_ctx: &mut Context, _instr: Instruction) {
     //println!("FixMe: dcbf");
 }
@@ -73,17 +85,12 @@ fn op_lbzx(ctx: &mut Context, instr: Instruction) {
     ctx.cpu.gpr[instr.d()] = u32::from(ctx.read_u8(ea));
 }
 
-fn op_lfd(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_lfd");
-    /*
-    let ea = if instr.a() == 0 {
-        instr.simm() as u32
-    } else {
-        ctx.cpu.gpr[instr.a()].wrapping_add(instr.simm() as u32)
-    };
+fn op_lfd(ctx: &mut Context, instr: Instruction) {
+    let ea = get_ea(ctx, instr);
 
-    ctx.cpu.fpr[instr.d()] = ctx.read_u64(ea);
-    */
+    // FixMe: check for DSI exception ???
+
+    ctx.cpu.fpr[instr.d()] = Fpr(ctx.read_u64(ea));
 }
 
 fn op_lfdu(_ctx: &mut Context, _instr: Instruction) {
@@ -98,23 +105,17 @@ fn op_lfdx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_lfdx");
 }
 
-fn op_lfs(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_lfs");
-    /*
-        let ea = if instr.a() == 0 {
-            instr.simm() as u32
-        } else {
-            ctx.cpu.gpr[instr.a()].wrapping_add(instr.simm() as u32)
-        };
+fn op_lfs(ctx: &mut Context, instr: Instruction) {
+    let ea = get_ea(ctx, instr);
 
-        let val = ctx.read_u32(ea);
+    let val = ctx.read_u32(ea);
 
-        if !ctx.cpu.hid2.pse() {
-            ctx.cpu.fpr[instr.d()] = convert_to_double(val);
-        } else {
-            ctx.cpu.fpr[instr.d()] = (u64::from(val) << 32) & u64::from(val);
-        }
-    */
+    if !ctx.cpu.hid2.pse() {
+        unimplemented!();
+    } else {
+        ctx.cpu.fpr[instr.d()].set_ps0(val);
+        ctx.cpu.fpr[instr.d()].set_ps1(val);
+    }
 }
 
 fn op_lfsu(_ctx: &mut Context, _instr: Instruction) {
@@ -399,33 +400,24 @@ fn op_stfiwx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_stfiwx");
 }
 
-fn op_stfs(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_stfs");
-    /*
-        let ea = if instr.a() == 0 {
-            instr.simm() as u32
-        } else {
-            ctx.cpu.gpr[instr.a()].wrapping_add(instr.simm() as u32)
-        };
+fn op_stfs(ctx: &mut Context, instr: Instruction) {
+    let ea = get_ea(ctx, instr);
 
-        let val = convert_to_single(ctx.cpu.fpr[instr.s()]);
+    let val = ctx.cpu.fpr[instr.s()].as_u64();
 
-        ctx.write_u32(ea, val);
-    */
+    ctx.write_u32(ea, convert_to_single(val));
 }
 
-fn op_stfsu(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_stfsu");
-    /*
-        if instr.a() == 0 {
-            panic!("stfsu: invalid instruction");
-        }
+fn op_stfsu(ctx: &mut Context, instr: Instruction) {
+    let ea = get_ea_u(ctx, instr);
 
-        let ea = ctx.cpu.gpr[instr.a()].wrapping_add(instr.simm() as u32);
-        let val = convert_to_single(ctx.cpu.fpr[instr.s()]);
+    let val = ctx.cpu.fpr[instr.s()].as_u64();
 
-        ctx.write_u32(ea, val);
-    */
+    ctx.write_u32(ea, convert_to_single(val));
+
+    ctx.cpu.gpr[instr.a()] = ea;
+
+    ctx.tick(3);
 }
 
 fn op_stfsux(_ctx: &mut Context, _instr: Instruction) {
@@ -503,7 +495,7 @@ fn op_stw(ctx: &mut Context, instr: Instruction) {
     };
 
     // TODO: remove this at some point
-    // enable devkit mode
+    // enable devkit mode, which results in uart output
     if ctx.cpu.cia == 0x8130_04c4 {
         ctx.write_u32(ea, 0x1000_0006);
     } else {

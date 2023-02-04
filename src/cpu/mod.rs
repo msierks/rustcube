@@ -344,6 +344,11 @@ impl Cpu {
         self.spr[SPR_LR]
     }
 
+    fn set_xer_so(&mut self, value: bool) {
+        self.xer.set_overflow(value);
+        self.xer.set_summary_overflow(value);
+    }
+
     fn update_cr0(&mut self, r: u32) {
         let value = r as i32;
 
@@ -1006,6 +1011,10 @@ impl ConditionRegister {
 
     pub fn set_bit(&mut self, bit: usize, value: u8) {
         self.0 = value as u32 | (self.0 & !(0x8000_0000 >> bit));
+    }
+
+    pub fn get_cr0(&mut self) -> u8 {
+        (self.0 >> 28) as u8
     }
 }
 

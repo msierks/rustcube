@@ -386,7 +386,7 @@ impl Context {
             MemoryInterface(_) => {} //ignore
             //VideoInterface(reg) => vi::write_u16(self, reg, val),
             //PixelEngine(reg) => pe::write_u16(self, reg, val),
-            _ => info!(
+            _ => warn!(
                 "write_u16 not implemented for {:?} address {:#x}",
                 map(addr),
                 addr

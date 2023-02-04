@@ -42,14 +42,9 @@ fn op_fmaddx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_fmaddx");
 }
 
-fn op_fmrx(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_fmrx");
-
-    //    self.fpr[instr.d()] = self.fpr[instr.b()];
-
-    //    if instr.rc() {
-    //        self.cr.update_cr1(self.fpr[instr.d()], &self.fpscr);
-    //    }
+fn op_fmrx(ctx: &mut Context, instr: Instruction) {
+    // This is wrong, assuming frB is is paired single every time
+    ctx.cpu.fpr[instr.d()].set_ps0(ctx.cpu.fpr[instr.b()].ps0())
 }
 
 fn op_fmsubsx(_ctx: &mut Context, _instr: Instruction) {

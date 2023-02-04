@@ -194,15 +194,23 @@ impl Callstack {
             addresses.push(lr);
 
             let mut sp = ctx.cpu().gpr()[1];
+            let mut count = 0;
 
-            while sp != 0 {
-                let address = ctx.read_u32(sp + 4);
-
-                sp = ctx.read_u32(address);
+            while sp != 0 && count < 80 {
+                let address = ctx.read_u32(sp.wrapping_add(4));
 
                 if address != 0 {
                     addresses.push(address);
                 }
+
+                sp = ctx.read_u32(sp);
+
+                // TODO last frame ???
+                if sp == 0xFFFF_FFFF {
+                    break;
+                }
+
+                count += 1;
             }
         }
 

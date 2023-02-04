@@ -136,8 +136,8 @@ impl Instruction {
     }
 
     #[inline(always)]
-    pub fn sh(self) -> u8 {
-        ((self.0 >> 11) & 0x1F) as u8
+    pub fn sh(self) -> u32 {
+        (self.0 >> 11) & 0x1F
     }
 
     #[inline(always)]
