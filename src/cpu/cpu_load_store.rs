@@ -12,10 +12,14 @@ pub fn get_ea_u(ctx: &Context, instr: Instruction) -> u32 {
 
 fn op_dcbf(_ctx: &mut Context, _instr: Instruction) {
     //println!("FixMe: dcbf");
+
+    ctx.tick(3);
 }
 
-fn op_dcbi(_ctx: &mut Context, _instr: Instruction) {
-    //println!("FixMe: dcbi");
+fn op_dcbi(ctx: &mut Context, _instr: Instruction) {
+    // don't do anything
+
+    ctx.tick(3);
 }
 
 fn op_dcbst(_ctx: &mut Context, _instr: Instruction) {
@@ -46,8 +50,10 @@ fn op_ecowx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ecowx");
 }
 
-fn op_icbi(_ctx: &mut Context, _instr: Instruction) {
-    //println!("FixMe: icbi");
+fn op_icbi(ctx: &mut Context, _instr: Instruction) {
+    // don't do anything
+
+    ctx.tick(3);
 }
 
 fn op_lbz(ctx: &mut Context, instr: Instruction) {
@@ -58,6 +64,7 @@ fn op_lbz(ctx: &mut Context, instr: Instruction) {
     };
 
     ctx.cpu.gpr[instr.d()] = u32::from(ctx.read_u8(ea));
+    ctx.tick(2);
 }
 
 fn op_lbzu(ctx: &mut Context, instr: Instruction) {
@@ -69,6 +76,8 @@ fn op_lbzu(ctx: &mut Context, instr: Instruction) {
 
     ctx.cpu.gpr[instr.d()] = u32::from(ctx.read_u8(ea));
     ctx.cpu.gpr[instr.a()] = ea;
+
+    ctx.tick(2);
 }
 
 fn op_lbzux(_ctx: &mut Context, _instr: Instruction) {
@@ -76,21 +85,19 @@ fn op_lbzux(_ctx: &mut Context, _instr: Instruction) {
 }
 
 fn op_lbzx(ctx: &mut Context, instr: Instruction) {
-    let ea = if instr.a() == 0 {
-        ctx.cpu.gpr[instr.b()]
-    } else {
-        ctx.cpu.gpr[instr.a()].wrapping_add(ctx.cpu.gpr[instr.b()])
-    };
+    ctx.cpu.gpr[instr.d()] = u32::from(ctx.read_u8(get_ea_x(ctx, instr)));
 
-    ctx.cpu.gpr[instr.d()] = u32::from(ctx.read_u8(ea));
+    ctx.tick(2);
 }
 
 fn op_lfd(ctx: &mut Context, instr: Instruction) {
     let ea = get_ea(ctx, instr);
 
-    // FixMe: check for DSI exception ???
+    // FIXME: check for DSI exception ???
 
     ctx.cpu.fpr[instr.d()] = Fpr(ctx.read_u64(ea));
+
+    ctx.tick(2);
 }
 
 fn op_lfdu(_ctx: &mut Context, _instr: Instruction) {
@@ -116,6 +123,8 @@ fn op_lfs(ctx: &mut Context, instr: Instruction) {
         ctx.cpu.fpr[instr.d()].set_ps0(val);
         ctx.cpu.fpr[instr.d()].set_ps1(val);
     }
+
+    ctx.tick(2);
 }
 
 fn op_lfsu(_ctx: &mut Context, _instr: Instruction) {
@@ -138,6 +147,7 @@ fn op_lha(ctx: &mut Context, instr: Instruction) {
     };
 
     ctx.cpu.gpr[instr.d()] = i32::from(ctx.read_u16(ea) as i16) as u32;
+    ctx.tick(2);
 }
 
 fn op_lhau(_ctx: &mut Context, _instr: Instruction) {
@@ -164,6 +174,7 @@ fn op_lhz(ctx: &mut Context, instr: Instruction) {
     };
 
     ctx.cpu.gpr[instr.d()] = u32::from(ctx.read_u16(ea));
+    ctx.tick(2);
 }
 
 fn op_lhzu(ctx: &mut Context, instr: Instruction) {
@@ -171,6 +182,8 @@ fn op_lhzu(ctx: &mut Context, instr: Instruction) {
 
     ctx.cpu.gpr[instr.d()] = u32::from(ctx.read_u16(ea));
     ctx.cpu.gpr[instr.a()] = ea;
+
+    ctx.tick(2);
 }
 
 fn op_lhzux(_ctx: &mut Context, _instr: Instruction) {
@@ -189,6 +202,7 @@ fn op_lmw(ctx: &mut Context, instr: Instruction) {
     };
 
     let mut r = instr.d();
+    let n = (32 - r) as u32;
 
     while r <= 31 {
         ctx.cpu.gpr[r] = ctx.read_u32(ea);
@@ -196,6 +210,8 @@ fn op_lmw(ctx: &mut Context, instr: Instruction) {
         r += 1;
         ea += 4;
     }
+
+    ctx.tick(2 + n);
 }
 
 fn op_lswi(_ctx: &mut Context, _instr: Instruction) {
@@ -221,7 +237,7 @@ fn op_lwz(ctx: &mut Context, instr: Instruction) {
         ctx.cpu.gpr[instr.a()].wrapping_add(instr.simm() as u32)
     };
 
-    ctx.cpu.gpr[instr.d()] = ctx.read_u32(ea);
+    ctx.tick(2);
 }
 
 fn op_lwzu(ctx: &mut Context, instr: Instruction) {
@@ -229,6 +245,8 @@ fn op_lwzu(ctx: &mut Context, instr: Instruction) {
 
     ctx.cpu.gpr[instr.d()] = ctx.read_u32(ea);
     ctx.cpu.gpr[instr.a()] = ea;
+
+    ctx.tick(2);
 }
 
 fn op_lwzux(_ctx: &mut Context, _instr: Instruction) {
@@ -243,6 +261,7 @@ fn op_lwzx(ctx: &mut Context, instr: Instruction) {
     };
 
     ctx.cpu.gpr[instr.d()] = ctx.read_u32(ea);
+    ctx.tick(2);
 }
 
 fn op_psq_l(_ctx: &mut Context, _instr: Instruction) {
@@ -347,6 +366,7 @@ fn op_stb(ctx: &mut Context, instr: Instruction) {
     };
 
     ctx.write_u8(ea, ctx.cpu.gpr[instr.d()] as u8);
+    ctx.tick(2);
 }
 
 fn op_stbu(ctx: &mut Context, instr: Instruction) {
@@ -355,6 +375,8 @@ fn op_stbu(ctx: &mut Context, instr: Instruction) {
     ctx.write_u8(ea, ctx.cpu.gpr[instr.d()] as u8);
 
     ctx.cpu.gpr[instr.a()] = ea;
+
+    ctx.tick(2);
 }
 
 fn op_stbux(_ctx: &mut Context, _instr: Instruction) {
@@ -369,6 +391,7 @@ fn op_stbx(ctx: &mut Context, instr: Instruction) {
     };
 
     ctx.write_u8(ea, ctx.cpu.gpr[instr.d()] as u8);
+    ctx.tick(2);
 }
 
 fn op_stfd(_ctx: &mut Context, _instr: Instruction) {
@@ -406,6 +429,8 @@ fn op_stfs(ctx: &mut Context, instr: Instruction) {
     let val = ctx.cpu.fpr[instr.s()].as_u64();
 
     ctx.write_u32(ea, convert_to_single(val));
+
+    ctx.tick(2);
 }
 
 fn op_stfsu(ctx: &mut Context, instr: Instruction) {
@@ -417,7 +442,7 @@ fn op_stfsu(ctx: &mut Context, instr: Instruction) {
 
     ctx.cpu.gpr[instr.a()] = ea;
 
-    ctx.tick(3);
+    ctx.tick(2);
 }
 
 fn op_stfsux(_ctx: &mut Context, _instr: Instruction) {
@@ -436,6 +461,7 @@ fn op_sth(ctx: &mut Context, instr: Instruction) {
     };
 
     ctx.write_u16(ea, ctx.cpu.gpr[instr.s()] as u16);
+    ctx.tick(2);
 }
 
 fn op_sthbrx(_ctx: &mut Context, _instr: Instruction) {
@@ -452,6 +478,8 @@ fn op_sthu(ctx: &mut Context, instr: Instruction) {
     ctx.write_u16(ea, ctx.cpu.gpr[instr.s()] as u16);
 
     ctx.cpu.gpr[instr.a()] = ea;
+
+    ctx.tick(2);
 }
 
 fn op_sthux(_ctx: &mut Context, _instr: Instruction) {
@@ -470,6 +498,7 @@ fn op_stmw(ctx: &mut Context, instr: Instruction) {
     };
 
     let mut r = instr.s();
+    let n = (32 - r) as u32;
 
     while r <= 31 {
         ctx.write_u32(ea, ctx.cpu.gpr[r]);
@@ -477,6 +506,8 @@ fn op_stmw(ctx: &mut Context, instr: Instruction) {
         r += 1;
         ea += 4;
     }
+
+    ctx.tick(2 + n);
 }
 
 fn op_stswi(_ctx: &mut Context, _instr: Instruction) {
@@ -501,6 +532,8 @@ fn op_stw(ctx: &mut Context, instr: Instruction) {
     } else {
         ctx.write_u32(ea, ctx.cpu.gpr[instr.s()]);
     }
+
+    ctx.tick(2);
 }
 
 fn op_stwbrx(_ctx: &mut Context, _instr: Instruction) {
@@ -521,6 +554,8 @@ fn op_stwu(ctx: &mut Context, instr: Instruction) {
     ctx.write_u32(ea, ctx.cpu.gpr[instr.s()]);
 
     ctx.cpu.gpr[instr.a()] = ea; // is this conditional ???
+
+    ctx.tick(2);
 }
 
 fn op_stwux(_ctx: &mut Context, _instr: Instruction) {
@@ -535,6 +570,8 @@ fn op_stwx(ctx: &mut Context, instr: Instruction) {
     };
 
     ctx.write_u32(ea, ctx.cpu.gpr[instr.s()]);
+
+    ctx.tick(2);
 }
 
 fn op_tlbie(_ctx: &mut Context, _instr: Instruction) {

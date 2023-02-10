@@ -11,6 +11,8 @@ fn op_bx(ctx: &mut Context, instr: Instruction) {
     if instr.lk() != 0 {
         ctx.cpu.spr[SPR_LR] = ctx.cpu.cia.wrapping_add(4);
     }
+
+    ctx.tick(1);
 }
 
 fn op_bcx(ctx: &mut Context, instr: Instruction) {
@@ -50,6 +52,8 @@ fn op_bcx(ctx: &mut Context, instr: Instruction) {
             ctx.cpu.spr[SPR_LR] = ctx.cpu.cia.wrapping_add(4);
         }
     }
+
+    ctx.tick(1);
 }
 
 fn op_bcctrx(ctx: &mut Context, instr: Instruction) {
@@ -68,6 +72,8 @@ fn op_bcctrx(ctx: &mut Context, instr: Instruction) {
             ctx.cpu.spr[SPR_LR] = ctx.cpu.cia + 4;
         }
     }
+
+    ctx.tick(1);
 }
 
 fn op_bclrx(ctx: &mut Context, instr: Instruction) {
@@ -98,4 +104,6 @@ fn op_bclrx(ctx: &mut Context, instr: Instruction) {
             ctx.cpu.spr[SPR_LR] = ctx.cpu.cia.wrapping_add(4);
         }
     }
+
+    ctx.tick(1);
 }

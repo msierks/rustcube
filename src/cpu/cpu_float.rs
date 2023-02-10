@@ -45,6 +45,8 @@ fn op_fmaddx(_ctx: &mut Context, _instr: Instruction) {
 fn op_fmrx(ctx: &mut Context, instr: Instruction) {
     // This is wrong, assuming frB is is paired single every time
     ctx.cpu.fpr[instr.d()].set_ps0(ctx.cpu.fpr[instr.b()].ps0())
+
+    ctx.tick(3);
 }
 
 fn op_fmsubsx(_ctx: &mut Context, _instr: Instruction) {

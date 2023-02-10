@@ -30,6 +30,8 @@ fn op_crxor(ctx: &mut Context, instr: Instruction) {
     let d = ctx.cpu.cr.get_bit(instr.a()) ^ ctx.cpu.cr.get_bit(instr.b());
 
     ctx.cpu.cr.set_bit(instr.d(), d);
+
+    ctx.tick(1);
 }
 
 fn op_mcrf(_ctx: &mut Context, _instr: Instruction) {
@@ -42,6 +44,8 @@ fn op_mcrxr(_ctx: &mut Context, _instr: Instruction) {
 
 fn op_mfcr(ctx: &mut Context, instr: Instruction) {
     ctx.cpu.gpr[instr.d()] = ctx.cpu.cr.as_u32();
+
+    ctx.tick(1);
 }
 
 fn op_mtcrf(ctx: &mut Context, instr: Instruction) {
@@ -52,4 +56,6 @@ fn op_mtcrf(ctx: &mut Context, instr: Instruction) {
     } else {
         unimplemented!();
     }
+
+    ctx.tick(1);
 }

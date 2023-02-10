@@ -2,14 +2,18 @@ fn op_eieio(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_eieio");
 }
 
-fn op_isync(_ctx: &mut Context, _instr: Instruction) {
+fn op_isync(ctx: &mut Context, _instr: Instruction) {
     // don't do anything
+
+    ctx.tick(2);
 }
 
 fn op_mfmsr(ctx: &mut Context, instr: Instruction) {
     ctx.cpu.gpr[instr.d()] = ctx.cpu.msr.0;
 
     // TODO: check privilege level
+
+    ctx.tick(1);
 }
 
 fn op_mfspr(ctx: &mut Context, instr: Instruction) {
@@ -24,13 +28,12 @@ fn op_mfspr(ctx: &mut Context, instr: Instruction) {
         _ => (),
     }
 
-    if !(SPR_IBAT0U..=SPR_DBAT3L).contains(&i) {
-        ctx.tick(1);
-    } else {
-        ctx.tick(3);
-    }
-
     // TODO: check privilege level
+    if (SPR_IBAT0U..=SPR_DBAT3L).contains(&i) {
+        ctx.tick(3);
+    } else {
+        ctx.tick(1);
+    }
 }
 
 fn op_mfsr(_ctx: &mut Context, _instr: Instruction) {
@@ -62,6 +65,8 @@ fn op_mtmsr(ctx: &mut Context, instr: Instruction) {
     ctx.cpu.msr = ctx.cpu.gpr[instr.s()].into();
 
     // TODO: check privilege level
+
+    ctx.tick(1);
 }
 
 fn op_mtspr(ctx: &mut Context, instr: Instruction) {
@@ -74,7 +79,7 @@ fn op_mtspr(ctx: &mut Context, instr: Instruction) {
         SPR_XER => ctx.cpu.xer = v.into(),
         _ => {
             if ctx.cpu.msr.privilege_level() {
-                // FixMe: properly handle this case
+                // TODO: properly handle this case
                 ctx.cpu.exceptions |= EXCEPTION_PROGRAM;
                 panic!("mtspr: user privilege level prevents setting spr {i:#?}");
             }
@@ -109,12 +114,16 @@ fn op_mtspr(ctx: &mut Context, instr: Instruction) {
             }
         }
     }
+
+    ctx.tick(2);
 }
 
 fn op_mtsr(ctx: &mut Context, instr: Instruction) {
     ctx.cpu.sr[instr.sr()] = ctx.cpu.gpr[instr.s()];
 
     // TODO: check privilege level -> supervisor level instruction
+
+    ctx.tick(2);
 }
 
 fn op_mtsrin(_ctx: &mut Context, _instr: Instruction) {
@@ -129,14 +138,20 @@ fn op_rfi(ctx: &mut Context, _instr: Instruction) {
     ctx.cpu.msr.0 &= 0xFFFB_FFFF;
 
     ctx.cpu.nia = ctx.cpu.spr[SPR_SRR0] & 0xFFFF_FFFE;
+
+    ctx.tick(2);
 }
 
 fn op_sc(ctx: &mut Context, _instr: Instruction) {
     ctx.cpu.exceptions |= EXCEPTION_SYSTEM_CALL;
+
+    ctx.tick(2);
 }
 
-fn op_sync(_ctx: &mut Context, _instr: Instruction) {
+fn op_sync(ctx: &mut Context, _instr: Instruction) {
     // don't do anything
+
+    ctx.tick(3);
 }
 
 fn op_tlbsync(_ctx: &mut Context, _instr: Instruction) {

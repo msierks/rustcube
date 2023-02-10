@@ -1,40 +1,37 @@
 // Note: CPU timebase and decrementer update at 1/4th the bus speed
-const TIMER_RATIO: u64 = 4 * 3;
 
-#[derive(Debug, Default)]
+const TIMER_RATIO: u64 = 12; // 1/12th the cpu frequency
+
+#[derive(Default, Debug)]
 pub struct Timers {
-    cycles: u64,
-    timebase_cycle_last: u64,
-    timebase: u64,
+    tb_start_value: u64,
+    tb_ticks: u64,
+    tb_start_ticks: u64,
 }
 
 impl Timers {
-    pub fn tick(&mut self, cycles: u32) {
-        self.cycles = self.cycles.wrapping_add(cycles as u64);
+    // Used to advance cycle count of instruction
+    pub fn tick(&mut self, ticks: u32) {
+        self.tb_ticks = self.tb_ticks.wrapping_add(ticks as u64);
     }
 
-    //pub fn get_ticks(&self) -> u64 {
-    //    self.cycles
-    //}
+    pub fn get_ticks(&self) -> u64 {
+        self.tb_ticks
+    }
 
     pub fn get_timebase(&mut self) -> u64 {
-        let timebase_jump = (self.cycles - self.timebase_cycle_last) / TIMER_RATIO;
-
-        if timebase_jump > 0 {
-            self.timebase += timebase_jump;
-            self.timebase_cycle_last += timebase_jump * TIMER_RATIO;
-        }
-
-        self.timebase
+        self.tb_start_value + ((self.tb_ticks - self.tb_start_ticks) / TIMER_RATIO)
     }
 
     pub fn set_timebase_lower(&mut self, val: u32) {
-        println!("Set Timebase Lower {val}");
-        self.timebase = (self.timebase & !0xFFFF_FFFF) | val as u64;
+        self.tb_start_ticks = self.tb_ticks;
+        info!("Set Timebase Lower {val}");
+        self.tb_start_value = (self.tb_start_value & !0xFFFF_FFFF) | val as u64;
     }
 
     pub fn set_timebase_upper(&mut self, val: u32) {
-        println!("Set Timebase Upper {val}");
-        self.timebase = (self.timebase & 0xFFFF_FFFF) | (val as u64) << 32;
+        self.tb_start_ticks = self.tb_ticks;
+        info!("Set Timebase Upper {val}");
+        self.tb_start_value = (self.tb_start_value & 0xFFFF_FFFF) | (val as u64) << 32;
     }
 }
