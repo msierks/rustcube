@@ -78,6 +78,9 @@ pub const SPR_L2CR: usize = 1017;
 pub const SPR_ICTC: usize = 1019;
 pub const SPR_THRM1: usize = 1020;
 
+pub const TBR_TBL: usize = 268;
+pub const TBR_TBU: usize = 269;
+
 const EXCEPTION_SYSTEM_RESET: u32 = 0x1;
 //const EXCEPTION_MACHINE_CHECK: u32 = 0x2;
 //const EXCEPTION_DSI: u32 = 0x4;

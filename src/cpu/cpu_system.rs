@@ -47,9 +47,9 @@ fn op_mftb(ctx: &mut Context, instr: Instruction) {
     ctx.cpu.spr[SPR_TBL] = (timebase & 0xFFFF_FFFF) as u32;
     ctx.cpu.spr[SPR_TBU] = (timebase >> 32) as u32;
 
-    if instr.tbr() == 268 {
+    if instr.tbr() == TBR_TBL {
         ctx.cpu.gpr[instr.d()] = ctx.cpu.spr[SPR_TBL];
-    } else if instr.tbr() == 269 {
+    } else if instr.tbr() == TBR_TBU {
         ctx.cpu.gpr[instr.d()] = ctx.cpu.spr[SPR_TBU];
     } else {
         panic!("mftb unknown tbr {:#x}", instr.tbr());
