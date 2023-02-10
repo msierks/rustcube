@@ -1014,7 +1014,7 @@ impl ConditionRegister {
     }
 
     pub fn set_bit(&mut self, bit: usize, value: u8) {
-        self.0 = value as u32 | (self.0 & !(0x8000_0000 >> bit));
+        self.0 = ((value as u32) << (31 - bit)) | (self.0 & !(0x8000_0000 >> bit));
     }
 
     pub fn get_cr0(&mut self) -> u8 {
