@@ -1,37 +1,38 @@
-use std::fmt;
-
 #[derive(Copy, Clone)]
 pub struct Instruction(pub u32);
 
 impl Instruction {
-    // Primary opcode field
+    /// Primary opcode field
     #[inline(always)]
     pub fn opcd(self) -> usize {
         ((self.0 >> 26) & 0x3F) as usize
     }
 
-    // Extended opcode A-Form instructions
+    /// Extended opcode A-Form instructions
     #[inline(always)]
     pub fn xo_a(self) -> usize {
         ((self.0 >> 1) & 0x1F) as usize
     }
 
-    // Extended opcode (X,XL,XFX,XFL)-Form instructions
+    /// Extended opcode (X,XL,XFX,XFL)-Form instructions
     #[inline(always)]
     pub fn xo_x(self) -> usize {
         ((self.0 >> 1) & 0x3FF) as usize
     }
 
+    /// GPR destination
     #[inline(always)]
     pub fn d(self) -> usize {
         ((self.0 >> 21) & 0x1F) as usize
     }
 
+    /// GPR source or destination
     #[inline(always)]
     pub fn a(self) -> usize {
         ((self.0 >> 16) & 0x1F) as usize
     }
 
+    /// GPR source
     #[inline(always)]
     pub fn b(self) -> usize {
         ((self.0 >> 11) & 0x1F) as usize
@@ -44,12 +45,13 @@ impl Instruction {
 
     #[inline(always)]
     pub fn oe(self) -> bool {
-        ((self.0 >> 10) & 1) == 1
+        ((self.0 >> 10) & 1) != 0
     }
 
+    /// Record bit
     #[inline(always)]
     pub fn rc(self) -> bool {
-        self.0 & 1 == 1
+        self.0 & 1 != 0
     }
 
     #[inline(always)]
@@ -72,11 +74,13 @@ impl Instruction {
         (self.0 & 0x20_0000) != 0
     }
 
+    /// Immidiate field as 16-bit signed integer
     #[inline(always)]
     pub fn simm(self) -> i16 {
         (self.0 & 0xFFFF) as i16
     }
 
+    /// Immidiate field as 16-bit unsigned integer
     #[inline(always)]
     pub fn uimm(self) -> u32 {
         self.0 & 0xFFFF
@@ -92,7 +96,7 @@ impl Instruction {
     }
 
     pub fn w(self) -> bool {
-        ((self.0 >> 15) & 1) == 1
+        ((self.0 >> 15) & 1) != 0
     }
 
     #[inline(always)]
@@ -115,16 +119,18 @@ impl Instruction {
         ((self.0 >> 2) & 0x3FFF) as u16
     }
 
+    /// Absolute address bit
     #[inline(always)]
-    pub fn aa(self) -> u8 {
-        ((self.0 >> 1) & 1) as u8
+    pub fn aa(self) -> bool {
+        ((self.0 >> 1) & 1) != 0
     }
 
     #[inline(always)]
-    pub fn lk(self) -> u8 {
-        (self.0 & 1) as u8
+    pub fn lk(self) -> bool {
+        (self.0 & 1) != 0
     }
 
+    /// GPR source
     #[inline(always)]
     pub fn s(self) -> usize {
         ((self.0 >> 21) & 0x1F) as usize
@@ -135,6 +141,7 @@ impl Instruction {
         ((self.0 >> 16) & 0xF) as usize
     }
 
+    /// Shift amount
     #[inline(always)]
     pub fn sh(self) -> u32 {
         (self.0 >> 11) & 0x1F
@@ -183,11 +190,5 @@ impl Instruction {
     #[inline(always)]
     pub fn imm(self) -> u8 {
         ((self.0 >> 12) & 0xF) as u8
-    }
-}
-
-impl fmt::Debug for Instruction {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:#b}", self.opcd())
     }
 }

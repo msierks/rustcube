@@ -372,14 +372,14 @@ pub fn mnemonic(opcode: Opcode) -> &'static str {
 
 pub fn suffix(instr: Instruction, opcode: Opcode) -> &'static str {
     match opcode {
-        Opcode::Bx | Opcode::Bcx => match (instr.aa() != 0, instr.lk() != 0) {
+        Opcode::Bx | Opcode::Bcx => match (instr.aa(), instr.lk()) {
             (false, false) => "",
             (true, false) => "a",
             (false, true) => "l",
             (true, true) => "la",
         },
         Opcode::Bclrx | Opcode::Bcctrx => {
-            if instr.lk() != 0 {
+            if instr.lk() {
                 ""
             } else {
                 "l"
@@ -516,7 +516,7 @@ pub fn operands(instr: Instruction, opcode: Opcode, addr: u32) -> String {
         }
         Opcode::Bcx => {
             let mut target = sign_ext_16(instr.bd() << 2) as u32;
-            if instr.aa() == 0 {
+            if !instr.aa() {
                 target = target.wrapping_add(addr);
             }
 
@@ -524,7 +524,7 @@ pub fn operands(instr: Instruction, opcode: Opcode, addr: u32) -> String {
         }
         Opcode::Bx => {
             let mut target = sign_ext_26(instr.li() << 2) as u32;
-            if instr.aa() == 0 {
+            if !instr.aa() {
                 target = target.wrapping_add(addr);
             }
 
