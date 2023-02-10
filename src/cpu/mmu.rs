@@ -5,7 +5,7 @@ pub struct Bat {
     bepi: u16, // Block Effect Page Index
     bl: u16,   // Block-length Mask
     vs: bool,  // Supervisor state valid bit  -- allows root access
-    vp: bool,  // Problem state valid bit -- allows user acce
+    vp: bool,  // Problem state valid bit -- allows user access
     brpn: u16, // Block Real Page Number
     wimg: u8,  // Storage Access Controls
     pp: u8,    // Protection bits for Bat Ares (00 No Access, 01 Read Only, 10 Read/Write)
@@ -82,6 +82,5 @@ pub fn translate_address(bats: &[Bat; 4], msr: MachineStateRegister, ea: u32) ->
     }
 
     // Segment Address Translation
-    //unimplemented!("MMU page/segment address translation {:#x} {:}", ea, ea);
-    0
+    unimplemented!("MMU page/segment address translation {:#x} {:}", ea, ea);
 }
