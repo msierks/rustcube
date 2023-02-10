@@ -53,17 +53,16 @@ fn op_addx(ctx: &mut Context, instr: Instruction) {
     }
 
     if instr.rc() {
-        ctx.cpu.update_cr0(ctx.cpu.gpr[instr.d()]);
+        ctx.cpu.update_cr0(rd);
     }
 }
 
 fn op_addi(ctx: &mut Context, instr: Instruction) {
-    if instr.a() == 0 {
-        ctx.cpu.gpr[instr.d()] = i32::from(instr.simm()) as u32;
+    ctx.cpu.gpr[instr.d()] = if instr.a() == 0 {
+        i32::from(instr.simm()) as u32
     } else {
-        ctx.cpu.gpr[instr.d()] =
-            ctx.cpu.gpr[instr.a()].wrapping_add(i32::from(instr.simm()) as u32);
-    }
+        ctx.cpu.gpr[instr.a()].wrapping_add(i32::from(instr.simm()) as u32)
+    };
 }
 
 fn op_addic(ctx: &mut Context, instr: Instruction) {
@@ -91,11 +90,11 @@ fn op_addic_rc(ctx: &mut Context, instr: Instruction) {
 }
 
 fn op_addis(ctx: &mut Context, instr: Instruction) {
-    if instr.a() == 0 {
-        ctx.cpu.gpr[instr.d()] = instr.uimm() << 16;
+    ctx.cpu.gpr[instr.d()] = if instr.a() == 0 {
+        instr.uimm() << 16
     } else {
-        ctx.cpu.gpr[instr.d()] = ctx.cpu.gpr[instr.a()].wrapping_add(instr.uimm() << 16);
-    }
+        ctx.cpu.gpr[instr.a()].wrapping_add(instr.uimm() << 16)
+    };
 }
 
 fn op_addmex(_ctx: &mut Context, _instr: Instruction) {
@@ -245,18 +244,7 @@ fn op_cmpli(ctx: &mut Context, instr: Instruction) {
 }
 
 fn op_cntlzwx(ctx: &mut Context, instr: Instruction) {
-    let mut n = 0;
-    let mut mask = 0x8000_0000;
-    let s = ctx.cpu.gpr[instr.s()];
-
-    while n < 32 {
-        if (s & mask) != 0 {
-            break;
-        }
-
-        n += 1;
-        mask >>= 1;
-    }
+    let n = ctx.cpu.gpr[instr.s()].leading_zeros();
 
     ctx.cpu.gpr[instr.a()] = n;
 
@@ -378,7 +366,7 @@ fn op_nandx(_ctx: &mut Context, _instr: Instruction) {
 
 fn op_negx(ctx: &mut Context, instr: Instruction) {
     let ra = ctx.cpu.gpr[instr.a()];
-    let rd = (!ra) + 1;
+    let rd = (!ra).wrapping_add(1);
 
     ctx.cpu.gpr[instr.d()] = rd;
 
@@ -479,7 +467,7 @@ fn op_srawix(ctx: &mut Context, instr: Instruction) {
         .set_carry(rs < 0 && s > 0 && ((rs as u32) << (32 - s)) != 0);
 }
 
-// ToDo: review this implementation
+// TODO: review this implementation
 fn op_srawx(ctx: &mut Context, instr: Instruction) {
     let rb = ctx.cpu.gpr[instr.b()];
 
@@ -499,11 +487,7 @@ fn op_srawx(ctx: &mut Context, instr: Instruction) {
 
             ctx.cpu.gpr[instr.a()] = (rs >> n) as u32;
 
-            if rs < 0 && (rs << (32 - n) != 0) {
-                ctx.cpu.xer.set_carry(true);
-            } else {
-                ctx.cpu.xer.set_carry(false);
-            }
+            ctx.cpu.xer.set_carry(rs < 0 && (rs << (32 - n) != 0));
         } else {
             ctx.cpu.gpr[instr.a()] = ctx.cpu.gpr[instr.s()];
             ctx.cpu.xer.set_carry(false);
@@ -529,33 +513,36 @@ fn op_srwx(ctx: &mut Context, instr: Instruction) {
     if instr.rc() {
         ctx.cpu.update_cr0(ra);
     }
+
+    ctx.tick(1);
 }
 
 fn op_subfcx(ctx: &mut Context, instr: Instruction) {
     let ra = ctx.cpu.gpr[instr.a()];
     let rb = ctx.cpu.gpr[instr.b()];
-    let ca = rb < ra;
 
-    let rd = (!ra).wrapping_add(1).wrapping_add(rb);
+    let (rd, ca1) = (!ra).overflowing_add(rb);
+    let (rd, ca2) = rd.overflowing_add(1);
 
     ctx.cpu.gpr[instr.d()] = rd;
 
-    ctx.cpu.xer.set_carry(ca);
+    ctx.cpu.xer.set_carry(ca1 || ca2);
 
     if instr.oe() {
-        ctx.cpu.set_xer_so(check_overflowed(ra, rb, rd));
+        ctx.cpu.set_xer_so(check_overflowed(!ra, rb, rd));
     }
 
     if instr.rc() {
-        ctx.cpu.update_cr0(ctx.cpu.gpr[instr.d()]);
+        ctx.cpu.update_cr0(rd);
     }
+
+    ctx.tick(1);
 }
 
 fn op_subfex(ctx: &mut Context, instr: Instruction) {
     let ra = ctx.cpu.gpr[instr.a()];
     let rb = ctx.cpu.gpr[instr.b()];
 
-    // Wrong ???
     let (rd, ca1) = (!ra).overflowing_add(rb);
     let (rd, ca2) = rd.overflowing_add(ctx.cpu.xer.carry() as u32);
 
@@ -564,7 +551,7 @@ fn op_subfex(ctx: &mut Context, instr: Instruction) {
     ctx.cpu.xer.set_carry(ca1 | ca2);
 
     if instr.oe() {
-        ctx.cpu.set_xer_so(check_overflowed(ra, rb, rd));
+        ctx.cpu.set_xer_so(check_overflowed(!ra, rb, rd));
     }
 
     if instr.rc() {
@@ -589,19 +576,20 @@ fn op_subfmex(_ctx: &mut Context, _instr: Instruction) {
 
 fn op_subfzex(ctx: &mut Context, instr: Instruction) {
     let ra = ctx.cpu.gpr[instr.a()];
+    let ca = ctx.cpu.xer.carry() as u32;
 
-    let (rd, ca) = (!ra).overflowing_add(ctx.cpu.xer.carry() as u32);
+    let rd = (!ra).wrapping_add(ca);
 
     ctx.cpu.gpr[instr.d()] = rd;
 
-    ctx.cpu.xer.set_carry(ca);
+    ctx.cpu.xer.set_carry(ca > ra);
 
     if instr.rc() {
         ctx.cpu.update_cr0(rd);
     }
 
     if instr.oe() {
-        panic!("OE: subfex");
+        panic!("OE: subfzex");
     }
 }
 
@@ -609,13 +597,13 @@ fn op_subfx(ctx: &mut Context, instr: Instruction) {
     let ra = ctx.cpu.gpr[instr.a()] as i32;
     let rb = ctx.cpu.gpr[instr.b()] as i32;
 
-    let (rd, ca) = rb.overflowing_sub(ra);
+    let (rd, ov) = rb.overflowing_sub(ra);
     let rd = rd as u32;
 
     ctx.cpu.gpr[instr.d()] = rd;
 
     if instr.oe() {
-        ctx.cpu.set_xer_so(ca);
+        ctx.cpu.set_xer_so(ov);
     }
 
     if instr.rc() {
@@ -636,7 +624,7 @@ fn op_xori(_ctx: &mut Context, _instr: Instruction) {
 }
 
 fn op_xoris(ctx: &mut Context, instr: Instruction) {
-    ctx.cpu.gpr[instr.a()] = ctx.cpu.gpr[instr.s()] ^ (instr.uimm() << 16)
+    ctx.cpu.gpr[instr.a()] = ctx.cpu.gpr[instr.s()] ^ (instr.uimm() << 16);
 }
 
 fn op_xorx(ctx: &mut Context, instr: Instruction) {
