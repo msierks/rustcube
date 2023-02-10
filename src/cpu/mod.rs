@@ -935,6 +935,7 @@ include!("cpu_float.rs");
 include!("cpu_integer.rs");
 include!("cpu_load_store.rs");
 include!("cpu_system.rs");
+include!("cpu_tests.rs");
 
 bitfield! {
     #[derive(Copy, Clone)]
