@@ -739,7 +739,7 @@ pub const OPCODE19_TABLE: [OpcodeTableItem; 13] = [
     (16, Opcode::Bclrx, op_bclrx),
     (33, Opcode::Crnor, op_crnor),
     (50, Opcode::Rfi, op_rfi),
-    (128, Opcode::Crandc, op_crandc),
+    (129, Opcode::Crandc, op_crandc),
     (150, Opcode::Isync, op_isync),
     (193, Opcode::Crxor, op_crxor),
     (225, Opcode::Crnand, op_crnand),
@@ -823,7 +823,7 @@ pub const OPCODE31_TABLE: [OpcodeTableItem; 108] = [
     (536, Opcode::Srwx, op_srwx),
     (552, Opcode::Subfx, op_subfx), // oe = 1
     (566, Opcode::Tlbsync, op_tlbsync),
-    (576, Opcode::Lfsux, op_lfsux),
+    (567, Opcode::Lfsux, op_lfsux),
     (587, Opcode::Mulhwx, op_mulhwx), // 21(reserved) = 1
     (595, Opcode::Mfsr, op_mfsr),
     (597, Opcode::Lswi, op_lswi),
