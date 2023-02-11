@@ -33,3 +33,28 @@ pub fn sign_ext_26(x: u32) -> i32 {
         x as i32
     }
 }
+
+// TODO: Potential performance improvement by placing all mask combinations in array
+pub fn mask(mb: u8, me: u8) -> u32 {
+    let mut mask: u32 = 0xFFFF_FFFF >> mb;
+
+    if me >= 31 {
+        mask ^= 0;
+    } else {
+        mask ^= 0xFFFF_FFFF >> (me + 1)
+    };
+
+    if me < mb {
+        !mask
+    } else {
+        mask
+    }
+}
+
+/// Helper to check if operation results in an overflow. This is determined by checking if both
+/// operands signs bits are the same but the results sign bit is different.
+///
+/// Note: Overflow flag is only relavent to signed arithmetic
+pub fn check_overflowed(a: u32, b: u32, result: u32) -> bool {
+    ((a ^ result) & (b ^ result)) >> 31 != 0
+}

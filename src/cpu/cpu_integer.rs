@@ -1,27 +1,3 @@
-fn mask(x: u8, y: u8) -> u32 {
-    let mut mask: u32 = 0xFFFF_FFFF >> x;
-
-    if y >= 31 {
-        mask ^= 0;
-    } else {
-        mask ^= 0xFFFF_FFFF >> (y + 1)
-    };
-
-    if y < x {
-        !mask
-    } else {
-        mask
-    }
-}
-
-/// Helper to check if operation results in an overflow. This is determined by checking if both
-/// operands signs bits are the same but the results sign bit is different.
-///
-/// Note: Overflow flag is only relavent to signed arithmetic
-fn check_overflowed(a: u32, b: u32, result: u32) -> bool {
-    ((a ^ result) & (b ^ result)) >> 31 != 0
-}
-
 fn op_addcx(ctx: &mut Context, instr: Instruction) {
     let ra = ctx.cpu.gpr[instr.a()];
     let rb = ctx.cpu.gpr[instr.b()];
