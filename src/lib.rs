@@ -307,9 +307,9 @@ impl Context {
             Memory => mem::read_u32(self, addr),
             Bootrom(offset) => BigEndian::read_u32(&self.bootrom.borrow()[offset as usize..]),
             //DvdInterface(reg) => di::read_u32(self, reg),
-            //ExternalInterface(chan, reg) => exi::read_u32(self, chan, reg),
             //SerialInterface(reg) => si::read_u32(self, reg),
             //AudioInterface(reg) => ai::read_u32(self, reg),
+            ExternalInterface(chan, reg) => exi::read_u32(self, chan, reg),
             ProcessorInterface(reg) => pi::read_u32(self, reg),
             _ => 0,
         };
