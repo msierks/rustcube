@@ -19,9 +19,9 @@ mod exi;
 mod mem;
 //mod memory_interface;
 //mod pixel_engine;
-//mod processor_interface;
 //mod serial_interface;
 //mod video_interface;
+mod pi;
 mod timers;
 mod utils;
 
@@ -36,7 +36,7 @@ use self::exi::ExternalInterface;
 use self::mem::Memory;
 //use self::pe::PixelEngine;
 //use self::pi::ProcessorInterface;
-//use self::si::SerialInterface;
+use self::pi::ProcessorInterface;
 use self::timers::Timers;
 //use self::vi::VideoInterface;
 //use self::video::cp;
@@ -84,9 +84,9 @@ pub struct Context {
     exi: ExternalInterface,
     //gp_fifo: GpFifo,
     //pe: PixelEngine,
-    //pi: ProcessorInterface,
     //si: SerialInterface,
     //vi: VideoInterface,
+    pi: ProcessorInterface,
     timers: Timers,
     watchpoints: Vec<Watchpoint>,
     breakpoints: Vec<u32>,
@@ -109,9 +109,9 @@ impl Default for Context {
             exi,
             //gp_fifo: Default::default(),
             //pe: Default::default(),
-            //pi: Default::default(),
             //si: Default::default(),
             //vi: Default::default(),
+            pi: Default::default(),
             timers: Default::default(),
             watchpoints: Default::default(),
             breakpoints: Default::default(),
@@ -280,15 +280,15 @@ impl Context {
             Bootrom(offset) => BigEndian::read_u32(&self.bootrom.borrow()[offset as usize..]),
             //DvdInterface(reg) => di::read_u32(self, reg),
             ExternalInterface(chan, reg) => exi::read_u32(self, chan, reg),
-            //ProcessorInterface(reg) => pi::read_u32(self, reg),
             //SerialInterface(reg) => si::read_u32(self, reg),
             //AudioInterface(reg) => ai::read_u32(self, reg),
+            ProcessorInterface(reg) => pi::read_u32(self, reg),
             _ => {
-                //warn!(
-                //    "read_u32 not implemented for {:#?} address {:#x}",
-                //    map(addr),
-                //    addr
-                //);
+                warn!(
+                    "read_u32 not implemented for {:?} address {:#x}",
+                    map(addr),
+                    addr
+                );
                 0
             }
         };
@@ -308,9 +308,9 @@ impl Context {
             Bootrom(offset) => BigEndian::read_u32(&self.bootrom.borrow()[offset as usize..]),
             //DvdInterface(reg) => di::read_u32(self, reg),
             //ExternalInterface(chan, reg) => exi::read_u32(self, chan, reg),
-            //ProcessorInterface(reg) => pi::read_u32(self, reg),
             //SerialInterface(reg) => si::read_u32(self, reg),
             //AudioInterface(reg) => ai::read_u32(self, reg),
+            ProcessorInterface(reg) => pi::read_u32(self, reg),
             _ => 0,
         };
 
@@ -413,9 +413,9 @@ impl Context {
             //}
             //DvdInterface(reg) => di::write_u32(self, reg, val),
             ExternalInterface(chan, reg) => exi::write_u32(self, chan, reg, val),
-            //ProcessorInterface(reg) => pi::write_u32(self, reg, val),
             //SerialInterface(reg) => si::write_u32(self, reg, val),
             //AudioInterface(reg) => ai::write_u32(self, reg, val),
+            ProcessorInterface(reg) => pi::write_u32(self, reg, val),
             //GpFifo => gp_fifo::write_u32(self, val),
             _ => warn!(
                 "write_u32 not implemented for {:?} address {:#x}",
