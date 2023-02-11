@@ -2,6 +2,7 @@ use crate::pi::{clear_interrupt, set_interrupt, PI_INTERRUPT_VI};
 use crate::utils::Halveable;
 use crate::Context;
 
+#[cfg(not(test))]
 use minifb::{Window, WindowOptions};
 
 const VI_VERTICAL_TIMING: u32 = 0x00;
