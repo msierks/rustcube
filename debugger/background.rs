@@ -238,7 +238,7 @@ impl Disassembly {
         for _ in 0..window_size {
             let addr = ctx.cpu().translate_instr_address(pc);
             let code = ctx.read_instruction(addr);
-            let disinstr = disassem.decode(pc, code);
+            let disinstr = disassem.decode(pc, code, true);
 
             instructions.push(disinstr);
 

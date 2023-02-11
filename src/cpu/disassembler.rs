@@ -3,6 +3,7 @@ use super::{
     sign_ext_16, sign_ext_26, Opcode, ILLEGAL_OP, OPCODE19_TABLE, OPCODE31_TABLE, OPCODE4AA_TABLE,
     OPCODE4A_TABLE, OPCODE4X_TABLE, OPCODE59_TABLE, OPCODE63A_TABLE, OPCODE63X_TABLE, OPCODE_TABLE,
     OPTABLE19_SIZE, OPTABLE31_SIZE, OPTABLE4_SIZE, OPTABLE59_SIZE, OPTABLE63_SIZE, OPTABLE_SIZE,
+    SPR_CTR, SPR_LR, SPR_XER,
 };
 
 pub struct Disassembler {
@@ -89,7 +90,7 @@ impl Default for Disassembler {
 }
 
 impl Disassembler {
-    pub fn decode(&self, addr: u32, code: u32) -> DecodedInstruction {
+    pub fn decode(&self, addr: u32, code: u32, simplified: bool) -> DecodedInstruction {
         let instr = Instruction(code);
 
         let mut opcode = self.optable[instr.opcd()];
@@ -103,7 +104,7 @@ impl Disassembler {
             _ => opcode,
         };
 
-        DecodedInstruction::new(instr, opcode, addr)
+        DecodedInstruction::new(instr, opcode, addr, simplified)
     }
 }
 
@@ -116,8 +117,25 @@ pub struct DecodedInstruction {
 }
 
 impl DecodedInstruction {
-    pub fn new(instr: Instruction, opcode: Opcode, addr: u32) -> Self {
+    pub fn new(instr: Instruction, opcode: Opcode, addr: u32, simplified: bool) -> Self {
+        if simplified {
+            if let Some((mnemonic, operands)) = simplified_mnemonic(instr, opcode, addr) {
+                let mut mnemonic = mnemonic.to_string();
+
+                mnemonic.push_str(suffix(instr, opcode));
+
+                return DecodedInstruction {
+                    instr,
+                    opcode,
+                    addr,
+                    mnemonic,
+                    operands,
+                };
+            }
+        }
+
         let mut mnemonic = mnemonic(opcode).to_string();
+
         mnemonic.push_str(suffix(instr, opcode));
 
         let operands = operands(instr, opcode, addr);
@@ -370,6 +388,534 @@ pub fn mnemonic(opcode: Opcode) -> &'static str {
     }
 }
 
+pub fn simplified_mnemonic(
+    instr: Instruction,
+    opcode: Opcode,
+    addr: u32,
+) -> Option<(&'static str, String)> {
+    let mut operands = String::new();
+
+    match opcode {
+        Opcode::Bcx => {
+            let (bo, bi) = (instr.bo() & 0b11110, instr.bi() as u32);
+
+            let mut target = sign_ext_16(instr.bd() << 2) as u32;
+
+            if !instr.aa() {
+                target = target.wrapping_add(addr);
+            }
+
+            match bo {
+                0 => {
+                    operands = format!("{bi},{target:#x}");
+
+                    return Some(("bdnzf", operands));
+                }
+                2 => {
+                    operands = format!("{bi}, {target:#x}");
+
+                    return Some(("bdzf", operands));
+                }
+                4 => {
+                    if bi == 0 {
+                        operands = format!("{target:#x}");
+
+                        return Some(("bge", operands)); // or bnl
+                    }
+
+                    if bi & 0b11 == 0 {
+                        operands = format!("cr{},{target:#x}", bi & 0b11);
+
+                        return Some(("bge", operands)); // or bnl
+                    }
+
+                    if bi & 0b11 == 1 {
+                        if bi != 1 {
+                            operands = format!("cr{},{target:#x}", bi & 0b11);
+                        } else {
+                            operands = format!("{target:#x}");
+                        }
+
+                        return Some(("ble", operands)); // or bng
+                    }
+
+                    if bi & 0b11 == 2 {
+                        if bi != 2 {
+                            operands = format!("cr{},{target:#x}", bi & 0b11);
+                        } else {
+                            operands = format!("{target:#x}");
+                        }
+
+                        return Some(("bne", operands));
+                    }
+
+                    if bi & 0b11 == 3 {
+                        if bi != 3 {
+                            operands = format!("cr{},{:#x}", bi & 0b11, target);
+                        } else {
+                            operands = format!("{target:#x}");
+                        }
+
+                        return Some(("bns", operands));
+                    }
+                }
+                8 => {
+                    operands = format!("{bi},{target:#x}");
+
+                    return Some(("bdnzt", operands));
+                }
+                10 => {
+                    operands = format!("{bi},{target:#x}");
+
+                    return Some(("bdzt", operands));
+                }
+                12 => {
+                    if bi & 0b11 == 0 {
+                        operands = format!("cr{},{:#x}", bi & 0b11, target);
+
+                        return Some(("blt", operands));
+                    }
+
+                    if bi == 0 {
+                        operands = format!("{target:#x}");
+
+                        return Some(("blt", operands));
+                    }
+
+                    if bi & 0b11 == 1 {
+                        if bi != 1 {
+                            operands = format!("cr{},{:#x}", bi & 0b11, target);
+                        } else {
+                            operands = format!("{target:#x}");
+                        }
+
+                        return Some(("bgt", operands));
+                    }
+
+                    if bi & 0b11 == 2 {
+                        if bi != 2 {
+                            operands = format!("cr{},{:#x}", bi & 0b11, target);
+                        } else {
+                            operands = format!("{target:#x}");
+                        }
+
+                        return Some(("beq", operands));
+                    }
+
+                    if bi & 0b11 == 3 {
+                        if bi != 3 {
+                            operands = format!("cr{},{:#x}", bi & 0b11, target);
+                        } else {
+                            operands = format!("{target:#x}");
+                        }
+
+                        return Some(("bso", operands)); // or bun
+                    }
+                }
+                16 => {
+                    if bi == 0 {
+                        operands = format!("{target:#x}");
+
+                        return Some(("bdnz", operands));
+                    }
+                }
+                18 => {
+                    if bi == 0 {
+                        operands = format!("{target:#x}");
+
+                        return Some(("bdz", operands));
+                    }
+                }
+                _ => (),
+            }
+        }
+        Opcode::Bclrx => {
+            let (bo, bi) = (instr.bo() & 0b11110, instr.bi() as u32);
+
+            match bo {
+                0 => {
+                    operands = format!("cr{bi}");
+                    return Some(("bdnzflr", operands));
+                }
+                4 => {
+                    if bi == 0 {
+                        return Some(("bgelr", operands));
+                    }
+
+                    if bi & 0b11 == 0 {
+                        operands = format!("cr{}", bi & 0b11);
+
+                        return Some(("bgelr", operands));
+                    }
+
+                    if bi & 0b11 == 1 {
+                        if bi != 1 {
+                            operands = format!("cr{bi}");
+                        }
+
+                        return Some(("blelr", operands));
+                    }
+
+                    if bi & 0b11 == 2 {
+                        if bi != 2 {
+                            operands = format!("cr{}", bi & 0b11);
+                        }
+
+                        return Some(("bnelr", operands));
+                    }
+
+                    if bi & 0b11 == 3 {
+                        if bi != 3 {
+                            operands = format!("cr{bi}");
+                        }
+
+                        return Some(("bnslr", operands));
+                    }
+                }
+                8 => {
+                    operands = format!("cr{bi}");
+                    return Some(("bdnztlr", operands));
+                }
+                10 => {
+                    return Some(("bdztlr", operands));
+                }
+                12 => {
+                    if bi == 0 {
+                        return Some(("bltlr", operands));
+                    }
+
+                    if bi & 0b11 == 0 {
+                        operands = format!("cr{}", bi & 0b11);
+
+                        return Some(("bltlr", operands));
+                    }
+
+                    if bi & 0b11 == 1 {
+                        if bi != 1 {
+                            operands = format!("cr{bi}");
+                        }
+
+                        return Some(("bgtlr", operands));
+                    }
+
+                    if bi & 0b11 == 2 {
+                        if bi != 2 {
+                            operands = format!("cr{bi}");
+                        }
+
+                        return Some(("beqlr", operands));
+                    }
+
+                    if bi & 0b11 == 3 {
+                        if bi != 3 {
+                            operands = format!("cr{bi}");
+                        }
+
+                        return Some(("bsolr", operands));
+                    }
+                }
+                16 => {
+                    if bi == 0 {
+                        return Some(("bdnzlr", operands));
+                    }
+                }
+                18 => {
+                    if bi == 0 {
+                        return Some(("bdzlr", operands));
+                    }
+                }
+                20 => {
+                    if bi & 0b11 == 0 {
+                        return Some(("blr", operands));
+                    }
+                }
+                _ => (),
+            }
+        }
+        Opcode::Bcctrx => {
+            let (bo, bi) = (instr.bo() & 0b11110, instr.bi() as u32);
+
+            match bo {
+                4 => {
+                    if bi == 0 {
+                        return Some(("bgectr", operands));
+                    }
+
+                    if bi & 0b11 == 0 {
+                        operands = format!("cr{}", bi & 0b11);
+
+                        return Some(("bgectr", operands));
+                    }
+
+                    if bi & 0b11 == 1 {
+                        if bi != 1 {
+                            operands = format!("cr{bi}");
+                        }
+
+                        return Some(("blectr", operands));
+                    }
+
+                    if bi & 0b11 == 2 {
+                        if bi != 2 {
+                            operands = format!("cr{bi}");
+                        }
+
+                        return Some(("bnectr", operands));
+                    }
+
+                    if bi & 0b11 == 3 {
+                        if bi != 3 {
+                            operands = format!("cr{bi}");
+                        }
+
+                        return Some(("bnsctr", operands));
+                    }
+                }
+                12 => {
+                    if bi == 0 {
+                        return Some(("bltctr", operands));
+                    }
+
+                    if bi & 0b11 == 0 {
+                        operands = format!("cr{}", bi & 0b11);
+
+                        return Some(("bltctr", operands));
+                    }
+
+                    if bi & 0b11 == 1 {
+                        if bi != 1 {
+                            operands = format!("cr{bi}");
+                        }
+
+                        return Some(("bgtctr", operands));
+                    }
+
+                    if bi & 0b11 == 2 {
+                        if bi != 2 {
+                            operands = format!("cr{bi}");
+                        }
+
+                        return Some(("beqctr", operands));
+                    }
+
+                    if bi & 0b11 == 3 {
+                        if bi != 3 {
+                            operands = format!("cr{bi}");
+                        }
+
+                        return Some(("bsoctr", operands));
+                    }
+                }
+                20 => {
+                    if bi == 0 {
+                        return Some(("bctr", operands));
+                    }
+                }
+                _ => (),
+            }
+        }
+        Opcode::Addi => {
+            if instr.a() == 0 {
+                operands = format!("r{},{}", instr.d(), instr.simm());
+                return Some(("li", operands));
+            }
+
+            if instr.simm() < 0 {
+                operands = format!(
+                    "r{},r{},{}",
+                    instr.d(),
+                    instr.a(),
+                    (!instr.simm()).wrapping_add(1)
+                );
+                return Some(("subi", operands));
+            }
+        }
+        Opcode::Addic => {
+            if instr.simm() < 0 {
+                operands = format!(
+                    "r{},r{},{}",
+                    instr.d(),
+                    instr.a(),
+                    (!instr.simm()).wrapping_add(1)
+                );
+                return Some(("subic", operands));
+            }
+        }
+        Opcode::Addicrc => {
+            if instr.simm() < 0 {
+                operands = format!(
+                    "r{},r{},{}",
+                    instr.d(),
+                    instr.a(),
+                    (!instr.simm()).wrapping_add(1)
+                );
+                return Some(("subic.", operands));
+            }
+        }
+        Opcode::Addis => {
+            if instr.a() == 0 {
+                operands = format!("r{},{}", instr.d(), instr.simm());
+                return Some(("lis", operands));
+            }
+            if instr.simm() < 0 {
+                operands = format!(
+                    "r{},r{},{}",
+                    instr.d(),
+                    instr.a(),
+                    (!instr.simm()).wrapping_add(1)
+                );
+                return Some(("subis", operands));
+            }
+        }
+        Opcode::Cmp => {
+            if instr.crfd() != 0 {
+                operands = format!("cr{},r{},r{}", instr.crfd(), instr.a(), instr.b());
+            } else {
+                operands = format!("r{},r{}", instr.a(), instr.b());
+            }
+            if instr.l() {
+                return Some(("cmpd", operands));
+            } else {
+                return Some(("cmpw", operands));
+            }
+        }
+        Opcode::Cmpi => {
+            if instr.crfd() != 0 {
+                operands = format!("cr{},r{},{}", instr.crfd(), instr.a(), instr.uimm());
+            } else {
+                operands = format!("r{},{}", instr.a(), instr.uimm());
+            }
+            if instr.l() {
+                return Some(("cmpdi", operands));
+            } else {
+                return Some(("cmpwi", operands));
+            }
+        }
+        Opcode::Cmpl => {
+            if instr.crfd() != 0 {
+                operands = format!("cr{},r{},r{}", instr.crfd(), instr.a(), instr.b());
+            } else {
+                operands = format!("r{},r{}", instr.a(), instr.b());
+            }
+            if instr.l() {
+                return Some(("cmpld", operands));
+            } else {
+                return Some(("cmplw", operands));
+            }
+        }
+        Opcode::Cmpli => {
+            if instr.crfd() != 0 {
+                operands = format!("cr{},r{},{}", instr.crfd(), instr.a(), instr.uimm());
+            } else {
+                operands = format!("r{},{}", instr.a(), instr.uimm());
+            }
+            if instr.l() {
+                return Some(("cmpldi", operands));
+            } else {
+                return Some(("cmplwi", operands));
+            }
+        }
+        Opcode::Creqv => {
+            if instr.a() == instr.b() && instr.b() == instr.d() {
+                operands = format!("crb{}", instr.d());
+                return Some(("crse", operands));
+            }
+        }
+        Opcode::Crnor => {
+            if instr.a() == instr.b() {
+                operands = format!("crb{},crb{}", instr.d(), instr.a());
+                return Some(("crnot", operands));
+            }
+        }
+        Opcode::Cror => {
+            if instr.a() == instr.b() {
+                operands = format!("crb{},crb{}", instr.d(), instr.a());
+                return Some(("crmove", operands));
+            }
+        }
+        Opcode::Crxor => {
+            if instr.d() == instr.a() && instr.a() == instr.b() {
+                operands = format!("crb{}", instr.d());
+                return Some(("crclr", operands));
+            }
+        }
+        Opcode::Mftb => match instr.tbr() {
+            268 => {
+                operands = format!("r{}", instr.d());
+                return Some(("mftb", operands));
+            }
+            269 => {
+                operands = format!("r{}", instr.d());
+                return Some(("mftbu", operands));
+            }
+            _ => (),
+        },
+        Opcode::Mtcrf => {
+            if instr.crm() == 0xFF {
+                operands = format!("r{}", instr.s());
+                return Some(("mtcr", operands));
+            }
+        }
+        Opcode::Mfspr => match instr.spr() {
+            SPR_XER => {
+                operands = format!("r{}", instr.d());
+                return Some(("mfxer", operands));
+            }
+            SPR_LR => {
+                operands = format!("r{}", instr.d());
+                return Some(("mflr", operands));
+            }
+            SPR_CTR => {
+                operands = format!("r{}", instr.d());
+                return Some(("mfctr", operands));
+            }
+            _ => (),
+        },
+        Opcode::Mtspr => match instr.spr() {
+            SPR_XER => {
+                operands = format!("r{}", instr.d());
+                return Some(("mtxer", operands));
+            }
+            SPR_LR => {
+                operands = format!("r{}", instr.d());
+                return Some(("mtlr", operands));
+            }
+            SPR_CTR => {
+                operands = format!("r{}", instr.d());
+                return Some(("mtctr", operands));
+            }
+            _ => (),
+        },
+        Opcode::Norx => {
+            if instr.s() == instr.b() {
+                operands = format!("r{},r{}", instr.a(), instr.s());
+                return Some(("not", operands));
+            }
+        }
+        Opcode::Orx => {
+            if instr.s() == instr.b() {
+                operands = format!("r{},r{}", instr.a(), instr.s());
+                return Some(("mr", operands));
+            }
+        }
+        Opcode::Ori => {
+            if instr.s() == 0 && instr.a() == 0 && instr.uimm() == 0 {
+                return Some(("nop", operands));
+            }
+        }
+        Opcode::Rlwimix => {}  // TODO
+        Opcode::Rlwinmx => (), // TODO
+        Opcode::Rlwnmx => (),  // TODO
+        Opcode::Subfx => (),   // TODO
+        Opcode::Subfcx => (),  // TODO
+        Opcode::Tw => (),      // TODO
+        Opcode::Twi => (),     // TODO
+        _ => (),
+    }
+
+    None
+}
+
 pub fn suffix(instr: Instruction, opcode: Opcode) -> &'static str {
     match opcode {
         Opcode::Bx | Opcode::Bcx => match (instr.aa(), instr.lk()) {
@@ -492,14 +1038,14 @@ pub fn operands(instr: Instruction, opcode: Opcode, addr: u32) -> String {
         Opcode::Mulli => format!("r{},r{},{}", instr.d(), instr.a(), instr.simm()),
         Opcode::Subfic => format!("r{},r{},{}", instr.d(), instr.a(), instr.simm()),
         Opcode::Cmpli => format!(
-            "cr{},{},r{},{}",
+            "crb{},{},r{},{}",
             instr.crfd(),
             instr.l() as u8,
             instr.a(),
             instr.uimm()
         ),
         Opcode::Cmpi => format!(
-            "cr{},{},r{},{}",
+            "crb{},{},r{},{}",
             instr.crfd(),
             instr.l() as u8,
             instr.a(),
@@ -529,6 +1075,9 @@ pub fn operands(instr: Instruction, opcode: Opcode, addr: u32) -> String {
             }
 
             format!("{target:#x}")
+        }
+        Opcode::Bclrx | Opcode::Bcctrx => {
+            format!("{},{}", instr.bo(), instr.bi())
         }
         Opcode::Rlwimix | Opcode::Rlwinmx => format!(
             "r{},r{},{},{},{}",
@@ -621,9 +1170,9 @@ pub fn operands(instr: Instruction, opcode: Opcode, addr: u32) -> String {
         | Opcode::Crand
         | Opcode::Creqv
         | Opcode::Crorc
-        | Opcode::Cror => format!("cr{},cr{},cr{}", instr.d(), instr.a(), instr.b()),
+        | Opcode::Cror => format!("crb{},crb{},crb{}", instr.d(), instr.a(), instr.b()),
         Opcode::Cmp | Opcode::Cmpl => format!(
-            "cr{},{},r{},r{}",
+            "crb{},{},r{},r{}",
             instr.crfd(),
             instr.l() as u8,
             instr.a(),
@@ -732,12 +1281,12 @@ pub fn operands(instr: Instruction, opcode: Opcode, addr: u32) -> String {
         | Opcode::PsCmpo0
         | Opcode::PsCmpu1
         | Opcode::PsCmpo1 => {
-            format!("cr{},f{},f{}", instr.crfd(), instr.a(), instr.b())
+            format!("crf{},f{},f{}", instr.crfd(), instr.a(), instr.b())
         }
-        Opcode::Mcrxr => format!("cr{}", instr.crfd()),
-        Opcode::Mtfsb1x | Opcode::Mtfsb0x => format!("cr{}", instr.crbd()),
+        Opcode::Mcrxr => format!("crf{}", instr.crfd()),
+        Opcode::Mtfsb1x | Opcode::Mtfsb0x => format!("crb{}", instr.crbd()),
 
-        Opcode::Mtfsfix => format!("cr{},{}", instr.crfd(), instr.imm()),
+        Opcode::Mtfsfix => format!("crb{},{}", instr.crfd(), instr.imm()),
         Opcode::Frspx
         | Opcode::Fctiwzx
         | Opcode::Fnegx
@@ -781,7 +1330,7 @@ pub fn operands(instr: Instruction, opcode: Opcode, addr: u32) -> String {
             instr.b(),
         ),
         Opcode::Mcrf | Opcode::Mcrfs => {
-            format!("cr{},cr{}", instr.crfd(), instr.crfs())
+            format!("crf{},crf{}", instr.crfd(), instr.crfs())
         }
         Opcode::Tlbie => format!("r{}", instr.b()),
         Opcode::Lfsx | Opcode::Lfsux | Opcode::Lfdx | Opcode::Lfdux => {
