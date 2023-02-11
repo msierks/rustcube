@@ -4,30 +4,24 @@ extern crate bitfield;
 #[macro_use]
 extern crate log;
 
-//mod audio_interface;
-//mod command_processor;
+//mod ai;
 pub mod cpu;
-//pub mod debugger;
+mod di;
 mod dol;
 mod dsp;
-//mod dsp_interface;
-mod di;
 mod exi;
-//pub mod gamecube;
 //mod gp_fifo;
-//mod interconnect;
 mod mem;
-//mod memory_interface;
-//mod pixel_engine;
+//mod pe;
 mod pi;
 mod si;
 mod timers;
 mod utils;
 mod vi;
+//mod video;
 
 //use self::ai::AudioInterface;
 use self::cpu::Cpu;
-//pub use self::cpu::Fpr;
 use self::di::DvdInterface;
 use self::dol::Dol;
 use self::dsp::DspInterface;
@@ -250,9 +244,9 @@ impl Context {
 
         let ret = match map(addr) {
             Memory => mem::read_u16(self, addr),
-            DspInterface(reg) => dsp::read_u16(self, reg),
-            VideoInterface(reg) => vi::read_u16(self, reg),
             //PixelEngine(reg) => pe::read_u16(self, reg),
+            VideoInterface(reg) => vi::read_u16(self, reg),
+            DspInterface(reg) => dsp::read_u16(self, reg),
             _ => {
                 warn!(
                     "read_u16 not implemented for {:?} address {:#x}",
@@ -275,12 +269,12 @@ impl Context {
 
         let ret = match map(addr) {
             Memory => mem::read_u32(self, addr),
-            Bootrom(offset) => BigEndian::read_u32(&self.bootrom.borrow()[offset as usize..]),
-            DvdInterface(reg) => di::read_u32(self, reg),
-            ExternalInterface(chan, reg) => exi::read_u32(self, chan, reg),
-            //AudioInterface(reg) => ai::read_u32(self, reg),
             ProcessorInterface(reg) => pi::read_u32(self, reg),
+            ExternalInterface(chan, reg) => exi::read_u32(self, chan, reg),
+            DvdInterface(reg) => di::read_u32(self, reg),
             SerialInterface(reg) => si::read_u32(self, reg),
+            //AudioInterface(reg) => ai::read_u32(self, reg),
+            Bootrom(offset) => BigEndian::read_u32(&self.bootrom.borrow()[offset as usize..]),
             _ => {
                 warn!(
                     "read_u32 not implemented for {:?} address {:#x}",
@@ -303,12 +297,12 @@ impl Context {
 
         let ret = match map(addr) {
             Memory => mem::read_u32(self, addr),
-            Bootrom(offset) => BigEndian::read_u32(&self.bootrom.borrow()[offset as usize..]),
-            //AudioInterface(reg) => ai::read_u32(self, reg),
-            DvdInterface(reg) => di::read_u32(self, reg),
-            ExternalInterface(chan, reg) => exi::read_u32(self, chan, reg),
             ProcessorInterface(reg) => pi::read_u32(self, reg),
+            DvdInterface(reg) => di::read_u32(self, reg),
             SerialInterface(reg) => si::read_u32(self, reg),
+            ExternalInterface(chan, reg) => exi::read_u32(self, chan, reg),
+            //AudioInterface(reg) => ai::read_u32(self, reg),
+            Bootrom(offset) => BigEndian::read_u32(&self.bootrom.borrow()[offset as usize..]),
             _ => 0,
         };
 
@@ -380,10 +374,10 @@ impl Context {
         match map(addr) {
             Memory => mem::write_u16(self, addr, val),
             //CommandProcessor(reg) => cp::write_u16(self, reg, val),
+            //PixelEngine(reg) => pe::write_u16(self, reg, val),
+            VideoInterface(reg) => vi::write_u16(self, reg, val),
             DspInterface(reg) => dsp::write_u16(self, reg, val),
             //MemoryInterface(_) => {} //ignore
-            VideoInterface(reg) => vi::write_u16(self, reg, val),
-            //PixelEngine(reg) => pe::write_u16(self, reg, val),
             _ => warn!(
                 "write_u16 not implemented for {:?} address {:#x}",
                 map(addr),
@@ -401,19 +395,19 @@ impl Context {
 
         match map(addr) {
             Memory => mem::write_u32(self, addr, val),
-            DspInterface(reg) => {
-                dsp::write_u16(self, reg, val.hi());
-                dsp::write_u16(self, reg + 2, val.lo());
-            }
             VideoInterface(reg) => {
                 vi::write_u16(self, reg, val.hi());
                 vi::write_u16(self, reg + 2, val.lo());
             }
+            ProcessorInterface(reg) => pi::write_u32(self, reg, val),
+            DspInterface(reg) => {
+                dsp::write_u16(self, reg, val.hi());
+                dsp::write_u16(self, reg + 2, val.lo());
+            }
             DvdInterface(reg) => di::write_u32(self, reg, val),
+            SerialInterface(reg) => si::write_u32(self, reg, val),
             ExternalInterface(chan, reg) => exi::write_u32(self, chan, reg, val),
             //AudioInterface(reg) => ai::write_u32(self, reg, val),
-            ProcessorInterface(reg) => pi::write_u32(self, reg, val),
-            SerialInterface(reg) => si::write_u32(self, reg, val),
             //GpFifo => gp_fifo::write_u32(self, val),
             _ => warn!(
                 "write_u32 not implemented for {:?} address {:#x}",
