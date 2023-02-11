@@ -43,8 +43,16 @@ fn op_fmaddx(_ctx: &mut Context, _instr: Instruction) {
 }
 
 fn op_fmrx(ctx: &mut Context, instr: Instruction) {
-    // This is wrong, assuming frB is is paired single every time
-    ctx.cpu.fpr[instr.d()].set_ps0(ctx.cpu.fpr[instr.b()].ps0())
+    // FIXME: this is wrong
+    if ctx.cpu.hid2.pse() {
+        ctx.cpu.fpr[instr.d()].set_ps0(ctx.cpu.fpr[instr.b()].ps0());
+    } else {
+        ctx.cpu.fpr[instr.d()] = ctx.cpu.fpr[instr.b()];
+    }
+
+    if instr.rc() {
+        unimplemented!("op_fmrx rc");
+    }
 
     ctx.tick(3);
 }
@@ -67,11 +75,6 @@ fn op_fmulx(_ctx: &mut Context, _instr: Instruction) {
 
 fn op_fnabsx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_fnabsx");
-    //    self.fpr[instr.d()] = self.fpr[instr.b()] | (1 << 63);
-
-    //    if instr.rc() {
-    //        self.cr.update_cr1(self.fpr[instr.d()], &self.fpscr);
-    //    }
 }
 
 fn op_fnegx(_ctx: &mut Context, _instr: Instruction) {
@@ -248,11 +251,6 @@ fn op_mtfsb0x(_ctx: &mut Context, _instr: Instruction) {
 
 fn op_mtfsb1x(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_mtfsb1x");
-    //    self.fpscr.set_bit(instr.crbd(), true);
-
-    //    if instr.rc() {
-    //        panic!("RC: mtfsb1x");
-    //    }
 }
 
 fn op_mtfsfix(_ctx: &mut Context, _instr: Instruction) {
@@ -260,5 +258,5 @@ fn op_mtfsfix(_ctx: &mut Context, _instr: Instruction) {
 }
 
 fn op_mtfsfx(_ctx: &mut Context, _instr: Instruction) {
-    println!("FixMe: mtfsfx");
+    unimplemented!("op_mtfsfx");
 }
