@@ -54,7 +54,7 @@ fn op_mtcrf(ctx: &mut Context, instr: Instruction) {
     if crm == 0xFF {
         ctx.cpu.cr.set(ctx.cpu.gpr[instr.s()]);
     } else {
-        unimplemented!();
+        unimplemented!("op_mtcrf crm != 0xFF");
     }
 
     ctx.tick(1);
