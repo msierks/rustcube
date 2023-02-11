@@ -19,11 +19,11 @@ mod exi;
 mod mem;
 //mod memory_interface;
 //mod pixel_engine;
-//mod video_interface;
 mod pi;
 mod si;
 mod timers;
 mod utils;
+mod vi;
 
 //use self::ai::AudioInterface;
 use self::cpu::Cpu;
@@ -38,7 +38,7 @@ use self::mem::Memory;
 use self::pi::ProcessorInterface;
 use self::si::SerialInterface;
 use self::timers::Timers;
-//use self::vi::VideoInterface;
+use self::vi::VideoInterface;
 //use self::video::cp;
 //use self::video::cp::CommandProcessor;
 use crate::utils::Halveable;
@@ -51,7 +51,7 @@ use std::path::Path;
 use std::rc::Rc;
 
 const BOOTROM_SIZE: usize = 0x0020_0000; // 2 MB
-                                         //
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Event {
     Halted,
@@ -84,9 +84,9 @@ pub struct Context {
     exi: ExternalInterface,
     //gp_fifo: GpFifo,
     //pe: PixelEngine,
-    //vi: VideoInterface,
     pi: ProcessorInterface,
     si: SerialInterface,
+    vi: VideoInterface,
     timers: Timers,
     watchpoints: Vec<Watchpoint>,
     breakpoints: Vec<u32>,
@@ -109,9 +109,9 @@ impl Default for Context {
             exi,
             //gp_fifo: Default::default(),
             //pe: Default::default(),
-            //vi: Default::default(),
             pi: Default::default(),
             si: Default::default(),
+            vi: Default::default(),
             timers: Default::default(),
             watchpoints: Default::default(),
             breakpoints: Default::default(),
@@ -158,13 +158,7 @@ impl Context {
     pub fn step(&mut self) -> Option<Event> {
         cpu::step(self);
 
-        // Temp
-        //if self.timers.get_ticks() % 44 == 0 {
-        //    vi::update(self);
-        //}
-        //if self.timers.get_ticks() %  == 0 {
-        //ai::run(self);
-        //}
+        vi::update(self);
 
         if let Some(access) = self.hit_watchpoint {
             self.hit_watchpoint = None;
@@ -188,6 +182,10 @@ impl Context {
 
     pub fn tick(&mut self, cycles: u32) {
         self.timers.tick(cycles);
+    }
+
+    pub fn get_ticks(&self) -> u64 {
+        self.timers.get_ticks()
     }
 
     fn check_watchpoints(&mut self, addr: u32, size: usize, write: bool) {
@@ -253,7 +251,7 @@ impl Context {
         let ret = match map(addr) {
             Memory => mem::read_u16(self, addr),
             DspInterface(reg) => dsp::read_u16(self, reg),
-            //VideoInterface(reg) => vi::read_u16(self, reg),
+            VideoInterface(reg) => vi::read_u16(self, reg),
             //PixelEngine(reg) => pe::read_u16(self, reg),
             _ => {
                 warn!(
@@ -383,8 +381,8 @@ impl Context {
             Memory => mem::write_u16(self, addr, val),
             //CommandProcessor(reg) => cp::write_u16(self, reg, val),
             DspInterface(reg) => dsp::write_u16(self, reg, val),
-            MemoryInterface(_) => {} //ignore
-            //VideoInterface(reg) => vi::write_u16(self, reg, val),
+            //MemoryInterface(_) => {} //ignore
+            VideoInterface(reg) => vi::write_u16(self, reg, val),
             //PixelEngine(reg) => pe::write_u16(self, reg, val),
             _ => warn!(
                 "write_u16 not implemented for {:?} address {:#x}",
@@ -407,11 +405,11 @@ impl Context {
                 dsp::write_u16(self, reg, val.hi());
                 dsp::write_u16(self, reg + 2, val.lo());
             }
-            //VideoInterface(reg) => {
-            //    vi::write_u16(self, reg, (val >> 16) as u16);
-            //    vi::write_u16(self, reg + 2, val as u16);
-            //}
             //DvdInterface(reg) => di::write_u32(self, reg, val),
+            VideoInterface(reg) => {
+                vi::write_u16(self, reg, val.hi());
+                vi::write_u16(self, reg + 2, val.lo());
+            }
             ExternalInterface(chan, reg) => exi::write_u32(self, chan, reg, val),
             //AudioInterface(reg) => ai::write_u32(self, reg, val),
             ProcessorInterface(reg) => pi::write_u32(self, reg, val),
