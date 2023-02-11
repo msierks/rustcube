@@ -4,7 +4,7 @@ use super::MachineStateRegister;
 pub struct Bat {
     bepi: u16, // Block Effect Page Index
     bl: u16,   // Block-length Mask
-    vs: bool,  // Supervisor state valid bit  -- allows root access
+    vs: bool,  // Supervisor state valid bit -- allows root access
     vp: bool,  // Problem state valid bit -- allows user access
     brpn: u16, // Block Real Page Number
     wimg: u8,  // Storage Access Controls
@@ -71,9 +71,7 @@ pub fn translate_address(bats: &[Bat; 4], msr: MachineStateRegister, ea: u32) ->
         let ea_15 = (ea >> 17) as u16;
         let ea_bepi = (ea_15 & 0x7800) ^ ((ea_15 & 0x7FF) & (!bat.bl));
 
-        if ea_bepi == bat.bepi
-            && ((!msr.privilege_level() && bat.vs) || (msr.privilege_level() && bat.vp))
-        {
+        if ea_bepi == bat.bepi && ((!msr.pr() && bat.vs) || (msr.pr() && bat.vp)) {
             let upper = u32::from(bat.brpn ^ ((ea_15 & 0x7FF) & bat.bl));
             let lower = ea & 0x1FFFF;
 

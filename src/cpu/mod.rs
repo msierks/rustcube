@@ -94,7 +94,7 @@ const EXCEPTION_SYSTEM_CALL: u32 = 0x200;
 //const EXCEPTION_TRACE: u32 = 0x400;
 //const EXCEPTION_FPU_ASSIST: u32 = 0x800;
 const EXCEPTION_PERFORMANCE_MONITOR: u32 = 0x1000; // Gekko Only
-                                                   //const EXCEPTION_IABR: u32 = 0x2000; // Gekko Only
+const _EXCEPTION_IABR: u32 = 0x2000; // Gekko Only
 const EXCEPTION_THERMAL_MANAGEMENT: u32 = 0x4000; // Gekko Only
 
 const PROCESSOR_VERSION: u32 = 0x0008_3214;
@@ -233,7 +233,8 @@ impl Cpu {
     pub fn emulate_bs2(&mut self) {
         self.msr = 0x0000_2030.into();
 
-        // FixMe: populate SPR's accoprdingly
+        // FIXME: populate SPR's accoprdingly
+
         self.mmu.write_ibatu(0, 0x8000_1fff); // Spr::IBAT0U
         self.mmu.write_ibatl(0, 0x0000_0002); // Spr::IBAT0L
         self.mmu.write_ibatu(3, 0xfff0_001f); // Spr::IBAT3U
@@ -246,9 +247,17 @@ impl Cpu {
         self.mmu.write_dbatl(3, 0xfff0_0001); // Spr::DBAT3L
     }
 
+    pub fn external_interrupt(&mut self, enable: bool) {
+        if enable {
+            self.exceptions |= EXCEPTION_EXTERNAL_INT;
+        } else {
+            self.exceptions &= !EXCEPTION_EXTERNAL_INT;
+        }
+    }
+
     fn check_exceptions(&mut self) {
         if self.exceptions & EXCEPTION_SYSTEM_RESET != 0 {
-            if self.msr.exception_prefix() {
+            if self.msr.ip() {
                 self.cia = 0x100 | 0xFFF0_0000
             } else {
                 self.cia = 0x100
@@ -257,41 +266,20 @@ impl Cpu {
             self.exceptions &= !EXCEPTION_SYSTEM_RESET;
 
             info!("EXCEPTION_SYSTEM_RESET");
-        }
-
-        if self.exceptions & EXCEPTION_SYSTEM_CALL != 0 {
-            self.spr[SPR_SRR0] = self.nia;
-            self.spr[SPR_SRR1] = self.msr.0 & 0x87C0_FFFF;
-            self.msr.0 &= !0x04_EF36;
-
-            self.msr
-                .set_little_endian(self.msr.exception_little_endian());
-
-            if self.msr.exception_prefix() {
-                self.cia = 0xC00 | 0xFFF0_0000
-            } else {
-                self.cia = 0xC00
+        } else if self.exceptions & EXCEPTION_EXTERNAL_INT != 0 {
+            if !self.msr.ee() {
+                return;
             }
 
-            self.nia = self.cia;
-
-            self.exceptions &= !EXCEPTION_SYSTEM_CALL;
-
-            info!("EXCEPTION_SYSTEM_CALL (PC={:#x})", self.cia);
-        }
-
-        if self.msr.external_interrupt() && self.exceptions & EXCEPTION_EXTERNAL_INT != 0 {
             self.spr[SPR_SRR0] = self.nia;
             self.spr[SPR_SRR1] = self.msr.0 & 0x87C0_FFFF;
+            self.msr.set_le(self.msr.le());
             self.msr.0 &= !0x04_EF36;
 
-            self.msr
-                .set_little_endian(self.msr.exception_little_endian());
-
-            if self.msr.exception_prefix() {
-                self.cia = 0x500 | 0xFFF0_0000
+            if self.msr.ip() {
+                self.cia = 0x500 | 0xFFF0_0000;
             } else {
-                self.cia = 0x500
+                self.cia = 0x500;
             }
 
             self.nia = self.cia;
@@ -299,24 +287,44 @@ impl Cpu {
             self.exceptions &= !EXCEPTION_EXTERNAL_INT;
 
             info!("EXCEPTION_EXTERNAL_INT");
-        }
+        } else if self.exceptions & EXCEPTION_SYSTEM_CALL != 0 {
+            self.spr[SPR_SRR0] = self.nia;
+            self.spr[SPR_SRR1] = self.msr.0 & 0x87C0_FFFF;
+            self.msr.set_le(self.msr.le());
+            self.msr.0 &= !0x04_EF36;
 
-        if self.exceptions & EXCEPTION_PERFORMANCE_MONITOR != 0 {
+            if self.msr.ip() {
+                self.cia = 0xC00 | 0xFFF0_0000;
+            } else {
+                self.cia = 0xC00;
+            }
+
+            self.nia = self.cia;
+
+            self.exceptions &= !EXCEPTION_SYSTEM_CALL;
+
+            info!("EXCEPTION_SYSTEM_CALL (PC={:#x})", self.cia);
+        } else if self.exceptions & EXCEPTION_PERFORMANCE_MONITOR != 0 {
             unimplemented!("EXCEPTION_PERFORMANCE_MONITOR");
-        }
-
-        if self.exceptions & EXCEPTION_DECREMENTER != 0 {
+        } else if self.exceptions & EXCEPTION_DECREMENTER != 0 {
             unimplemented!("EXCEPTION_PERFORMANCE_MONITOR");
-        }
-
-        if self.exceptions & EXCEPTION_THERMAL_MANAGEMENT != 0 {
+        } else if self.exceptions & EXCEPTION_THERMAL_MANAGEMENT != 0 {
             unimplemented!("EXCEPTION_THERMAL_MANAGEMENT");
         }
     }
 
     pub fn translate_instr_address(&self, ea: u32) -> u32 {
-        if self.msr.instr_address_translation() {
+        if self.msr.ir() {
             translate_address(&self.mmu.ibat, self.msr, ea)
+        } else {
+            // real addressing mode
+            ea
+        }
+    }
+
+    pub fn translate_data_address(&self, ea: u32) -> u32 {
+        if self.msr.dr() {
+            translate_address(&self.mmu.dbat, self.msr, ea)
         } else {
             // real addressing mode
             ea
@@ -364,15 +372,6 @@ impl Cpu {
         flags |= self.xer.summary_overflow() as u32;
 
         self.cr.set_field(0, flags);
-    }
-
-    pub fn translate_data_address(&self, ea: u32) -> u32 {
-        if self.msr.data_address_translation() {
-            translate_address(&self.mmu.dbat, self.msr, ea)
-        } else {
-            // real addressing mode
-            ea
-        }
     }
 }
 
@@ -941,22 +940,22 @@ bitfield! {
     #[derive(Copy, Clone)]
     pub struct MachineStateRegister(u32);
     impl Debug;
-    pub little_endian, set_little_endian : 0;
-    pub reset_recoverable, _ : 1;
-    pub performance_monitor_marked, _ : 2;
-    pub data_address_translation, _ : 4;
-    pub instr_address_translation, _ : 5;
-    pub exception_prefix, _ : 6;
-    pub fp_exception_mode_1, _ : 8;
-    pub branch_trace, _ : 9;
-    pub single_step_trace, _ : 10;
-    pub fp_exception_mode_0, _ : 11;
-    pub machine_check, _ : 12;
-    pub floating_point, _ : 13;
-    pub privilege_level, _ : 14;
-    pub external_interrupt, _ : 15;
-    pub exception_little_endian, _ : 16;
-    pub power_management, set_power_management : 18;
+    pub le, set_le : 0;    // Little-endian mode enable
+    pub ri, _ : 1;         // System reset of machine check exception is recoverable
+    pub pm, _ : 2;         // Performance monitor marked mode
+    pub dr, _ : 4;         // Data address trranslation
+    pub ir, _ : 5;         // Instruction address translation
+    pub ip, _ : 6;         // Exception prefix
+    pub fe1, _ : 8;        // IEEE floating-point exception mode 1
+    pub be, _ : 9;         // Branch trace enable
+    pub se, _ : 10;        // Single-step strace enable
+    pub fe0, _ : 11;       // IEEE floating-point exception mode 0
+    pub me, _ : 12;        // Machine check enable
+    pub fp, _ : 13;        // Floating-point available
+    pub pr, _ : 14;        // Privilege level
+    pub ee, _ : 15;        // External interrupt enable
+    pub ile, _ : 16;       // Exception little-endian mode
+    pub pow, set_pow : 18; // Power management enable
 }
 
 impl From<u32> for MachineStateRegister {

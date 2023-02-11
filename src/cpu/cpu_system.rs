@@ -78,7 +78,7 @@ fn op_mtspr(ctx: &mut Context, instr: Instruction) {
     match i {
         SPR_XER => ctx.cpu.xer = v.into(),
         _ => {
-            if ctx.cpu.msr.privilege_level() {
+            if ctx.cpu.msr.pr() {
                 // TODO: properly handle this case
                 ctx.cpu.exceptions |= EXCEPTION_PROGRAM;
                 panic!("mtspr: user privilege level prevents setting spr {i:#?}");
@@ -131,13 +131,13 @@ fn op_mtsrin(_ctx: &mut Context, _instr: Instruction) {
 }
 
 fn op_rfi(ctx: &mut Context, _instr: Instruction) {
-    let mask = 0x87C0_FFFF;
+    let mask = 0x87C0_FF73;
 
-    ctx.cpu.msr = ((ctx.cpu.msr.0 & !mask) | (ctx.cpu.spr[SPR_SRR1] & mask)).into();
+    ctx.cpu.msr.0 = (ctx.cpu.msr.0 & !mask) | (ctx.cpu.spr[SPR_SRR1] & mask);
 
     ctx.cpu.msr.0 &= 0xFFFB_FFFF;
 
-    ctx.cpu.nia = ctx.cpu.spr[SPR_SRR0] & 0xFFFF_FFFE;
+    ctx.cpu.nia = ctx.cpu.spr[SPR_SRR0] & 0xFFFF_FFFC;
 
     ctx.tick(2);
 }
