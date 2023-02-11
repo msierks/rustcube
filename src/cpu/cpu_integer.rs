@@ -352,12 +352,22 @@ fn op_mulhwux(ctx: &mut Context, instr: Instruction) {
     ctx.tick(2);
 }
 
-fn op_mulhwx(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_mulhwx");
+fn op_mulhwx(ctx: &mut Context, instr: Instruction) {
+    let ra = (ctx.cpu.gpr[instr.a()] as i32) as i64;
+    let rb = (ctx.cpu.gpr[instr.b()] as i32) as i64;
+
+    let rd = ((ra * rb) >> 32) as u32;
+
+    ctx.cpu.gpr[instr.d()] = rd;
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(rd);
+    }
 
     ctx.tick(2);
 }
 
+// TODO: review this implementation
 fn op_mulli(ctx: &mut Context, instr: Instruction) {
     ctx.cpu.gpr[instr.d()] =
         (ctx.cpu.gpr[instr.a()] as i32).wrapping_mul(i32::from(instr.simm())) as u32;
@@ -366,19 +376,20 @@ fn op_mulli(ctx: &mut Context, instr: Instruction) {
 }
 
 fn op_mullwx(ctx: &mut Context, instr: Instruction) {
-    let ra = ctx.cpu.gpr[instr.a()] as i32;
-    let rb = ctx.cpu.gpr[instr.b()] as i32;
-    let (rd, overflow) = ra.overflowing_mul(rb);
-    let rd = rd as u32;
+    let ra = (ctx.cpu.gpr[instr.a()] as i32) as i64;
+    let rb = (ctx.cpu.gpr[instr.b()] as i32) as i64;
 
-    ctx.cpu.gpr[instr.d()] = rd;
+    let rd = ra.wrapping_mul(rb);
+
+    ctx.cpu.gpr[instr.d()] = rd as u32;
 
     if instr.oe() {
-        ctx.cpu.set_xer_so(overflow)
+        ctx.cpu
+            .set_xer_so(!(-0x8000_0000..=0x7FFF_FFFF).contains(&rd));
     }
 
     if instr.rc() {
-        ctx.cpu.update_cr0(rd);
+        ctx.cpu.update_cr0(rd as u32);
     }
 
     ctx.tick(2);
