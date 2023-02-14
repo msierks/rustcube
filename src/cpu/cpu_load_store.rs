@@ -97,8 +97,9 @@ fn op_lfd(ctx: &mut Context, instr: Instruction) {
     let ea = get_ea(ctx, instr);
 
     // FIXME: check for DSI exception ???
+    let val = ctx.read_u64(ea);
 
-    ctx.cpu.fpr[instr.d()] = Fpr(ctx.read_u64(ea));
+    ctx.cpu.fpr[instr.d()].set_ps0(val);
 
     ctx.tick(2);
 }
@@ -118,12 +119,11 @@ fn op_lfdx(_ctx: &mut Context, _instr: Instruction) {
 fn op_lfs(ctx: &mut Context, instr: Instruction) {
     let ea = get_ea(ctx, instr);
 
-    let val = ctx.read_u32(ea);
+    let val = convert_to_double(ctx.read_u32(ea));
 
-    if !ctx.cpu.hid2.pse() {
-        unimplemented!();
-    } else {
-        ctx.cpu.fpr[instr.d()].set_ps0(val);
+    ctx.cpu.fpr[instr.d()].set_ps0(val);
+
+    if ctx.cpu.hid2.pse() {
         ctx.cpu.fpr[instr.d()].set_ps1(val);
     }
 
@@ -245,8 +245,47 @@ fn op_lwzx(ctx: &mut Context, instr: Instruction) {
     ctx.tick(2);
 }
 
-fn op_psq_l(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_psq_l");
+fn op_psq_l(ctx: &mut Context, instr: Instruction) {
+    if !ctx.cpu.hid2.pse() {
+        ctx.cpu.exceptions |= EXCEPTION_PROGRAM;
+        return;
+    }
+
+    if !ctx.cpu.msr.fp() {
+        ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+        return;
+    }
+
+    let ea = if instr.a() == 0 {
+        sign_ext_12(instr.uimm_1()) as u32
+    } else {
+        ctx.cpu.gpr[instr.a()].wrapping_add(sign_ext_12(instr.uimm_1()) as u32)
+    };
+
+    let gqr = Gqr(ctx.cpu.spr[SPR_GQR0 + instr.i()]);
+    let ld_type = gqr.lt();
+    let ld_scale = gqr.ls();
+
+    if instr.w() {
+        let val = match ld_type {
+            QUANTIZE_U8 | QUANTIZE_I8 => ctx.read_u8(ea) as u32,
+            QUANTIZE_U16 | QUANTIZE_I16 => ctx.read_u16(ea) as u32,
+            _ => ctx.read_u32(ea),
+        };
+
+        ctx.cpu.fpr[instr.d()].set_ps0_f64(dequantize(val, ld_type, ld_scale) as f64);
+        ctx.cpu.fpr[instr.d()].set_ps1_f64(1.0);
+    } else {
+        let (val1, val2) = match ld_type {
+            QUANTIZE_U8 | QUANTIZE_I8 => (ctx.read_u8(ea) as u32, ctx.read_u8(ea + 1) as u32),
+            QUANTIZE_U16 | QUANTIZE_I16 => (ctx.read_u16(ea) as u32, ctx.read_u16(ea + 2) as u32),
+            _ => (ctx.read_u32(ea), ctx.read_u32(ea + 3)),
+        };
+        ctx.cpu.fpr[instr.d()].set_ps0_f64(dequantize(val1, ld_type, ld_scale) as f64);
+        ctx.cpu.fpr[instr.d()].set_ps1_f64(dequantize(val2, ld_type, ld_scale) as f64);
+    }
+
+    ctx.tick(3);
 }
 
 fn op_psq_lu(_ctx: &mut Context, _instr: Instruction) {
@@ -261,8 +300,62 @@ fn op_psq_lx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_psq_lx");
 }
 
-fn op_psq_st(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_psq_st");
+fn op_psq_st(ctx: &mut Context, instr: Instruction) {
+    if !ctx.cpu.hid2.pse() {
+        ctx.cpu.exceptions |= EXCEPTION_PROGRAM;
+        return;
+    }
+
+    if !ctx.cpu.msr.fp() {
+        ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+        return;
+    }
+
+    let ea = if instr.a() == 0 {
+        sign_ext_12(instr.uimm_1()) as u32
+    } else {
+        ctx.cpu.gpr[instr.a()].wrapping_add(sign_ext_12(instr.uimm_1()) as u32)
+    };
+
+    let gqr = Gqr(ctx.cpu.spr[SPR_GQR0 + instr.i()]);
+    let st_type = gqr.st();
+    let st_scale = gqr.ls();
+
+    let ps0 = ctx.cpu.fpr[instr.s()].ps0() as f32;
+    let ps1 = ctx.cpu.fpr[instr.s()].ps1() as f32;
+
+    if instr.w() {
+        match st_type {
+            QUANTIZE_U8 | QUANTIZE_I8 => {
+                ctx.write_u8(ea, quantize(ps0, st_type, st_scale) as u8);
+            }
+            QUANTIZE_U16 | QUANTIZE_I16 => {
+                ctx.write_u16(ea, quantize(ps0, st_type, st_scale) as u16);
+            }
+            _ => ctx.write_u32(ea, quantize(ps0, st_type, st_scale)),
+        }
+    } else {
+        // TODO: complete in one write, not two
+        match st_type {
+            QUANTIZE_U8 | QUANTIZE_I8 => {
+                ctx.write_u8(ea, quantize(ps0, st_type, st_scale) as u8);
+                ctx.write_u8(ea + 1, quantize(ps1, st_type, st_scale) as u8);
+            }
+            QUANTIZE_U16 | QUANTIZE_I16 => {
+                ctx.write_u16(ea, quantize(ps0, st_type, st_scale) as u16);
+                ctx.write_u16(ea + 2, quantize(ps1, st_type, st_scale) as u16);
+            }
+            _ => {
+                ctx.write_u64(
+                    ea,
+                    (quantize(ps0, st_type, st_scale) as u64) << 32
+                        | quantize(ps1, st_type, st_scale) as u64,
+                );
+            }
+        }
+    }
+
+    ctx.tick(2);
 }
 
 fn op_psq_stu(_ctx: &mut Context, _instr: Instruction) {
@@ -303,17 +396,12 @@ fn op_stbx(ctx: &mut Context, instr: Instruction) {
     ctx.tick(2);
 }
 
-fn op_stfd(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_stfd");
-    /*
-        let ea = if instr.a() == 0 {
-            instr.simm() as u32
-        } else {
-            ctx.cpu.gpr[instr.a()].wrapping_add(instr.simm() as u32)
-        };
+fn op_stfd(ctx: &mut Context, instr: Instruction) {
+    let ea = get_ea(ctx, instr);
 
-        ctx.write_u64(ea, ctx.cpu.fpr[instr.s()]);
-    */
+    ctx.write_u64(ea, ctx.cpu.fpr[instr.s()].ps0());
+
+    ctx.tick(2);
 }
 
 fn op_stfdu(_ctx: &mut Context, _instr: Instruction) {
@@ -335,7 +423,7 @@ fn op_stfiwx(_ctx: &mut Context, _instr: Instruction) {
 fn op_stfs(ctx: &mut Context, instr: Instruction) {
     let ea = get_ea(ctx, instr);
 
-    let val = ctx.cpu.fpr[instr.s()].as_u64();
+    let val = ctx.cpu.fpr[instr.s()].ps0();
 
     ctx.write_u32(ea, convert_to_single(val));
 
@@ -345,7 +433,7 @@ fn op_stfs(ctx: &mut Context, instr: Instruction) {
 fn op_stfsu(ctx: &mut Context, instr: Instruction) {
     let ea = get_ea_u(ctx, instr);
 
-    let val = ctx.cpu.fpr[instr.s()].as_u64();
+    let val = ctx.cpu.fpr[instr.s()].ps0();
 
     ctx.write_u32(ea, convert_to_single(val));
 
@@ -386,8 +474,10 @@ fn op_sthux(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_sthux");
 }
 
-fn op_sthx(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_sthx");
+fn op_sthx(ctx: &mut Context, instr: Instruction) {
+    ctx.write_u16(get_ea_x(ctx, instr), ctx.cpu.gpr[instr.s()] as u16);
+
+    ctx.tick(2);
 }
 
 // FIXME: handle alignment interrupt if ea is not multiple of 4

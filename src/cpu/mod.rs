@@ -88,7 +88,7 @@ const EXCEPTION_SYSTEM_RESET: u32 = 0x1;
 const EXCEPTION_EXTERNAL_INT: u32 = 0x10;
 //const EXCEPTION_ALIGNMENT: u32 = 0x20;
 const EXCEPTION_PROGRAM: u32 = 0x40;
-//const EXCEPTION_FPU_UNAVAILABLE: u32 = 0x80;
+const EXCEPTION_FPU_UNAVAILABLE: u32 = 0x80;
 const EXCEPTION_DECREMENTER: u32 = 0x100;
 const EXCEPTION_SYSTEM_CALL: u32 = 0x200;
 //const EXCEPTION_TRACE: u32 = 0x400;
@@ -112,8 +112,8 @@ pub struct Cpu {
     spr: [u32; NUM_SPR],
     /// Condition Register
     cr: ConditionRegister,
-    //// Floating-Point Status and Control Register
-    //fpscr: Fpscr,
+    /// Floating-Point Status and Control Register
+    fpscr: FloatingPointStatusControlRegister,
     /// Integer Exception Register
     xer: Xer,
     /// Machine State Register
@@ -208,7 +208,7 @@ impl Default for Cpu {
             fpr: Default::default(),
             spr,
             cr: Default::default(),
-            //fpscr: Default::default(),
+            fpscr: Default::default(),
             xer: Default::default(),
             msr: 0x40.into(),
             sr: [0; NUM_SR],
@@ -266,6 +266,57 @@ impl Cpu {
             self.exceptions &= !EXCEPTION_SYSTEM_RESET;
 
             info!("EXCEPTION_SYSTEM_RESET");
+        } else if self.exceptions & EXCEPTION_PROGRAM != 0 {
+            self.spr[SPR_SRR0] = self.nia;
+            self.spr[SPR_SRR1] = self.msr.0 & 0x87C0_FFFF;
+            self.msr.set_le(self.msr.le());
+
+            self.msr.0 &= !0x04_EF36;
+            if self.msr.ip() {
+                self.cia = 0x700 | 0xFFF0_0000;
+            } else {
+                self.cia = 0x700;
+            }
+
+            self.nia = self.cia;
+
+            self.exceptions &= !EXCEPTION_PROGRAM;
+
+            info!("EXCEPTION_PROGRAM");
+        } else if self.exceptions & EXCEPTION_SYSTEM_CALL != 0 {
+            self.spr[SPR_SRR0] = self.nia;
+            self.spr[SPR_SRR1] = self.msr.0 & 0x87C0_FFFF;
+            self.msr.set_le(self.msr.le());
+            self.msr.0 &= !0x04_EF36;
+
+            if self.msr.ip() {
+                self.cia = 0xC00 | 0xFFF0_0000;
+            } else {
+                self.cia = 0xC00;
+            }
+
+            self.nia = self.cia;
+
+            self.exceptions &= !EXCEPTION_SYSTEM_CALL;
+
+            info!("EXCEPTION_SYSTEM_CALL (PC={:#x})", self.cia);
+        } else if self.exceptions & EXCEPTION_FPU_UNAVAILABLE != 0 {
+            self.spr[SPR_SRR0] = self.nia;
+            self.spr[SPR_SRR1] = self.msr.0 & 0x87C0_FFFF;
+            self.msr.set_le(self.msr.le());
+
+            self.msr.0 &= !0x04_EF36;
+            if self.msr.ip() {
+                self.cia = 0x800 | 0xFFF0_0000;
+            } else {
+                self.cia = 0x800;
+            }
+
+            self.nia = self.cia;
+
+            self.exceptions &= !EXCEPTION_FPU_UNAVAILABLE;
+
+            info!("EXCEPTION_FPU_UNAVAILABLE");
         } else if self.exceptions & EXCEPTION_EXTERNAL_INT != 0 {
             if !self.msr.ee() {
                 return;
@@ -287,27 +338,10 @@ impl Cpu {
             self.exceptions &= !EXCEPTION_EXTERNAL_INT;
 
             info!("EXCEPTION_EXTERNAL_INT");
-        } else if self.exceptions & EXCEPTION_SYSTEM_CALL != 0 {
-            self.spr[SPR_SRR0] = self.nia;
-            self.spr[SPR_SRR1] = self.msr.0 & 0x87C0_FFFF;
-            self.msr.set_le(self.msr.le());
-            self.msr.0 &= !0x04_EF36;
-
-            if self.msr.ip() {
-                self.cia = 0xC00 | 0xFFF0_0000;
-            } else {
-                self.cia = 0xC00;
-            }
-
-            self.nia = self.cia;
-
-            self.exceptions &= !EXCEPTION_SYSTEM_CALL;
-
-            info!("EXCEPTION_SYSTEM_CALL (PC={:#x})", self.cia);
         } else if self.exceptions & EXCEPTION_PERFORMANCE_MONITOR != 0 {
             unimplemented!("EXCEPTION_PERFORMANCE_MONITOR");
         } else if self.exceptions & EXCEPTION_DECREMENTER != 0 {
-            unimplemented!("EXCEPTION_PERFORMANCE_MONITOR");
+            unimplemented!("EXCEPTION_DECREMENTER");
         } else if self.exceptions & EXCEPTION_THERMAL_MANAGEMENT != 0 {
             unimplemented!("EXCEPTION_THERMAL_MANAGEMENT");
         }
@@ -372,6 +406,13 @@ impl Cpu {
         flags |= self.xer.summary_overflow() as u32;
 
         self.cr.set_field(0, flags);
+    }
+
+    fn update_cr1(&mut self) {
+        // FX, FEX, VX, OX
+        let flags = (self.fpscr.0 & 0xF000_0000) >> 28;
+
+        self.cr.set_field(1, flags);
     }
 }
 
@@ -937,6 +978,51 @@ include!("cpu_system.rs");
 include!("cpu_tests.rs");
 
 bitfield! {
+    #[derive(Copy, Clone, Default)]
+    struct FloatingPointStatusControlRegister(u32);
+    impl Debug;
+    u32;
+    rn, _ : 1, 0;            // Floating-point rounding control
+    ni, _ : 2;               // Floating-point non-IEEE mode
+    xe, _ : 3;               // Floating-point inexact exception enable
+    ze, _ : 4;               // IEEE floating-point zero divide exception enable
+    ue, _ : 5;               // IEEE floating-point underflow exception enable
+    oe, _ : 6;               // IEEE floating-point overflow exception enable
+    ve, _ : 7;               // Floating-point invalid operation exception enable
+    vxcvi, _ : 8;            // Floating-point invalid operation exception for invalid integer convert
+    vxsqrt, _ : 9;           // Floating-point invalid operation exception for invalid square root
+    vxsoft, _ : 10;          // Floating-point invalid operation exceptions for woftware request
+    fprf, set_fprf : 16, 12; // Floating-point result flags
+    fpcc, set_fpcc : 15, 12; // Floating-point condition code
+    fi, _ : 17;              // Floating-point fraction inexact
+    fr, _ : 18;              // Floating-point fraction round
+    vxvc, set_vxvc : 19;     // Floating-point invalid operation exception for invalid compare
+    vximz, set_vximz : 20;   // Floating-point invalid operation exception for (inf) * 0
+    vxzdz, set_vxzdz : 21;   // Floating-point invalid operation exception for 0 / 0
+    vxidi, set_vxidi : 22;   // Floating-point invalid operation exception for (inf) / (inf)
+    vxisi, _ : 23;           // Floating-point invalid operation exception for (inf) - (inf)
+    vxsnan, set_vxsnan : 24; // Floating-point invalid operation exception for SNaN
+    xx, _ : 25;              // Floating-point inexact exception
+    zx, set_zx : 26;         // Floating-point zero divide exception
+    ux, _ : 27;              // Floating-point underflow exception
+    ox, _ : 28;              // Floating-point overflow exception
+    vx, _ : 29;              // Floating-point invalid operation exception summary
+    fex, _ : 30;             // Floating-point enabled exception summary
+    fx, _ : 31;              // Floating-point exception summary
+}
+
+bitfield! {
+    #[derive(Copy, Clone, Default)]
+    struct Gqr(u32);
+    impl Debug;
+    u32;
+    st, _ : 2, 0;
+    ss, _ : 13, 8;
+    lt, _ : 18, 16;
+    ls, _ : 29, 24;
+}
+
+bitfield! {
     #[derive(Copy, Clone)]
     pub struct MachineStateRegister(u32);
     impl Debug;
@@ -1052,6 +1138,46 @@ impl From<u32> for Hid2 {
     }
 }
 
+#[derive(Default, Clone)]
+pub struct Fpr {
+    ps0: u64,
+    ps1: u64,
+}
+
+impl Fpr {
+    pub fn ps0(&self) -> u64 {
+        self.ps0
+    }
+
+    pub fn ps1(&self) -> u64 {
+        self.ps1
+    }
+
+    fn set_ps0(&mut self, v: u64) {
+        self.ps0 = v;
+    }
+
+    fn set_ps1(&mut self, v: u64) {
+        self.ps1 = v;
+    }
+
+    fn set_ps0_f64(&mut self, v: f64) {
+        self.ps0 = f64::to_bits(v);
+    }
+
+    fn set_ps1_f64(&mut self, v: f64) {
+        self.ps1 = f64::to_bits(v);
+    }
+
+    pub fn ps0_as_f64(&self) -> f64 {
+        f64::from_bits(self.ps0)
+    }
+
+    pub fn ps1_as_f64(&self) -> f64 {
+        f64::from_bits(self.ps1)
+    }
+}
+/*
 bitfield! {
     #[derive(Copy, Clone, Default)]
     pub struct Fpr(u64);
@@ -1094,11 +1220,214 @@ impl Fpr {
         Fpr(((f32::to_bits(ps0) as u64) << 32) ^ f32::to_bits(ps1) as u64)
     }
 
-    pub fn set_ps0_float(&mut self, val: f32) {
+    pub fn set_ps0_f32(&mut self, val: f32) {
         self.set_ps0(f32::to_bits(val));
     }
 
-    pub fn set_ps1_float(&mut self, val: f32) {
+    pub fn set_ps1_f32(&mut self, val: f32) {
         self.set_ps1(f32::to_bits(val));
+    }
+}
+*/
+const QUANTIZE_FLOAT: u32 = 0; // Single-precision floating-point (no conversion)
+const QUANTIZE_U8: u32 = 4; // unsigned 8 bit integer
+const QUANTIZE_U16: u32 = 5; // unsigned 16 bit integer
+const QUANTIZE_I8: u32 = 6; // signed 8 bit integer
+const QUANTIZE_I16: u32 = 7; // signed 16 bit integer
+
+// Paired-single store scale
+const QUANTIZE_TABLE: [f32; 64] = [
+    (1_u32 << 0) as f32,
+    (1_u32 << 1) as f32,
+    (1_u32 << 2) as f32,
+    (1_u32 << 3) as f32,
+    (1_u32 << 4) as f32,
+    (1_u32 << 5) as f32,
+    (1_u32 << 6) as f32,
+    (1_u32 << 7) as f32,
+    (1_u32 << 8) as f32,
+    (1_u32 << 9) as f32,
+    (1_u32 << 10) as f32,
+    (1_u32 << 11) as f32,
+    (1_u32 << 12) as f32,
+    (1_u32 << 13) as f32,
+    (1_u32 << 14) as f32,
+    (1_u32 << 15) as f32,
+    (1_u32 << 16) as f32,
+    (1_u32 << 17) as f32,
+    (1_u32 << 18) as f32,
+    (1_u32 << 19) as f32,
+    (1_u32 << 20) as f32,
+    (1_u32 << 21) as f32,
+    (1_u32 << 22) as f32,
+    (1_u32 << 23) as f32,
+    (1_u32 << 24) as f32,
+    (1_u32 << 25) as f32,
+    (1_u32 << 26) as f32,
+    (1_u32 << 27) as f32,
+    (1_u32 << 28) as f32,
+    (1_u32 << 29) as f32,
+    (1_u32 << 30) as f32,
+    (1_u32 << 31) as f32,
+    1.0 / (1_u64 << 32) as f32,
+    1.0 / (1_u32 << 31) as f32,
+    1.0 / (1_u32 << 30) as f32,
+    1.0 / (1_u32 << 29) as f32,
+    1.0 / (1_u32 << 28) as f32,
+    1.0 / (1_u32 << 27) as f32,
+    1.0 / (1_u32 << 26) as f32,
+    1.0 / (1_u32 << 25) as f32,
+    1.0 / (1_u32 << 24) as f32,
+    1.0 / (1_u32 << 23) as f32,
+    1.0 / (1_u32 << 22) as f32,
+    1.0 / (1_u32 << 21) as f32,
+    1.0 / (1_u32 << 20) as f32,
+    1.0 / (1_u32 << 19) as f32,
+    1.0 / (1_u32 << 18) as f32,
+    1.0 / (1_u32 << 17) as f32,
+    1.0 / (1_u32 << 16) as f32,
+    1.0 / (1_u32 << 15) as f32,
+    1.0 / (1_u32 << 14) as f32,
+    1.0 / (1_u32 << 13) as f32,
+    1.0 / (1_u32 << 12) as f32,
+    1.0 / (1_u32 << 11) as f32,
+    1.0 / (1_u32 << 10) as f32,
+    1.0 / (1_u32 << 9) as f32,
+    1.0 / (1_u32 << 8) as f32,
+    1.0 / (1_u32 << 7) as f32,
+    1.0 / (1_u32 << 6) as f32,
+    1.0 / (1_u32 << 5) as f32,
+    1.0 / (1_u32 << 4) as f32,
+    1.0 / (1_u32 << 3) as f32,
+    1.0 / (1_u32 << 2) as f32,
+    1.0 / (1_u32 << 1) as f32,
+];
+
+// paired-single load scale
+const DEQUANTIZE_TABLE: [f32; 64] = [
+    1.0 / (1_u32 << 0) as f32,
+    1.0 / (1_u32 << 1) as f32,
+    1.0 / (1_u32 << 2) as f32,
+    1.0 / (1_u32 << 3) as f32,
+    1.0 / (1_u32 << 4) as f32,
+    1.0 / (1_u32 << 5) as f32,
+    1.0 / (1_u32 << 6) as f32,
+    1.0 / (1_u32 << 7) as f32,
+    1.0 / (1_u32 << 8) as f32,
+    1.0 / (1_u32 << 9) as f32,
+    1.0 / (1_u32 << 10) as f32,
+    1.0 / (1_u32 << 11) as f32,
+    1.0 / (1_u32 << 12) as f32,
+    1.0 / (1_u32 << 13) as f32,
+    1.0 / (1_u32 << 14) as f32,
+    1.0 / (1_u32 << 15) as f32,
+    1.0 / (1_u32 << 16) as f32,
+    1.0 / (1_u32 << 17) as f32,
+    1.0 / (1_u32 << 18) as f32,
+    1.0 / (1_u32 << 19) as f32,
+    1.0 / (1_u32 << 20) as f32,
+    1.0 / (1_u32 << 21) as f32,
+    1.0 / (1_u32 << 22) as f32,
+    1.0 / (1_u32 << 23) as f32,
+    1.0 / (1_u32 << 24) as f32,
+    1.0 / (1_u32 << 25) as f32,
+    1.0 / (1_u32 << 26) as f32,
+    1.0 / (1_u32 << 27) as f32,
+    1.0 / (1_u32 << 28) as f32,
+    1.0 / (1_u32 << 29) as f32,
+    1.0 / (1_u32 << 30) as f32,
+    1.0 / (1_u32 << 31) as f32,
+    (1_u64 << 32) as f32,
+    (1_u32 << 31) as f32,
+    (1_u32 << 30) as f32,
+    (1_u32 << 29) as f32,
+    (1_u32 << 28) as f32,
+    (1_u32 << 27) as f32,
+    (1_u32 << 26) as f32,
+    (1_u32 << 25) as f32,
+    (1_u32 << 24) as f32,
+    (1_u32 << 23) as f32,
+    (1_u32 << 22) as f32,
+    (1_u32 << 21) as f32,
+    (1_u32 << 20) as f32,
+    (1_u32 << 19) as f32,
+    (1_u32 << 18) as f32,
+    (1_u32 << 17) as f32,
+    (1_u32 << 16) as f32,
+    (1_u32 << 15) as f32,
+    (1_u32 << 14) as f32,
+    (1_u32 << 13) as f32,
+    (1_u32 << 12) as f32,
+    (1_u32 << 11) as f32,
+    (1_u32 << 10) as f32,
+    (1_u32 << 9) as f32,
+    (1_u32 << 8) as f32,
+    (1_u32 << 7) as f32,
+    (1_u32 << 6) as f32,
+    (1_u32 << 5) as f32,
+    (1_u32 << 4) as f32,
+    (1_u32 << 3) as f32,
+    (1_u32 << 2) as f32,
+    (1_u32 << 1) as f32,
+];
+
+fn quantize(mut value: f32, st_type: u32, st_scale: u32) -> u32 {
+    value *= QUANTIZE_TABLE[st_scale as usize];
+
+    match st_type {
+        QUANTIZE_FLOAT => f32::to_bits(value),
+        QUANTIZE_U8 => (value.clamp(u8::MIN as f32, u8::MAX as f32) as u8) as u32,
+        QUANTIZE_U16 => (value.clamp(u16::MIN as f32, u16::MAX as f32) as u16) as u32,
+        QUANTIZE_I8 => ((value.clamp(i8::MIN as f32, i8::MAX as f32) as i8) as i32) as u32,
+        QUANTIZE_I16 => ((value.clamp(i16::MIN as f32, i16::MAX as f32) as i16) as i32) as u32,
+        _ => {
+            warn!("Unrecognized quantize type {st_type}.");
+            f32::to_bits(value)
+        }
+    }
+}
+
+fn dequantize(value: u32, ld_type: u32, ld_scale: u32) -> f32 {
+    let result = match ld_type {
+        QUANTIZE_FLOAT => f32::from_bits(value),
+        QUANTIZE_U8 => (value as u8) as f32,
+        QUANTIZE_U16 => (value as u16) as f32,
+        QUANTIZE_I8 => (value as i8) as f32,
+        QUANTIZE_I16 => (value as i16) as f32,
+        _ => {
+            warn!("unrecognized dequantize unknown type {ld_type}.");
+            f32::from_bits(value)
+        }
+    };
+
+    result * DEQUANTIZE_TABLE[ld_scale as usize]
+}
+
+pub trait Nan {
+    fn is_snan(&self) -> bool;
+    fn is_qnan(&self) -> bool;
+}
+
+impl Nan for f32 {
+    fn is_snan(&self) -> bool {
+        let v = f32::to_bits(*self);
+        v & 0x7FC0_0000 == 0x7F80_0000 && v & 0x003F_FFFF != 0
+    }
+
+    fn is_qnan(&self) -> bool {
+        let v = f32::to_bits(*self);
+        v & 0x7FC0_0000 == 0x7FC0_0000
+    }
+}
+
+impl Nan for f64 {
+    fn is_snan(&self) -> bool {
+        let v = f64::to_bits(*self);
+        v & 0x7FF8_0000_0000_0000 == 0x7FF0_0000_0000_0000 && v & 0x000F_FFFF_FFFF_FFFF != 0
+    }
+
+    fn is_qnan(&self) -> bool {
+        let v = f64::to_bits(*self);
+        v & 0x7FF8_0000_0000_0000 == 0x7FF8_0000_0000_0000
     }
 }

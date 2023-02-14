@@ -10,7 +10,7 @@ mod di;
 mod dol;
 mod dsp;
 mod exi;
-//mod gp_fifo;
+mod gp_fifo;
 mod mem;
 //mod pe;
 mod pi;
@@ -26,7 +26,7 @@ use self::di::DvdInterface;
 use self::dol::Dol;
 use self::dsp::DspInterface;
 use self::exi::ExternalInterface;
-//use self::gp_fifo::GpFifo;
+use self::gp_fifo::GpFifo;
 use self::mem::Memory;
 //use self::pe::PixelEngine;
 use self::pi::ProcessorInterface;
@@ -76,7 +76,7 @@ pub struct Context {
     di: DvdInterface,
     dsp: DspInterface,
     exi: ExternalInterface,
-    //gp_fifo: GpFifo,
+    gp_fifo: GpFifo,
     //pe: PixelEngine,
     pi: ProcessorInterface,
     si: SerialInterface,
@@ -101,7 +101,7 @@ impl Default for Context {
             di: Default::default(),
             dsp: Default::default(),
             exi,
-            //gp_fifo: Default::default(),
+            gp_fifo: Default::default(),
             //pe: Default::default(),
             pi: Default::default(),
             si: Default::default(),
@@ -355,8 +355,8 @@ impl Context {
 
         match map(addr) {
             Memory => self.mem.write_u8(addr, val),
-            //GpFifo => gp_fifo::write_u8(self, val),
-            _ => panic!(
+            GpFifo => gp_fifo::write_u8(self, val),
+            _ => warn!(
                 "write_u8 not implemented for {:?} address {:#x}",
                 map(addr),
                 addr
@@ -378,6 +378,7 @@ impl Context {
             VideoInterface(reg) => vi::write_u16(self, reg, val),
             DspInterface(reg) => dsp::write_u16(self, reg, val),
             //MemoryInterface(_) => {} //ignore
+            GpFifo => gp_fifo::write_u16(self, val),
             _ => warn!(
                 "write_u16 not implemented for {:?} address {:#x}",
                 map(addr),
@@ -408,7 +409,7 @@ impl Context {
             SerialInterface(reg) => si::write_u32(self, reg, val),
             ExternalInterface(chan, reg) => exi::write_u32(self, chan, reg, val),
             //AudioInterface(reg) => ai::write_u32(self, reg, val),
-            //GpFifo => gp_fifo::write_u32(self, val),
+            GpFifo => gp_fifo::write_u32(self, val),
             _ => warn!(
                 "write_u32 not implemented for {:?} address {:#x}",
                 map(addr),
@@ -426,7 +427,7 @@ impl Context {
 
         match map(addr) {
             Memory => mem::write_u64(self, addr, val),
-            //GpFifo => gp_fifo::write_u64(self, val),
+            GpFifo => gp_fifo::write_u64(self, val),
             _ => warn!(
                 "write_u64 not implemented for {:?} address {:#x}",
                 map(addr),

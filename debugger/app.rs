@@ -571,7 +571,7 @@ impl App {
 
         // Floating-point registers
         for (i, reg) in regs.fpr.iter().enumerate() {
-            let background_color = if self.registers.fpr[i].as_u64() != reg.as_u64() {
+            let background_color = if self.registers.fpr[i].ps0() != reg.ps0() {
                 &color_updated
             } else {
                 &color_same
@@ -581,8 +581,8 @@ impl App {
                 &self.register_store.append(),
                 &[
                     (0, &format!("f{i}")),
-                    (1, &format!("{:016x}", reg.as_u64())),
-                    (2, &format!("{}", reg.as_u64())),
+                    (1, &format!("{:016x}", reg.ps0())),
+                    (2, &format!("{}", reg.ps0())),
                     (3, &background_color),
                     (4, &weight),
                 ],

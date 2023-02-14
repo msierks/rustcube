@@ -2,6 +2,99 @@
 mod tests {
     use super::*;
 
+    // TODO: expand on these test cases
+    #[test]
+    fn test_convert_to_double() {
+        let test_values: [(f32, f64); 3] = [
+            (0.0, 0.0),
+            (1.0, 1.0),
+            (1.1754942e-38, 1.1754942106924411e-38),
+        ];
+
+        for t in test_values.iter() {
+            let result = f64::from_bits(convert_to_double(f32::to_bits(t.0)));
+
+            assert_eq!(result, t.1);
+        }
+    }
+
+    // TODO: expand on these test cases
+    #[test]
+    fn test_convert_to_single() {
+        let test_values: [(f64, f32); 4] = [
+            (0.0, 0.0),
+            (1.0, 1.0),
+            (4.484155085839414e-44, 4.3e-44),
+            (1.4693679385492415e-39, 1.469368e-39),
+        ];
+
+        for t in test_values.iter() {
+            let result = f32::from_bits(convert_to_single(f64::to_bits(t.0)));
+
+            assert_eq!(result, t.1);
+        }
+    }
+
+    #[test]
+    fn test_f32_is_snan() {
+        let snan = f32::from_bits(0xFF800001);
+
+        assert!(snan.is_nan());
+        assert!(snan.is_snan());
+        assert!(!snan.is_qnan());
+
+        let snan = f32::from_bits(0xFF800301);
+
+        assert!(snan.is_nan());
+        assert!(snan.is_snan());
+        assert!(!snan.is_qnan());
+    }
+
+    #[test]
+    fn test_f64_is_snan() {
+        let snan = f64::from_bits(0x7FF0000000000001);
+
+        assert!(snan.is_nan());
+        assert!(snan.is_snan());
+        assert!(!snan.is_qnan());
+
+        let snan = f64::from_bits(0x7FF0000000020001);
+
+        assert!(snan.is_nan());
+        assert!(snan.is_snan());
+        assert!(!snan.is_qnan());
+    }
+
+    #[test]
+    fn test_f64_is_qnan() {
+        let qnan = f64::from_bits(0x7FF8000000000001);
+
+        assert!(qnan.is_nan());
+        assert!(!qnan.is_snan());
+        assert!(qnan.is_qnan());
+
+        let qnan = f64::from_bits(0x7FF8000000020001);
+
+        assert!(qnan.is_nan());
+        assert!(!qnan.is_snan());
+        assert!(qnan.is_qnan());
+    }
+
+    #[test]
+    fn test_f632_is_qnan() {
+        let qnan = f32::from_bits(0xFFC00001);
+
+        assert!(qnan.is_nan());
+        assert!(!qnan.is_snan());
+        assert!(qnan.is_qnan());
+
+        let qnan = f32::from_bits(0xFFC00301);
+
+        assert!(qnan.is_nan());
+        assert!(!qnan.is_snan());
+        assert!(qnan.is_qnan());
+    }
+
     #[test]
     fn test_condition_register() {
         let mut cr = ConditionRegister(0x00F0_F0F0);

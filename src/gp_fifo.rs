@@ -1,98 +1,91 @@
-use byteorder::{BigEndian, ByteOrder};
-use std::mem;
+//use crate::video::cp;
 
-use super::command_processor::CommandProcessor;
-use super::memory::Ram;
-use super::processor_interface::ProcessorInterface;
+use crate::Context;
 
-const GATHER_PIPE_SIZE: usize = 128;
-const GATHER_PIPE_BURST: usize = 32;
+pub const BURST_SIZE: usize = 32;
+const BUFFER_SIZE: usize = 128;
 
-pub struct GPFifo {
-    gather_pipe: [u8; GATHER_PIPE_SIZE],
-    count: usize,
+#[derive(Debug)]
+pub struct GpFifo {
+    buff: [u8; BUFFER_SIZE],
+    pos: usize,
 }
 
-impl Default for GPFifo {
+impl Default for GpFifo {
     fn default() -> Self {
-        GPFifo {
-            gather_pipe: [0; GATHER_PIPE_SIZE],
-            count: 0,
+        GpFifo {
+            buff: [0; BUFFER_SIZE],
+            pos: 0,
         }
     }
 }
 
-impl GPFifo {
-    pub fn reset(&mut self) {
-        self.count = 0;
-    }
+//impl GpFifo {
+//    pub fn reset(&mut self) {
+//        self.pos = 0;
+//        info!("GPFifo buffer reset");
+//    }
+//}
 
-    fn check(&mut self, cp: &mut CommandProcessor, pi: &mut ProcessorInterface, ram: &mut Ram) {
-        if self.count >= GATHER_PIPE_BURST {
-            // copy gather pipe into memory in 32 byte increments
+fn check_burst(ctx: &mut Context) {
+    if ctx.gp_fifo.pos >= BURST_SIZE {
+        let mut processed = 0;
 
-            let size = (self.count / GATHER_PIPE_BURST) * GATHER_PIPE_BURST;
+        while ctx.gp_fifo.pos >= BURST_SIZE {
+            ctx.mem.write(
+                ctx.pi.fifo_write_pointer(),
+                &ctx.gp_fifo.buff[processed..processed + BURST_SIZE],
+            );
 
-            let mut processed = 0;
-
-            while processed < size {
-                ram.write_dma(
-                    pi.fifo_write_pointer,
-                    &self.gather_pipe[processed..=processed + GATHER_PIPE_BURST],
-                );
-
-                cp.gather_pipe_burst(ram);
-
-                pi.fifo_write_pointer += GATHER_PIPE_BURST as u32;
-                processed += GATHER_PIPE_BURST;
+            if ctx.pi.fifo_write_pointer() == ctx.pi.fifo_end() {
+                ctx.pi.set_fifo_write_pointer(ctx.pi.fifo_start());
+            } else {
+                ctx.pi
+                    .set_fifo_write_pointer(ctx.pi.fifo_write_pointer() + BURST_SIZE as u32);
             }
 
-            let mut i = 0;
-            let mut j = size;
-            while j < self.count {
-                self.gather_pipe[i] = self.gather_pipe[j - 1];
+            processed += BURST_SIZE;
+            ctx.gp_fifo.pos -= BURST_SIZE;
 
-                i += 1;
-                j += 1;
-            }
+            //cp::gather_pipe_burst(ctx);
+        }
 
-            self.count -= size;
+        if ctx.gp_fifo.pos > 0 {
+            ctx.gp_fifo.buff.rotate_left(processed);
         }
     }
+}
 
-    pub fn write_u8(
-        &mut self,
-        val: u8,
-        cp: &mut CommandProcessor,
-        pi: &mut ProcessorInterface,
-        ram: &mut Ram,
-    ) {
-        self.gather_pipe[self.count] = val;
-        self.count += 1;
-        self.check(cp, pi, ram);
+pub fn write_u8(ctx: &mut Context, val: u8) {
+    ctx.gp_fifo.buff[ctx.gp_fifo.pos] = val;
+    ctx.gp_fifo.pos += 1;
+
+    check_burst(ctx);
+}
+
+pub fn write_u16(ctx: &mut Context, val: u16) {
+    for x in val.to_be_bytes().iter() {
+        ctx.gp_fifo.buff[ctx.gp_fifo.pos] = *x;
+        ctx.gp_fifo.pos += 1;
     }
 
-    pub fn write_u32(
-        &mut self,
-        val: u32,
-        cp: &mut CommandProcessor,
-        pi: &mut ProcessorInterface,
-        ram: &mut Ram,
-    ) {
-        BigEndian::write_u32(&mut self.gather_pipe[self.count..], val);
-        self.count += mem::size_of::<u32>();
-        self.check(cp, pi, ram);
+    check_burst(ctx);
+}
+
+pub fn write_u32(ctx: &mut Context, val: u32) {
+    for x in val.to_be_bytes().iter() {
+        ctx.gp_fifo.buff[ctx.gp_fifo.pos] = *x;
+        ctx.gp_fifo.pos += 1;
     }
 
-    pub fn write_u64(
-        &mut self,
-        val: u64,
-        cp: &mut CommandProcessor,
-        pi: &mut ProcessorInterface,
-        ram: &mut Ram,
-    ) {
-        BigEndian::write_u64(&mut self.gather_pipe[self.count..], val);
-        self.count += mem::size_of::<u64>();
-        self.check(cp, pi, ram);
+    check_burst(ctx);
+}
+
+pub fn write_u64(ctx: &mut Context, val: u64) {
+    for x in val.to_be_bytes().iter() {
+        ctx.gp_fifo.buff[ctx.gp_fifo.pos] = *x;
+        ctx.gp_fifo.pos += 1;
     }
+
+    check_burst(ctx);
 }

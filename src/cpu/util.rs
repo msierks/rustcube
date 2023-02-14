@@ -2,14 +2,54 @@ pub fn bon(bo: u8, n: u8) -> u8 {
     (bo >> (4 - n)) & 1
 }
 
-// FIXME
-pub fn convert_to_double(_x: u32) -> u64 {
-    panic!("FixMe: convert_to_double");
+pub fn convert_to_double(v: u32) -> u64 {
+    let x = v as u64;
+    let mut exp = (x >> 23) & 0xFF;
+    let mut frac = x & 0x007F_FFFF;
+
+    // Normalize Operand
+    if exp > 0 && exp < 255 {
+        let y = (exp >> 7) ^ 0x1;
+        let z = y << 61 | y << 60 | y << 59;
+        ((x & 0xC000_0000) << 32) | z | ((x & 0x3FFF_FFFF) << 29)
+    // Denormalize Operand
+    } else if exp == 0 && frac != 0 {
+        exp = 1023 - 126;
+        while (frac & 0x0080_0000) == 0 {
+            frac <<= 1;
+            exp -= 1;
+        }
+
+        ((x & 0x8000_0000) << 32) | (exp << 52) | ((frac & 0x007F_FFFF) << 29)
+    // Infinity / QNaN / SNaN / Zero
+    } else {
+        let y = exp >> 7;
+        let z = y << 61 | y << 60 | y << 59;
+        ((x & 0xC000_0000) << 32) | z | ((x & 0x3FFF_FFFF) << 29)
+    }
 }
 
-// FIXME
-pub fn convert_to_single(_x: u64) -> u32 {
-    0
+pub fn convert_to_single(x: u64) -> u32 {
+    let exp64 = ((x >> 52) & 0x7FF) as u32;
+
+    // No Denormalization (includes Zero/ Infinity / NaN)
+    if exp64 > 896 || x & 0x7FFF_FFFF == 0 {
+        (((x >> 32) as u32) & 0xC000_0000) | (((x >> 29) as u32) & 0x3FFF_FFFF)
+    // Denormalization
+    } else if exp64 >= 874 {
+        // TODO: simplify ???
+        let mut exp = (exp64 as i16) - 1023;
+        let mut frac = 0x8000_0000_0000_0000 | (x << 12);
+        while exp < -126 {
+            frac >>= 1;
+            exp += 1;
+        }
+        (((x >> 32) & 0x8000_0000) | (frac >> 40)) as u32
+    // Undefined
+    } else {
+        // According to dolphin, determined through hardware tests
+        (((x >> 32) & 0xC000_0000) | ((x >> 29) & 0x3FFF_FFFF)) as u32
+    }
 }
 
 pub fn sign_ext_12(x: u16) -> i32 {

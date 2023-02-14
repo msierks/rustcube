@@ -389,7 +389,7 @@ impl Registers {
 
         Registers {
             gpr: *ctx.cpu().gpr(),
-            fpr: *ctx.cpu().fpr(),
+            fpr: ctx.cpu().fpr().clone(),
             spr_32,
             spr_64,
         }

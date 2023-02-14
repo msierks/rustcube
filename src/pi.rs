@@ -56,6 +56,24 @@ impl Default for ProcessorInterface {
     }
 }
 
+impl ProcessorInterface {
+    pub fn fifo_start(&self) -> u32 {
+        self.fifo_start
+    }
+
+    pub fn fifo_end(&self) -> u32 {
+        self.fifo_end
+    }
+
+    pub fn fifo_write_pointer(&self) -> u32 {
+        self.fifo_write_pointer
+    }
+
+    pub fn set_fifo_write_pointer(&mut self, val: u32) {
+        self.fifo_write_pointer = val;
+    }
+}
+
 pub fn read_u32(ctx: &mut Context, register: u32) -> u32 {
     match register {
         PI_INTERRUPT_CAUSE => ctx.pi.interrupt_cause,
@@ -104,7 +122,7 @@ pub fn clear_interrupt(ctx: &mut Context, cause: u32) {
 
 pub fn set_interrupt(ctx: &mut Context, cause: u32) {
     if ctx.pi.interrupt_cause & cause == 0 {
-        info!("Interrupt {cause:#x} (set)");
+        info!("Interrupt {} (set)", interrupt_name(cause));
     }
 
     ctx.pi.interrupt_cause |= cause;

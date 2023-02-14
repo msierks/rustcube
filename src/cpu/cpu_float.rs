@@ -2,32 +2,137 @@ fn op_fabsx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_fabsx");
 }
 
-fn op_faddsx(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_faddsx");
+fn op_faddsx(ctx: &mut Context, instr: Instruction) {
+    if !ctx.cpu.msr.fp() {
+        ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+        return;
+    }
+
+    let fra = ctx.cpu.fpr[instr.b()].ps0_as_f64();
+    let frb = ctx.cpu.fpr[instr.b()].ps0_as_f64();
+
+    let result = fra + frb;
+
+    ctx.cpu.fpr[instr.d()].set_ps0_f64(result);
+
+    if ctx.cpu.hid2.pse() {
+        ctx.cpu.fpr[instr.d()].set_ps1_f64(result);
+    }
+
+    if instr.rc() {
+        ctx.cpu.update_cr1();
+    }
+
+    ctx.tick(1);
 }
 
 fn op_faddx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_faddx");
 }
 
-fn op_fcmpo(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_fcmpo");
+fn op_fcmpo(ctx: &mut Context, instr: Instruction) {
+    if !ctx.cpu.msr.fp() {
+        ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+        return;
+    }
+
+    let fra = ctx.cpu.fpr[instr.a()].ps0_as_f64();
+    let frb = ctx.cpu.fpr[instr.b()].ps0_as_f64();
+
+    let c = if fra.is_nan() || frb.is_nan() {
+        if fra.is_snan() || frb.is_snan() {
+            ctx.cpu.fpscr.set_vxsnan(true);
+            if !ctx.cpu.fpscr.ve() {
+                ctx.cpu.fpscr.set_vxvc(true);
+            }
+        } else {
+            ctx.cpu.fpscr.set_vxsnan(true);
+        }
+        0b1 // ?
+    } else if fra < frb {
+        0x8 // <
+    } else if fra > frb {
+        0x4 // >
+    } else {
+        0x2 // =
+    };
+
+    ctx.cpu.fpscr.set_fpcc(c);
+
+    ctx.cpu.cr.set_field(instr.crfd(), c);
+
+    ctx.tick(1);
 }
 
-fn op_fcmpu(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_fcmpu");
+fn op_fcmpu(ctx: &mut Context, instr: Instruction) {
+    if !ctx.cpu.msr.fp() {
+        ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+        return;
+    }
+
+    let fra = ctx.cpu.fpr[instr.a()].ps0_as_f64();
+    let frb = ctx.cpu.fpr[instr.b()].ps0_as_f64();
+
+    let c = if fra.is_nan() || frb.is_nan() {
+        if fra.is_snan() || frb.is_snan() {
+            ctx.cpu.fpscr.set_vxsnan(true);
+        }
+        0b1 // ?
+    } else if fra < frb {
+        0x8 // <
+    } else if fra > frb {
+        0x4 // >
+    } else {
+        0x2 // =
+    };
+
+    ctx.cpu.fpscr.set_fpcc(c);
+
+    ctx.cpu.cr.set_field(instr.crfd(), c);
+
+    ctx.tick(1);
 }
 
-fn op_fctiwzx(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_fctiwzx");
+fn op_fctiwzx(ctx: &mut Context, instr: Instruction) {
+    let frb = ctx.cpu.fpr[instr.b()].ps0_as_f64();
+
+    // TODO: implement more accurate conversion
+    let result = ((frb as i32) as u32) as u64;
+
+    ctx.cpu.fpr[instr.d()].set_ps0(result);
+
+    if instr.rc() {
+        ctx.cpu.update_cr1();
+    }
+
+    ctx.tick(1);
 }
 
 fn op_fctiwx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_fctiwx");
 }
 
-fn op_fdivsx(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_fdivsx");
+fn op_fdivsx(ctx: &mut Context, instr: Instruction) {
+    let fra = ctx.cpu.fpr[instr.a()].ps0_as_f64();
+    let frb = ctx.cpu.fpr[instr.b()].ps0_as_f64();
+
+    let result = fra / frb;
+
+    if frb.is_nan() {
+        panic!();
+    }
+
+    ctx.cpu.fpr[instr.d()].set_ps0_f64(result);
+
+    if ctx.cpu.hid2.pse() {
+        ctx.cpu.fpr[instr.d()].set_ps1_f64(result);
+    }
+
+    if instr.rc() {
+        ctx.cpu.update_cr1();
+    }
+
+    ctx.tick(17);
 }
 
 fn op_fdivx(_ctx: &mut Context, _instr: Instruction) {
@@ -42,19 +147,26 @@ fn op_fmaddx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_fmaddx");
 }
 
+// FIXME: Verify paired single functionality with HID2[PSE] value
 fn op_fmrx(ctx: &mut Context, instr: Instruction) {
-    // FIXME: this is wrong
+    if !ctx.cpu.msr.fp() {
+        ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+        return;
+    }
+
+    let frb = ctx.cpu.fpr[instr.b()].ps0();
+
+    ctx.cpu.fpr[instr.d()].set_ps0(frb);
+
     if ctx.cpu.hid2.pse() {
-        ctx.cpu.fpr[instr.d()].set_ps0(ctx.cpu.fpr[instr.b()].ps0());
-    } else {
-        ctx.cpu.fpr[instr.d()] = ctx.cpu.fpr[instr.b()];
+        ctx.cpu.fpr[instr.d()].set_ps1(frb);
     }
 
     if instr.rc() {
-        unimplemented!("op_fmrx rc");
+        ctx.cpu.update_cr1();
     }
 
-    ctx.tick(3);
+    ctx.tick(1);
 }
 
 fn op_fmsubsx(_ctx: &mut Context, _instr: Instruction) {
@@ -65,8 +177,25 @@ fn op_fmsubx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_fmsubx");
 }
 
-fn op_fmulsx(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_fmulsx");
+fn op_fmulsx(ctx: &mut Context, instr: Instruction) {
+    if !ctx.cpu.msr.fp() {
+        ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+        return;
+    }
+
+    let result = ctx.cpu.fpr[instr.a()].ps0_as_f64() * ctx.cpu.fpr[instr.c()].ps0_as_f64();
+
+    ctx.cpu.fpr[instr.d()].set_ps0_f64(result);
+
+    if ctx.cpu.hid2.pse() {
+        ctx.cpu.fpr[instr.d()].set_ps1_f64(result);
+    }
+
+    if instr.rc() {
+        ctx.cpu.update_cr1();
+    }
+
+    ctx.tick(1);
 }
 
 fn op_fmulx(_ctx: &mut Context, _instr: Instruction) {
@@ -77,8 +206,10 @@ fn op_fnabsx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_fnabsx");
 }
 
-fn op_fnegx(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_fnegx");
+fn op_fnegx(ctx: &mut Context, instr: Instruction) {
+    ctx.cpu.fpr[instr.d()].set_ps0(ctx.cpu.fpr[instr.b()].ps0() | 1_u64 << 63);
+
+    ctx.tick(1);
 }
 
 fn op_fnmaddsx(_ctx: &mut Context, _instr: Instruction) {
@@ -113,8 +244,25 @@ fn op_fselx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_fselx");
 }
 
-fn op_fsubsx(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_fsubsx");
+fn op_fsubsx(ctx: &mut Context, instr: Instruction) {
+    if !ctx.cpu.msr.fp() {
+        ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+        return;
+    }
+
+    let result = ctx.cpu.fpr[instr.a()].ps0_as_f64() - ctx.cpu.fpr[instr.b()].ps0_as_f64();
+
+    ctx.cpu.fpr[instr.d()].set_ps0_f64(result);
+
+    if ctx.cpu.hid2.pse() {
+        ctx.cpu.fpr[instr.d()].set_ps1_f64(result);
+    }
+
+    if instr.rc() {
+        ctx.cpu.update_cr1();
+    }
+
+    ctx.tick(1);
 }
 
 fn op_ps_absx(_ctx: &mut Context, _instr: Instruction) {
