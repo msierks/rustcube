@@ -3,6 +3,7 @@ name: CI
 # This workflow run tests and build for each push
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - master
