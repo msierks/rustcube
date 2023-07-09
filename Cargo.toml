@@ -14,7 +14,7 @@ doc = false
 
 [dependencies]
 bitfield = "0.14"
-byteorder = "0.4"
+byteorder = "1.4"
 getopts = "0.2"
 env_logger = "0.8.2"
 minifb = "0.10.0"
