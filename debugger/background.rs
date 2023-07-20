@@ -225,7 +225,7 @@ impl Disassembly {
         window_start: &mut u32,
     ) -> Self {
         let mut instructions = Vec::new();
-        let mut pc = ctx.cpu().pc() - 100;
+        let mut pc = ctx.cpu().pc().wrapping_sub(100);
 
         let window_size = 200; // keep around 200 till scroll bug resolved: https://gitlab.gnome.org/GNOME/gtk/-/issues/2971
 
@@ -242,7 +242,7 @@ impl Disassembly {
 
             instructions.push(disinstr);
 
-            pc += 4;
+            pc = pc.wrapping_add(4);
         }
 
         Disassembly {
