@@ -3,7 +3,7 @@ use byteorder::{BigEndian, ByteOrder};
 use super::Context;
 
 /// Main Memory Size: 24MB
-const MEMORY_SIZE: usize = 0x180_0000;
+pub const MEMORY_SIZE: usize = 0x180_0000;
 
 pub struct Memory {
     data: Box<[u8]>,

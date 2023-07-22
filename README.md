@@ -6,18 +6,18 @@ A Gamecube emulator in the Rust programming language. Work is in progress to boo
 
 Rustcube is built with [Cargo, the Rust package manager](https://www.rust-lang.org/).
 
-Currently, Rustcube takes a single argument to run. This can be the Gamecube bios(IPL.bin), The one I've been testing with has a SHA-1 of `015808f637a984acde6a06efa7546e278293c6ee`. You could also use a [DOL](http://www.emulator-zone.com/doc.php/gamecube/) file.
+Currently, Rustcube takes a single argument to run. This can be the Gamecube bios(IPL.bin), The one I've been testing with has a SHA-1 of `015808f637a984acde6a06efa7546e278293c6ee`. You could also run DOL, ISO and GCM files.
 
 You can build and run the emulator with:
 
 ```
-cargo run -- <PathToIPL/DOL>
+cargo run -- <PathToIPL/DOL/ISO/GCM>
 ```
 
 Enable debug logging
 
 ```
-RUST_LOG=debug cargo run -- <PathToIPL/DOL>
+RUST_LOG=debug cargo run -- <PathToIPL/DOL/ISO/GCM>
 ```
 
 ## Debugging
@@ -26,7 +26,7 @@ A basic debugger has been created with gtk-rs. Though it is very much a work in 
 
 Run the debugger with following:
 ```
-cargo run -p debugger -- <PathToIPL/DOL>
+cargo run -p debugger -- <PathToIPL/DOL/ISO/GCM>
 ```
 
 ## License

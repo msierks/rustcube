@@ -1,13 +1,40 @@
 use crate::pi::{clear_interrupt, set_interrupt, PI_INTERRUPT_DI};
 use crate::Context;
+use crate::Disc;
 
 const STATUS: u32 = 0x00;
 const COVER_STATUS: u32 = 0x04;
+const DICMDBUF0: u32 = 0x08;
+const DICMDBUF1: u32 = 0x0C;
+const DICMDBUF2: u32 = 0x10;
+const DIMAR: u32 = 0x14;
+const DILENGTH: u32 = 0x18;
+const DICR: u32 = 0x1C;
+//const DIIMMBUF: u32 = 0x20;
+const DICFG: u32 = 0x24;
 
-#[derive(Debug, Default)]
+const DI_COMMAND_INQUIRY: u8 = 0x12;
+//const DI_COMMAND_READ: u8 = 0xA8;
+//const DI_COMMAND_SEEK: u8 = 0xAB;
+
+#[derive(Default)]
 pub struct DvdInterface {
     status: StatusRegister,
     cover_status: CoverStatusRegister,
+    command_buff_0: u32,
+    command_buff_1: u32,
+    command_buff_2: u32,
+    dma_address: u32,
+    dma_transfer_length: u32,
+    control: ControlRegister,
+    config: u32,
+    disc: Option<Disc>,
+}
+
+impl DvdInterface {
+    pub fn set_disc(&mut self, disc: Option<Disc>) {
+        self.disc = disc;
+    }
 }
 
 bitfield! {
@@ -56,9 +83,25 @@ impl From<CoverStatusRegister> for u32 {
     }
 }
 
+bitfield! {
+    #[derive(Copy, Clone, Default)]
+    pub struct ControlRegister(u32);
+    impl Debug;
+    pub tstart, set_tstart : 0;
+    pub dma, _ : 1;
+    pub rw, _ : 2;
+}
+
+impl From<u32> for ControlRegister {
+    fn from(v: u32) -> Self {
+        ControlRegister(v)
+    }
+}
+
 pub fn read_u32(ctx: &mut Context, register: u32) -> u32 {
     match register {
         COVER_STATUS => ctx.di.cover_status.into(),
+        DICFG => ctx.di.config,
         _ => {
             warn!("read_u32 unrecognized di register {:#x}", register);
             0
@@ -83,6 +126,25 @@ pub fn write_u32(ctx: &mut Context, register: u32, val: u32) {
 
             ctx.di.cover_status = val.into();
             update_interrupts(ctx);
+        }
+        DICMDBUF0 => ctx.di.command_buff_0 = val,
+        DICMDBUF1 => ctx.di.command_buff_1 = val,
+        DICMDBUF2 => ctx.di.command_buff_2 = val,
+        DIMAR => ctx.di.dma_address = val,
+        DILENGTH => ctx.di.dma_transfer_length = val,
+        DICR => {
+            ctx.di.control = val.into();
+            if ctx.di.control.tstart() {
+                // Execute Command
+                match (ctx.di.command_buff_0 >> 24) as u8 {
+                    DI_COMMAND_INQUIRY => (), // Not sure what happens here
+                    //DI_COMMAND_READ => (),
+                    //DI_COMMAND_SEEK => (),
+                    _ => warn!("Unrecognized command {:#x}", ctx.di.command_buff_0),
+                }
+            }
+
+            ctx.di.control.set_tstart(false);
         }
         _ => warn!("write_u32 unrecognized di register {:#x}", register),
     }

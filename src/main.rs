@@ -47,6 +47,8 @@ fn main() -> DynResult<()> {
         Some(ext) => {
             if ext == "dol" {
                 ctx.load_dol(file_name);
+            } else if ext == "iso" || ext == "gcm" {
+                ctx.load_iso(file_name);
             } else {
                 // assume ipl
                 ctx.load_ipl(file_name);

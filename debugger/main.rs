@@ -147,6 +147,8 @@ fn main() -> DynResult<()> {
                 Some(ext) => {
                     if ext == "dol" {
                         emu_ctx.load_dol(file_name);
+                    } else if ext == "iso" || ext == "gcm" {
+                        emu_ctx.load_iso(file_name);
                     } else {
                         // assume ipl
                         emu_ctx.load_ipl(file_name);

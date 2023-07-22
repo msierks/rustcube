@@ -235,16 +235,34 @@ impl Cpu {
 
         // FIXME: populate SPR's accoprdingly
 
-        self.mmu.write_ibatu(0, 0x8000_1fff); // Spr::IBAT0U
-        self.mmu.write_ibatl(0, 0x0000_0002); // Spr::IBAT0L
-        self.mmu.write_ibatu(3, 0xfff0_001f); // Spr::IBAT3U
-        self.mmu.write_ibatl(3, 0xfff0_0001); // Spr::IBAT3L
-        self.mmu.write_dbatu(0, 0x8000_1fff); // Spr::DBAT0U
-        self.mmu.write_dbatl(0, 0x0000_0002); // Spr::DBAT0L
-        self.mmu.write_dbatu(1, 0xc000_1fff); // Spr::DBAT1U
-        self.mmu.write_dbatl(1, 0x0000_002a); // Spr::DBAT1L
-        self.mmu.write_dbatu(3, 0xfff0_001f); // Spr::DBAT3U
-        self.mmu.write_dbatl(3, 0xfff0_0001); // Spr::DBAT3L
+        for i in 0..16 {
+            self.sr[i] = 0x8000_0000;
+        }
+
+        self.spr[SPR_IBAT0U] = 0x8000_1FFF;
+        self.spr[SPR_IBAT0L] = 0x0000_0002;
+        self.spr[SPR_IBAT3U] = 0xFFF0_001F;
+        self.spr[SPR_IBAT3L] = 0xFFF0_0001;
+        self.spr[SPR_DBAT0U] = 0x8000_1FFF;
+        self.spr[SPR_DBAT0L] = 0x0000_0002;
+        self.spr[SPR_DBAT1U] = 0xC000_1FFF;
+        self.spr[SPR_DBAT1L] = 0x0000_002A;
+        self.spr[SPR_DBAT3U] = 0xFFF0_001F;
+        self.spr[SPR_DBAT3L] = 0xFFF0_0001;
+        self.mmu.write_ibatu(0, 0x8000_1fff);
+        self.mmu.write_ibatl(0, 0x0000_0002);
+        self.mmu.write_ibatu(3, 0xfff0_001f);
+        self.mmu.write_ibatl(3, 0xfff0_0001);
+        self.mmu.write_dbatu(0, 0x8000_1fff);
+        self.mmu.write_dbatl(0, 0x0000_0002);
+        self.mmu.write_dbatu(1, 0xc000_1fff);
+        self.mmu.write_dbatl(1, 0x0000_002a);
+        self.mmu.write_dbatu(3, 0xfff0_001f);
+        self.mmu.write_dbatl(3, 0xfff0_0001);
+
+        // dolwin boot???
+        self.gpr[1] = 0x816F_FFFC;
+        self.gpr[13] = 0x8110_0000;
     }
 
     pub fn external_interrupt(&mut self, enable: bool) {
@@ -377,12 +395,20 @@ impl Cpu {
         &self.gpr
     }
 
+    pub fn mut_gpr(&mut self) -> &mut [u32; NUM_GPR] {
+        &mut self.gpr
+    }
+
     pub fn fpr(&self) -> &[Fpr; NUM_FPR] {
         &self.fpr
     }
 
     pub fn spr(&self) -> &[u32; NUM_SPR] {
         &self.spr
+    }
+
+    pub fn mut_spr(&mut self) -> &mut [u32; NUM_SPR] {
+        &mut self.spr
     }
 
     pub fn lr(&self) -> u32 {
@@ -1177,58 +1203,7 @@ impl Fpr {
         f64::from_bits(self.ps1)
     }
 }
-/*
-bitfield! {
-    #[derive(Copy, Clone, Default)]
-    pub struct Fpr(u64);
-    impl Debug;
-    u32;
-    ps1, set_ps1 : 31, 0;
-    ps0, set_ps0 : 63, 32;
-}
 
-impl Fpr {
-    pub fn as_float(self) -> f64 {
-        f64::from_bits(self.0)
-    }
-
-    pub fn as_u64(self) -> u64 {
-        self.0
-    }
-
-    pub fn as_ps0(self) -> f32 {
-        f32::from_bits(self.ps0())
-    }
-
-    pub fn as_ps1(self) -> f32 {
-        f32::from_bits(self.ps1())
-    }
-
-    pub fn as_ps0_u32(self) -> u32 {
-        self.ps0()
-    }
-
-    pub fn as_ps1_u32(self) -> u32 {
-        self.ps1()
-    }
-
-    pub fn to_float(val: f64) -> Fpr {
-        Fpr(f64::to_bits(val))
-    }
-
-    pub fn to_ps_float(ps0: f32, ps1: f32) -> Fpr {
-        Fpr(((f32::to_bits(ps0) as u64) << 32) ^ f32::to_bits(ps1) as u64)
-    }
-
-    pub fn set_ps0_f32(&mut self, val: f32) {
-        self.set_ps0(f32::to_bits(val));
-    }
-
-    pub fn set_ps1_f32(&mut self, val: f32) {
-        self.set_ps1(f32::to_bits(val));
-    }
-}
-*/
 const QUANTIZE_FLOAT: u32 = 0; // Single-precision floating-point (no conversion)
 const QUANTIZE_U8: u32 = 4; // unsigned 8 bit integer
 const QUANTIZE_U16: u32 = 5; // unsigned 16 bit integer

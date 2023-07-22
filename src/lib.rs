@@ -7,6 +7,7 @@ extern crate log;
 //mod ai;
 pub mod cpu;
 mod di;
+mod disc;
 mod dol;
 mod dsp;
 mod exi;
@@ -23,15 +24,16 @@ mod vi;
 //use self::ai::AudioInterface;
 use self::cpu::Cpu;
 use self::di::DvdInterface;
+use self::disc::Disc;
 use self::dol::Dol;
 use self::dsp::DspInterface;
 use self::exi::ExternalInterface;
 use self::gp_fifo::GpFifo;
-use self::mem::Memory;
+use self::mem::{Memory, MEMORY_SIZE};
 //use self::pe::PixelEngine;
 use self::pi::ProcessorInterface;
 use self::si::SerialInterface;
-use self::timers::Timers;
+use self::timers::{Timers, BUS_CLOCK, CPU_CLOCK};
 use self::vi::VideoInterface;
 //use self::video::cp;
 //use self::video::cp::CommandProcessor;
@@ -45,6 +47,7 @@ use std::path::Path;
 use std::rc::Rc;
 
 const BOOTROM_SIZE: usize = 0x0020_0000; // 2 MB
+const OP_RFI: u32 = 0x4C00_0064;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Event {
@@ -118,14 +121,21 @@ impl Context {
     pub fn load_dol<P: AsRef<Path>>(&mut self, path: P) {
         let dol = Dol::open(path).unwrap();
 
-        self.cpu.emulate_bs2();
-
-        self.write_u32(0x8000_0034, 0x817F_E8C0); // ArenaHi
-        self.write_u16(0xCC00_2002, 0x0001); // VI - Display Config
+        self.emulate_bs2();
 
         dol.load(self);
 
         self.cpu.set_pc(dol.get_entry_point());
+    }
+
+    pub fn load_iso<P: AsRef<Path>>(&mut self, path: P) {
+        let mut disc = Disc::open(path).unwrap();
+
+        self.emulate_bs2();
+
+        disc.load(self).unwrap(); // fix this and don't be lazy
+
+        self.di.set_disc(Some(disc));
     }
 
     // load ipl into bootrom and decrypt
@@ -147,6 +157,53 @@ impl Context {
         };
 
         descrambler(&mut bootrom[0x100..0x1AFF00]);
+    }
+
+    pub fn emulate_bs2(&mut self) {
+        self.cpu.emulate_bs2();
+
+        // VI - Display Config
+        self.write_u16(0xCC00_2002, 0x0001);
+
+        // Magic Word - Normal Boot
+        self.write_u32(0x8000_0020, 0x0D15_EA5E);
+        // Version
+        self.write_u32(0x8000_0024, 0x0000_0001);
+        // Physical Memory Size
+        self.write_u32(0x8000_0028, MEMORY_SIZE as u32);
+        // Console Type - Latest production board
+        self.write_u32(0x8000_002C, 0x0000_0003);
+        // ArenaLo
+        self.write_u32(0x8000_0030, 0x0000_0000);
+        // ArenaHi
+        self.write_u32(0x8000_0034, 0x817F_E8C0);
+        // Bus Clock Speed
+        self.write_u32(0x8000_00F8, BUS_CLOCK as u32);
+        // CPU Clock Speed
+        self.write_u32(0x8000_00FC, CPU_CLOCK as u32);
+
+        // Exception Handlers
+        for x in [
+            0x8000_0100,
+            0x8000_0200,
+            0x8000_0300,
+            0x8000_0400,
+            0x8000_0500,
+            0x8000_0600,
+            0x8000_0700,
+            0x8000_0800,
+            0x8000_0900,
+            0x8000_0C00,
+            0x8000_0d00,
+            0x8000_0f00,
+            0x8000_1300,
+            0x8000_1400,
+            0x8000_1700,
+        ]
+        .iter()
+        {
+            self.write_u32(*x, OP_RFI);
+        }
     }
 
     pub fn step(&mut self) -> Option<Event> {

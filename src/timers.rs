@@ -1,5 +1,9 @@
 // Note: CPU timebase and decrementer update at 1/4th the bus speed
 
+pub const CPU_CLOCK: u64 = 486000000;
+pub const BUS_CLOCK: u64 = 162000000; // One third cpu clock
+                                      //const TIMER_CLOCK: u64 = BUS_CLOCK / 4;
+
 const TIMER_RATIO: u64 = 12; // 1/12th the cpu frequency
 
 #[derive(Default, Debug)]
