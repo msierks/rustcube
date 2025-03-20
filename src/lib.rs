@@ -9,7 +9,7 @@ pub mod cpu;
 mod di;
 mod disc;
 mod dol;
-mod dsp;
+pub mod dsp;
 mod exi;
 mod gp_fifo;
 mod mem;
@@ -210,6 +210,7 @@ impl Context {
         cpu::step(self);
 
         vi::update(self);
+        dsp::update(self);
 
         if let Some(access) = self.hit_watchpoint {
             self.hit_watchpoint = None;
