@@ -9,8 +9,8 @@ use gtk::glib::clone;
 use gtk::prelude::*;
 
 pub struct App {
-    pub tx: Sender<Event>,
-    pub btx: Sender<BgEvent>,
+    pub _tx: Sender<Event>,
+    pub _btx: Sender<BgEvent>,
     disassembly_column_view: gtk::ColumnView,
     disassembly_list_store: gtk::gio::ListStore,
     register_store: gtk::ListStore,
@@ -379,8 +379,8 @@ impl App {
         let registers = Registers::default();
 
         Self {
-            tx,
-            btx,
+            _tx: tx,
+            _btx: btx,
             disassembly_column_view,
             disassembly_list_store,
             register_store,

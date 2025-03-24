@@ -348,8 +348,8 @@ fn op_psq_st(ctx: &mut Context, instr: Instruction) {
             _ => {
                 ctx.write_u64(
                     ea,
-                    (quantize(ps0, st_type, st_scale) as u64) << 32
-                        | quantize(ps1, st_type, st_scale) as u64,
+                    ((quantize(ps0, st_type, st_scale) as u64) << 32)
+                        | (quantize(ps1, st_type, st_scale) as u64),
                 );
             }
         }

@@ -49,8 +49,8 @@ impl Mmu {
 
         // FixMe: validate BAT value
 
-        bat.brpn = (value >> 17 & 0x7FFF) as u16;
-        bat.wimg = (value >> 3 & 0x1F) as u8;
+        bat.brpn = ((value >> 17) & 0x7FFF) as u16;
+        bat.wimg = ((value >> 3) & 0x1F) as u8;
         bat.pp = (value & 3) as u8;
     }
 
@@ -59,8 +59,8 @@ impl Mmu {
 
         // FixMe: validate BAT value
 
-        bat.brpn = (value >> 17 & 0x7FFF) as u16;
-        bat.wimg = (value >> 3 & 0x1F) as u8;
+        bat.brpn = ((value >> 17) & 0x7FFF) as u16;
+        bat.wimg = ((value >> 3) & 0x1F) as u8;
         bat.pp = (value & 3) as u8;
     }
 }

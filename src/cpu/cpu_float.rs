@@ -207,7 +207,7 @@ fn op_fnabsx(_ctx: &mut Context, _instr: Instruction) {
 }
 
 fn op_fnegx(ctx: &mut Context, instr: Instruction) {
-    ctx.cpu.fpr[instr.d()].set_ps0(ctx.cpu.fpr[instr.b()].ps0() | 1_u64 << 63);
+    ctx.cpu.fpr[instr.d()].set_ps0(ctx.cpu.fpr[instr.b()].ps0() | (1_u64 << 63));
 
     ctx.tick(1);
 }

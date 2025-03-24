@@ -347,43 +347,43 @@ impl Registers {
         let spr_64 = [
             (
                 "TB",
-                (spr[cpu::SPR_TBU] as u64) << 32 | (spr[cpu::SPR_TBL] as u64),
+                ((spr[cpu::SPR_TBU] as u64) << 32) | (spr[cpu::SPR_TBL] as u64),
             ),
             (
                 "IBAT0",
-                (spr[cpu::SPR_IBAT0U] as u64) << 32 | (spr[cpu::SPR_IBAT0L] as u64),
+                ((spr[cpu::SPR_IBAT0U] as u64) << 32) | (spr[cpu::SPR_IBAT0L] as u64),
             ),
             (
                 "IBAT1",
-                (spr[cpu::SPR_IBAT1U] as u64) << 32 | (spr[cpu::SPR_IBAT1L] as u64),
+                ((spr[cpu::SPR_IBAT1U] as u64) << 32) | (spr[cpu::SPR_IBAT1L] as u64),
             ),
             (
                 "IBAT2",
-                (spr[cpu::SPR_IBAT2U] as u64) << 32 | (spr[cpu::SPR_IBAT2L] as u64),
+                ((spr[cpu::SPR_IBAT2U] as u64) << 32) | (spr[cpu::SPR_IBAT2L] as u64),
             ),
             (
                 "IBAT3",
-                (spr[cpu::SPR_IBAT3U] as u64) << 32 | (spr[cpu::SPR_IBAT3L] as u64),
+                ((spr[cpu::SPR_IBAT3U] as u64) << 32) | (spr[cpu::SPR_IBAT3L] as u64),
             ),
             (
                 "DBAT0",
-                (spr[cpu::SPR_DBAT0U] as u64) << 32 | (spr[cpu::SPR_DBAT0L] as u64),
+                ((spr[cpu::SPR_DBAT0U] as u64) << 32) | (spr[cpu::SPR_DBAT0L] as u64),
             ),
             (
                 "DBAT1",
-                (spr[cpu::SPR_DBAT1U] as u64) << 32 | (spr[cpu::SPR_DBAT1L] as u64),
+                ((spr[cpu::SPR_DBAT1U] as u64) << 32) | (spr[cpu::SPR_DBAT1L] as u64),
             ),
             (
                 "DBAT2",
-                (spr[cpu::SPR_DBAT2U] as u64) << 32 | (spr[cpu::SPR_DBAT2L] as u64),
+                ((spr[cpu::SPR_DBAT2U] as u64) << 32) | (spr[cpu::SPR_DBAT2L] as u64),
             ),
             (
                 "DBAT3",
-                (spr[cpu::SPR_DBAT3U] as u64) << 32 | (spr[cpu::SPR_DBAT3L] as u64),
+                ((spr[cpu::SPR_DBAT3U] as u64) << 32) | (spr[cpu::SPR_DBAT3L] as u64),
             ),
             (
                 "DMA",
-                (spr[cpu::SPR_DMAU] as u64) << 32 | (spr[cpu::SPR_DMAU + 1] as u64),
+                ((spr[cpu::SPR_DMAU] as u64) << 32) | (spr[cpu::SPR_DMAU + 1] as u64),
             ),
         ];
 

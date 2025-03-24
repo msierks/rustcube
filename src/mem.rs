@@ -22,6 +22,10 @@ impl Memory {
         self.data[addr as usize]
     }
 
+    pub fn read_u16(&self, addr: u32) -> u16 {
+        BigEndian::read_u16(&self.data[addr as usize..])
+    }
+
     pub fn write_u8(&mut self, addr: u32, val: u8) {
         self.data[addr as usize] = val;
     }

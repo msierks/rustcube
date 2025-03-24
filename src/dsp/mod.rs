@@ -390,14 +390,16 @@ impl DspContext {
         let mut irom_file = match fs::File::open(irom_filename) {
             Ok(v) => v,
             Err(e) => {
-                panic!("Unable to open file {}\n{}", irom_filename, e);
+                warn!("Unable to open file {}\n{}", irom_filename, e);
+                return;
             }
         };
 
         let mut drom_file = match fs::File::open(drom_filename) {
             Ok(v) => v,
             Err(e) => {
-                panic!("Unable to open file {}\n{}", drom_filename, e);
+                warn!("Unable to open file {}\n{}", drom_filename, e);
+                return;
             }
         };
 

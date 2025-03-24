@@ -10,7 +10,7 @@ pub fn convert_to_double(v: u32) -> u64 {
     // Normalize Operand
     if exp > 0 && exp < 255 {
         let y = (exp >> 7) ^ 0x1;
-        let z = y << 61 | y << 60 | y << 59;
+        let z = (y << 61) | (y << 60) | (y << 59);
         ((x & 0xC000_0000) << 32) | z | ((x & 0x3FFF_FFFF) << 29)
     // Denormalize Operand
     } else if exp == 0 && frac != 0 {
@@ -24,7 +24,7 @@ pub fn convert_to_double(v: u32) -> u64 {
     // Infinity / QNaN / SNaN / Zero
     } else {
         let y = exp >> 7;
-        let z = y << 61 | y << 60 | y << 59;
+        let z = (y << 61) | (y << 60) | (y << 59);
         ((x & 0xC000_0000) << 32) | z | ((x & 0x3FFF_FFFF) << 29)
     }
 }

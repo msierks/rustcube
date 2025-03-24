@@ -203,14 +203,14 @@ mod tests {
 
         assert_eq!(ctx.cpu.gpr[d], 0x0);
         assert_eq!(ctx.cpu.gpr[a], 0xFFFF_FFFF); // confirm gpr source remains unmodified
-        assert_eq!(ctx.cpu.xer.carry(), true);
+        assert!(ctx.cpu.xer.carry());
 
         ctx.cpu.gpr[a] = 0xFFFF_FFFE;
 
         op_addic_rc(&mut ctx, instr);
 
         assert_eq!(ctx.cpu.gpr[d], 0xFFFF_FFFF);
-        assert_eq!(ctx.cpu.xer.carry(), false);
+        assert!(!ctx.cpu.xer.carry());
     }
 
     #[test]
@@ -306,7 +306,7 @@ mod tests {
         op_addx(&mut ctx, instr);
 
         assert_eq!(ctx.cpu.gpr[d], 0x0004_4000);
-        assert_eq!(ctx.cpu.xer.carry(), false);
+        assert!(!ctx.cpu.xer.carry());
 
         let instr = Instruction(instr.0 | 1); // Enable rc
 
@@ -315,7 +315,7 @@ mod tests {
         op_addx(&mut ctx, instr);
 
         assert_eq!(ctx.cpu.gpr[d], 0xF000_F000);
-        assert_eq!(ctx.cpu.xer.carry(), false);
+        assert!(!ctx.cpu.xer.carry());
         assert_eq!(ctx.cpu.cr.get_cr0(), 0x8); // LT
 
         ctx.cpu.gpr[a] = 0xEFFF_FFFF;
@@ -364,7 +364,7 @@ mod tests {
         op_addcx(&mut ctx, instr);
 
         assert_eq!(ctx.cpu.gpr[d], 0x0B41_C2C0);
-        assert_eq!(ctx.cpu.xer.carry(), true);
+        assert!(ctx.cpu.xer.carry());
         // FixMe: check Summary Overflow and Overflow bits are set
 
         ctx.cpu.gpr[a] = 0x8000_0000;
@@ -373,7 +373,7 @@ mod tests {
         op_addcx(&mut ctx, instr);
 
         assert_eq!(ctx.cpu.gpr[d], 0x0000_7000);
-        assert_eq!(ctx.cpu.xer.carry(), true);
+        assert!(ctx.cpu.xer.carry());
         assert_eq!(ctx.cpu.cr.get_cr0(), 0x5); // GT, SO
 
         // FixMe: check Summery Overflow and Overflow bits set
@@ -773,8 +773,9 @@ mod tests {
         let mut ctx = Context::default();
 
         let (a, s, sh, mb, me) = (6, 4, 2, 0, 0x1D);
-        let instr =
-            Instruction(((s as u32) << 21) | ((a as u32) << 16) | sh << 11 | mb << 6 | me << 1);
+        let instr = Instruction(
+            ((s as u32) << 21) | ((a as u32) << 16) | (sh << 11) | (mb << 6) | (me << 1),
+        );
 
         ctx.cpu.gpr[s] = 0x9000_3000;
         ctx.cpu.gpr[a] = 0x0000_0003;
@@ -783,8 +784,9 @@ mod tests {
         assert_eq!(ctx.cpu.gpr[a], 0x4000_C003);
 
         let (mb, me) = (0, 0x1A);
-        let instr =
-            Instruction(((s as u32) << 21) | ((a as u32) << 16) | sh << 11 | mb << 6 | me << 1 | 1); // enable rc
+        let instr = Instruction(
+            ((s as u32) << 21) | ((a as u32) << 16) | (sh << 11) | (mb << 6) | (me << 1) | 1,
+        ); // enable rc
 
         ctx.cpu.gpr[s] = 0x789A_789B;
         ctx.cpu.gpr[a] = 0x3000_0003;
@@ -799,8 +801,9 @@ mod tests {
         let mut ctx = Context::default();
 
         let (a, s, sh, mb, me) = (6, 4, 2, 0, 0x1D);
-        let instr =
-            Instruction(((s as u32) << 21) | ((a as u32) << 16) | sh << 11 | mb << 6 | me << 1);
+        let instr = Instruction(
+            ((s as u32) << 21) | ((a as u32) << 16) | (sh << 11) | (mb << 6) | (me << 1),
+        );
 
         ctx.cpu.gpr[s] = 0x9000_3000;
         ctx.cpu.gpr[a] = 0xFFFF_FFFF;
@@ -853,7 +856,7 @@ mod tests {
         op_srawx(&mut ctx, instr);
 
         assert_eq!(ctx.cpu.gpr[a], 0xFFFF_FFFF);
-        assert_eq!(ctx.cpu.xer.carry(), true);
+        assert!(ctx.cpu.xer.carry());
 
         let instr = Instruction(instr.0 | 1); // Enable rc
 
@@ -878,13 +881,13 @@ mod tests {
         op_srawix(&mut ctx, instr);
 
         assert_eq!(ctx.cpu.gpr[a], 0xF900_0300);
-        assert_eq!(ctx.cpu.xer.carry(), true);
+        assert!(ctx.cpu.xer.carry());
 
         ctx.cpu.gpr[s] = 0xB004_3000;
         op_srawix(&mut ctx, instr);
 
         assert_eq!(ctx.cpu.gpr[a], 0xFB00_4300);
-        assert_eq!(ctx.cpu.xer.carry(), true);
+        assert!(ctx.cpu.xer.carry());
     }
 
     #[test]
@@ -963,7 +966,7 @@ mod tests {
         op_subfcx(&mut ctx, instr);
 
         assert_eq!(ctx.cpu.gpr[d], 0x0FFF_C000);
-        assert_eq!(ctx.cpu.xer.carry(), true);
+        assert!(ctx.cpu.xer.carry());
 
         let instr = Instruction(instr.0 | 1); // Enable rc
 
@@ -972,7 +975,7 @@ mod tests {
         op_subfcx(&mut ctx, instr);
 
         assert_eq!(ctx.cpu.gpr[d], 0x8000_2B00);
-        assert_eq!(ctx.cpu.xer.carry(), true);
+        assert!(ctx.cpu.xer.carry());
         assert_eq!(ctx.cpu.cr.get_cr0(), 0x8); // LT
 
         let instr = Instruction(instr.0 | (1 << 10)); // Enable oe
@@ -982,7 +985,7 @@ mod tests {
         op_subfcx(&mut ctx, instr);
 
         assert_eq!(ctx.cpu.gpr[d], 0x8000_4500);
-        assert_eq!(ctx.cpu.xer.carry(), false);
+        assert!(!ctx.cpu.xer.carry());
         assert_eq!(ctx.cpu.cr.get_cr0(), 0x9); // LT
 
         ctx.cpu.gpr[a] = 0x8000_0000;
@@ -990,7 +993,7 @@ mod tests {
         op_subfcx(&mut ctx, instr);
 
         assert_eq!(ctx.cpu.gpr[d], 0x8000_7000);
-        assert_eq!(ctx.cpu.xer.carry(), false);
+        assert!(!ctx.cpu.xer.carry());
         assert_eq!(ctx.cpu.cr.get_cr0(), 0x9); // LT
     }
 
@@ -1007,7 +1010,7 @@ mod tests {
         op_subfex(&mut ctx, instr);
 
         assert_eq!(ctx.cpu.gpr[d], 0xF000_4000);
-        assert_eq!(ctx.cpu.xer.carry(), false);
+        assert!(!ctx.cpu.xer.carry());
 
         let instr = Instruction(instr.0 | 1); // Enable rc
 
@@ -1017,7 +1020,7 @@ mod tests {
         op_subfex(&mut ctx, instr);
 
         assert_eq!(ctx.cpu.gpr[d], 0x8000_2AFF);
-        assert_eq!(ctx.cpu.xer.carry(), true);
+        assert!(ctx.cpu.xer.carry());
         assert_eq!(ctx.cpu.cr.get_cr0(), 0x8); // LT
 
         let instr = Instruction(instr.0 | (1 << 10)); // Enable oe
@@ -1028,7 +1031,7 @@ mod tests {
         op_subfex(&mut ctx, instr);
 
         assert_eq!(ctx.cpu.gpr[d], 0x6FFF_FFFF);
-        assert_eq!(ctx.cpu.xer.carry(), true);
+        assert!(ctx.cpu.xer.carry());
         assert_eq!(ctx.cpu.cr.get_cr0(), 0x4); // GT
 
         ctx.cpu.gpr[a] = 0x8000_0000;
@@ -1037,7 +1040,7 @@ mod tests {
         op_subfex(&mut ctx, instr);
 
         assert_eq!(ctx.cpu.gpr[d], 0x6FFF_FFFE);
-        assert_eq!(ctx.cpu.xer.carry(), true);
+        assert!(ctx.cpu.xer.carry());
         assert_eq!(ctx.cpu.cr.get_cr0(), 0x4); // GT
     }
 
@@ -1066,28 +1069,28 @@ mod tests {
         op_subfzex(&mut ctx, instr);
 
         assert_eq!(ctx.cpu.gpr[d], 0x6FFF_D000);
-        assert_eq!(ctx.cpu.xer.carry(), false);
+        assert!(!ctx.cpu.xer.carry());
 
         ctx.cpu.gpr[a] = 0xB004_3000;
         ctx.cpu.xer.set_carry(true);
         op_subfzex(&mut ctx, instr);
 
         assert_eq!(ctx.cpu.gpr[d], 0x4FFB_D000);
-        assert_eq!(ctx.cpu.xer.carry(), false);
+        assert!(!ctx.cpu.xer.carry());
 
         ctx.cpu.gpr[a] = 0xEFFF_FFFF;
         ctx.cpu.xer.set_carry(false);
         op_subfzex(&mut ctx, instr);
 
         assert_eq!(ctx.cpu.gpr[d], 0x1000_0000);
-        assert_eq!(ctx.cpu.xer.carry(), false);
+        assert!(!ctx.cpu.xer.carry());
 
         ctx.cpu.gpr[a] = 0x70FB_6500;
         ctx.cpu.xer.set_carry(false);
         op_subfzex(&mut ctx, instr);
 
         assert_eq!(ctx.cpu.gpr[d], 0x8F04_9AFF);
-        assert_eq!(ctx.cpu.xer.carry(), false);
+        assert!(!ctx.cpu.xer.carry());
     }
 
     #[test]

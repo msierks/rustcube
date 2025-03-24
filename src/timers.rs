@@ -36,6 +36,6 @@ impl Timers {
     pub fn set_timebase_upper(&mut self, val: u32) {
         self.tb_start_ticks = self.tb_ticks;
         info!("Set Timebase Upper {val}");
-        self.tb_start_value = (self.tb_start_value & 0xFFFF_FFFF) | (val as u64) << 32;
+        self.tb_start_value = (self.tb_start_value & 0xFFFF_FFFF) | ((val as u64) << 32);
     }
 }

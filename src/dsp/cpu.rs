@@ -3,7 +3,7 @@ use crate::dsp::DspContext;
 type OpcodeTableFunction = fn(&mut DspContext, u16);
 type OpcodeTableItem = (usize, usize, Opcode, OpcodeTableFunction);
 
-const OPTABLE_SIZE: usize = std::u16::MAX as usize + 1;
+const OPTABLE_SIZE: usize = u16::MAX as usize + 1;
 
 pub struct DspCpu {
     pc: u16,
@@ -1163,6 +1163,15 @@ fn op_mr(_ctx: &mut DspContext, _instr: u16) {
     unimplemented!("op_mr");
 }
 
+fn convert_i64_to_i40(val: i64) -> i64 {
+    (val << 24) >> 24
+}
+
+// TODO: Incomplete
+fn update_psr_sub(ctx: &mut DspContext, _a: i64, _b: i64, res: i64) {
+    ctx.cpu.psr.set_z(res == 0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1208,13 +1217,4 @@ mod tests {
             assert_eq!(optable[i.0], i.1);
         }
     }
-}
-
-fn convert_i64_to_i40(val: i64) -> i64 {
-    (val << 24) >> 24
-}
-
-// TODO: Incomplete
-fn update_psr_sub(ctx: &mut DspContext, _a: i64, _b: i64, res: i64) {
-    ctx.cpu.psr.set_z(res == 0)
 }
