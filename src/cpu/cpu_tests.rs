@@ -881,9 +881,9 @@ mod tests {
         op_srawix(&mut ctx, instr);
 
         assert_eq!(ctx.cpu.gpr[a], 0xF900_0300);
-        assert!(ctx.cpu.xer.carry());
+        assert!(!ctx.cpu.xer.carry());
 
-        ctx.cpu.gpr[s] = 0xB004_3000;
+        ctx.cpu.gpr[s] = 0xB004_3008;
         op_srawix(&mut ctx, instr);
 
         assert_eq!(ctx.cpu.gpr[a], 0xFB00_4300);

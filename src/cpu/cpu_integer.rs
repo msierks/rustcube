@@ -515,7 +515,7 @@ fn op_srawix(ctx: &mut Context, instr: Instruction) {
     ctx.cpu.gpr[instr.a()] = (rs >> instr.sh()) as u32;
     ctx.cpu
         .xer
-        .set_carry(rs < 0 && s > 0 && ((rs as u32) << (32 - s)) != 0);
+        .set_carry(rs < 0 && ((rs as u32) << (32 - s)) != 0);
 
     ctx.tick(1);
 }
@@ -678,8 +678,21 @@ fn op_tw(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_tw");
 }
 
-fn op_twi(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_twi");
+fn op_twi(ctx: &mut Context, instr: Instruction) {
+    let a = ctx.cpu.gpr[instr.a()] as i32;
+    let simm = instr.simm() as i32;
+    let to = instr.to();
+
+    if (a < simm && (to & 0x10) != 0)
+        || (a > simm && (to & 0x80) != 0)
+        || (a == simm && (to & 0x04) != 0)
+        || ((a as u32) < simm as u32 && (to & 0x02) != 0)
+        || (a as u32 > simm as u32 && (to & 0x01) != 0)
+    {
+        ctx.cpu.exceptions |= EXCEPTION_PROGRAM;
+        // Set trap program exception flag
+        ctx.cpu.spr[SPR_SRR1] = 1 << (31 - 14);
+    }
 }
 
 fn op_xori(_ctx: &mut Context, _instr: Instruction) {
