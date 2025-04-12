@@ -1,4 +1,4 @@
-//use crate::video::cp;
+use crate::video::cp;
 
 use crate::Context;
 
@@ -47,7 +47,7 @@ fn check_burst(ctx: &mut Context) {
             processed += BURST_SIZE;
             ctx.gp_fifo.pos -= BURST_SIZE;
 
-            //cp::gather_pipe_burst(ctx);
+            cp::gather_pipe_burst(ctx);
         }
 
         if ctx.gp_fifo.pos > 0 {

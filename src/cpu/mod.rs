@@ -2,9 +2,11 @@
 pub mod disassembler;
 pub mod instruction;
 pub mod mmu;
+mod optable;
 pub mod util;
 
 use self::instruction::Instruction;
+use self::optable::*;
 use self::util::*;
 use super::Context;
 use mmu::{translate_address, Mmu};
@@ -150,17 +152,17 @@ impl Default for Cpu {
         let mut optable63 = [ILLEGAL_OP.1; OPTABLE63_SIZE];
 
         for op in OPCODE_TABLE.iter() {
-            optable[op.0] = op.2;
+            optable[op.0 as usize] = op.2;
         }
 
         for op in OPCODE4X_TABLE.iter() {
-            optable4[op.0] = op.2;
+            optable4[op.0 as usize] = op.2;
         }
 
         for n in 0..32 {
             let fill = n << 5;
             for op in OPCODE4A_TABLE.iter() {
-                let xo_x = (op.0) | fill;
+                let xo_x = (op.0 as usize) | fill;
                 optable4[xo_x] = op.2;
             }
         }
@@ -168,31 +170,31 @@ impl Default for Cpu {
         for n in 0..16 {
             let fill = n << 6;
             for op in OPCODE4AA_TABLE.iter() {
-                let xo_x = (op.0) | fill;
+                let xo_x = (op.0 as usize) | fill;
                 optable4[xo_x] = op.2;
             }
         }
 
         for op in OPCODE19_TABLE.iter() {
-            optable19[op.0] = op.2;
+            optable19[op.0 as usize] = op.2;
         }
 
         for op in OPCODE31_TABLE.iter() {
-            optable31[op.0] = op.2;
+            optable31[op.0 as usize] = op.2;
         }
 
         for op in OPCODE59_TABLE.iter() {
-            optable59[op.0] = op.2;
+            optable59[op.0 as usize] = op.2;
         }
 
         for op in OPCODE63X_TABLE.iter() {
-            optable63[op.0] = op.2;
+            optable63[op.0 as usize] = op.2;
         }
 
         for n in 0..32 {
             let fill = n << 5;
             for op in OPCODE63A_TABLE.iter() {
-                let xo_x = (op.0) | fill;
+                let xo_x = (op.0 as usize) | fill;
                 optable63[xo_x] = op.2;
             }
         }
@@ -462,7 +464,7 @@ pub fn step(ctx: &mut Context) {
     ctx.cpu.cia = ctx.cpu.nia;
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Opcode {
     Twi,
     Mulli,
@@ -699,278 +701,278 @@ pub enum Opcode {
     Mtfsfx,
 }
 
-type OpcodeTableItem = (usize, Opcode, fn(&mut Context, Instruction));
+type OpcodeTableItem = (u32, Opcode, fn(&mut Context, Instruction));
 
 pub const ILLEGAL_OP: (Opcode, fn(&mut Context, Instruction)) = (Opcode::Illegal, op_illegal);
 
 pub const OPCODE_TABLE: [OpcodeTableItem; 54] = [
-    (3, Opcode::Twi, op_twi),
-    (4, Opcode::Table4, op_subtable4),
-    (7, Opcode::Mulli, op_mulli),
-    (8, Opcode::Subfic, op_subfic),
-    (10, Opcode::Cmpli, op_cmpli),
-    (11, Opcode::Cmpi, op_cmpi),
-    (12, Opcode::Addic, op_addic),
-    (13, Opcode::Addicrc, op_addic_rc),
-    (14, Opcode::Addi, op_addi),
-    (15, Opcode::Addis, op_addis),
-    (16, Opcode::Bcx, op_bcx),
-    (17, Opcode::Sc, op_sc),
-    (18, Opcode::Bx, op_bx),
-    (19, Opcode::Table19, op_subtable19),
-    (20, Opcode::Rlwimix, op_rlwimix),
-    (21, Opcode::Rlwinmx, op_rlwinmx),
-    (23, Opcode::Rlwnmx, op_rlwnmx),
-    (24, Opcode::Ori, op_ori),
-    (25, Opcode::Oris, op_oris),
-    (26, Opcode::Xori, op_xori),
-    (27, Opcode::Xoris, op_xoris),
-    (28, Opcode::Andirc, op_andi_rc),
-    (29, Opcode::Andisrc, op_andis_rc),
-    (31, Opcode::Table31, op_subtable31),
-    (32, Opcode::Lwz, op_lwz),
-    (33, Opcode::Lwzu, op_lwzu),
-    (34, Opcode::Lbz, op_lbz),
-    (35, Opcode::Lbzu, op_lbzu),
-    (36, Opcode::Stw, op_stw),
-    (37, Opcode::Stwu, op_stwu),
-    (38, Opcode::Stb, op_stb),
-    (39, Opcode::Stbu, op_stbu),
-    (40, Opcode::Lhz, op_lhz),
-    (41, Opcode::Lhzu, op_lhzu),
-    (42, Opcode::Lha, op_lha),
-    (43, Opcode::Lhau, op_lhau),
-    (44, Opcode::Sth, op_sth),
-    (45, Opcode::Sthu, op_sthu),
-    (46, Opcode::Lmw, op_lmw),
-    (47, Opcode::Stmw, op_stmw),
-    (48, Opcode::Lfs, op_lfs),
-    (49, Opcode::Lfsu, op_lfsu),
-    (50, Opcode::Lfd, op_lfd),
-    (51, Opcode::Lfdu, op_lfdu),
-    (52, Opcode::Stfs, op_stfs),
-    (53, Opcode::Stfsu, op_stfsu),
-    (54, Opcode::Stfd, op_stfd),
-    (55, Opcode::Stfdu, op_stfdu),
-    (56, Opcode::PsqL, op_psq_l),
-    (57, Opcode::PsqLu, op_psq_lu),
-    (59, Opcode::Table59, op_subtable59),
-    (60, Opcode::PsqSt, op_psq_st),
-    (61, Opcode::PsqStu, op_psq_stu),
-    (63, Opcode::Table63, op_subtable63),
+    (OPCODE_TWI, Opcode::Twi, op_twi),
+    (OPCODE_EXTENDED4, Opcode::Table4, op_subtable4),
+    (OPCODE_MULLI, Opcode::Mulli, op_mulli),
+    (OPCODE_SUBFIC, Opcode::Subfic, op_subfic),
+    (OPCODE_CMPLI, Opcode::Cmpli, op_cmpli),
+    (OPCODE_CMPI, Opcode::Cmpi, op_cmpi),
+    (OPCODE_ADDIC, Opcode::Addic, op_addic),
+    (OPCODE_ADDIC_RC, Opcode::Addicrc, op_addic_rc),
+    (OPCODE_ADDI, Opcode::Addi, op_addi),
+    (OPCODE_ADDIS, Opcode::Addis, op_addis),
+    (OPCODE_BCX, Opcode::Bcx, op_bcx),
+    (OPCODE_SC, Opcode::Sc, op_sc),
+    (OPCODE_BX, Opcode::Bx, op_bx),
+    (OPCODE_EXTENDED19, Opcode::Table19, op_subtable19),
+    (OPCODE_RLWIMIX, Opcode::Rlwimix, op_rlwimix),
+    (OPCODE_RLWINMX, Opcode::Rlwinmx, op_rlwinmx),
+    (OPCODE_RLWNMX, Opcode::Rlwnmx, op_rlwnmx),
+    (OPCODE_ORI, Opcode::Ori, op_ori),
+    (OPCODE_ORIS, Opcode::Oris, op_oris),
+    (OPCODE_XORI, Opcode::Xori, op_xori),
+    (OPCODE_XORIS, Opcode::Xoris, op_xoris),
+    (OPCODE_ANDI_RC, Opcode::Andirc, op_andi_rc),
+    (OPCODE_ANDIS_RC, Opcode::Andisrc, op_andis_rc),
+    (OPCODE_EXTENDED31, Opcode::Table31, op_subtable31),
+    (OPCODE_LWZ, Opcode::Lwz, op_lwz),
+    (OPCODE_LWZU, Opcode::Lwzu, op_lwzu),
+    (OPCODE_LBZ, Opcode::Lbz, op_lbz),
+    (OPCODE_LBZU, Opcode::Lbzu, op_lbzu),
+    (OPCODE_STW, Opcode::Stw, op_stw),
+    (OPCODE_STWU, Opcode::Stwu, op_stwu),
+    (OPCODE_STB, Opcode::Stb, op_stb),
+    (OPCODE_STBU, Opcode::Stbu, op_stbu),
+    (OPCODE_LHZ, Opcode::Lhz, op_lhz),
+    (OPCODE_LHZU, Opcode::Lhzu, op_lhzu),
+    (OPCODE_LHA, Opcode::Lha, op_lha),
+    (OPCODE_LHAU, Opcode::Lhau, op_lhau),
+    (OPCODE_STH, Opcode::Sth, op_sth),
+    (OPCODE_STHU, Opcode::Sthu, op_sthu),
+    (OPCODE_LMW, Opcode::Lmw, op_lmw),
+    (OPCODE_STMW, Opcode::Stmw, op_stmw),
+    (OPCODE_LFS, Opcode::Lfs, op_lfs),
+    (OPCODE_LFSU, Opcode::Lfsu, op_lfsu),
+    (OPCODE_LFD, Opcode::Lfd, op_lfd),
+    (OPCODE_LFDU, Opcode::Lfdu, op_lfdu),
+    (OPCODE_STFS, Opcode::Stfs, op_stfs),
+    (OPCODE_STFSU, Opcode::Stfsu, op_stfsu),
+    (OPCODE_STFD, Opcode::Stfd, op_stfd),
+    (OPCODE_STFDU, Opcode::Stfdu, op_stfdu),
+    (OPCODE_PSQ_L, Opcode::PsqL, op_psq_l),
+    (OPCODE_PSQ_LU, Opcode::PsqLu, op_psq_lu),
+    (OPCODE_EXTENDED59, Opcode::Table59, op_subtable59),
+    (OPCODE_PSQ_ST, Opcode::PsqSt, op_psq_st),
+    (OPCODE_PSQ_STU, Opcode::PsqStu, op_psq_stu),
+    (OPCODE_EXTENDED63, Opcode::Table63, op_subtable63),
 ];
 
 pub const OPCODE4X_TABLE: [OpcodeTableItem; 13] = [
-    (0, Opcode::PsCmpu0, op_ps_cmpu0),
-    (32, Opcode::PsCmpo0, op_ps_cmpo0),
-    (40, Opcode::PsNegx, op_ps_negx),
-    (64, Opcode::PsCmpu1, op_ps_cmpu1),
-    (72, Opcode::PsMrx, op_ps_mrx),
-    (96, Opcode::PsCmpo1, op_ps_cmpo1),
-    (136, Opcode::PsNabsx, op_ps_nabsx),
-    (264, Opcode::PsAbsx, op_ps_absx),
-    (528, Opcode::PsMerge00x, op_ps_merge00x),
-    (560, Opcode::PsMerge01x, op_ps_merge01x),
-    (592, Opcode::PsMerge10x, op_ps_merge10x),
-    (624, Opcode::PsMerge11x, op_ps_merge11x),
-    (1014, Opcode::DcbzL, op_dcbz_l),
+    (OPCODE_PS_CMPU0, Opcode::PsCmpu0, op_ps_cmpu0),
+    (OPCODE_PS_CMPO0, Opcode::PsCmpo0, op_ps_cmpo0),
+    (OPCODE_PS_NEGX, Opcode::PsNegx, op_ps_negx),
+    (OPCODE_PS_CMPU1, Opcode::PsCmpu1, op_ps_cmpu1),
+    (OPCODE_PS_MRX, Opcode::PsMrx, op_ps_mrx),
+    (OPCODE_PS_CMPO1, Opcode::PsCmpo1, op_ps_cmpo1),
+    (OPCODE_PS_NABSX, Opcode::PsNabsx, op_ps_nabsx),
+    (OPCODE_PS_ABSX, Opcode::PsAbsx, op_ps_absx),
+    (OPCODE_PS_MERGE_00X, Opcode::PsMerge00x, op_ps_merge00x),
+    (OPCODE_PS_MERGE_01X, Opcode::PsMerge01x, op_ps_merge01x),
+    (OPCODE_PS_MERGE_10X, Opcode::PsMerge10x, op_ps_merge10x),
+    (OPCODE_PS_MERGE_11X, Opcode::PsMerge11x, op_ps_merge11x),
+    (OPCODE_DCBZ_L, Opcode::DcbzL, op_dcbz_l),
 ];
 
 pub const OPCODE4A_TABLE: [OpcodeTableItem; 17] = [
-    (10, Opcode::PsSum0x, op_ps_sum0x),
-    (11, Opcode::PsSum1x, op_ps_sum1x),
-    (12, Opcode::PsMuls0x, op_ps_muls0x),
-    (13, Opcode::PsMuls1x, op_ps_muls1x),
-    (14, Opcode::PsMadds0x, op_ps_madds0x),
-    (15, Opcode::PsMadds1x, op_ps_madds1x),
-    (18, Opcode::PsDivx, op_ps_divx),
-    (20, Opcode::PsSubx, op_ps_subx),
-    (21, Opcode::PsAddx, op_ps_addx),
-    (23, Opcode::PsSelx, op_ps_selx),
-    (24, Opcode::PsResx, op_ps_resx),
-    (25, Opcode::PsMulx, op_ps_mulx),
-    (26, Opcode::PsRsqrtex, op_ps_rsqrtex),
-    (28, Opcode::PsMsubx, op_ps_msubx),
-    (29, Opcode::PsMaddx, op_ps_maddx),
-    (30, Opcode::PsNmsubx, op_ps_nmsubx),
-    (31, Opcode::PsNmaddx, op_ps_nmaddx),
+    (OPCODE_PS_SUM0X, Opcode::PsSum0x, op_ps_sum0x),
+    (OPCODE_PS_SUM1X, Opcode::PsSum1x, op_ps_sum1x),
+    (OPCODE_PS_MULS0X, Opcode::PsMuls0x, op_ps_muls0x),
+    (OPCODE_PS_MULS1X, Opcode::PsMuls1x, op_ps_muls1x),
+    (OPCODE_PS_MADDS0X, Opcode::PsMadds0x, op_ps_madds0x),
+    (OPCODE_PS_MADDS1X, Opcode::PsMadds1x, op_ps_madds1x),
+    (OPCODE_PS_DIVX, Opcode::PsDivx, op_ps_divx),
+    (OPCODE_PS_SUBX, Opcode::PsSubx, op_ps_subx),
+    (OPCODE_PS_ADDX, Opcode::PsAddx, op_ps_addx),
+    (OPCODE_PS_SELX, Opcode::PsSelx, op_ps_selx),
+    (OPCODE_PS_RESX, Opcode::PsResx, op_ps_resx),
+    (OPCODE_PS_MULX, Opcode::PsMulx, op_ps_mulx),
+    (OPCODE_PS_RSQRTEX, Opcode::PsRsqrtex, op_ps_rsqrtex),
+    (OPCODE_PS_MSUBX, Opcode::PsMsubx, op_ps_msubx),
+    (OPCODE_PS_MADDX, Opcode::PsMaddx, op_ps_maddx),
+    (OPCODE_PS_NMSUBX, Opcode::PsNmsubx, op_ps_nmsubx),
+    (OPCODE_PS_NMADDX, Opcode::PsNmaddx, op_ps_nmaddx),
 ];
 
 pub const OPCODE4AA_TABLE: [OpcodeTableItem; 4] = [
-    (6, Opcode::PsqLx, op_psq_lx),
-    (7, Opcode::PsqStx, op_psq_stx),
-    (38, Opcode::PsqLux, op_psq_lux),
-    (39, Opcode::PsqStux, op_psq_stux),
+    (OPCODE_PSQ_LX, Opcode::PsqLx, op_psq_lx),
+    (OPCODE_PSQ_STX, Opcode::PsqStx, op_psq_stx),
+    (OPCODE_PSQ_LUX, Opcode::PsqLux, op_psq_lux),
+    (OPCODE_PSQ_STUX, Opcode::PsqStux, op_psq_stux),
 ];
 
 pub const OPCODE19_TABLE: [OpcodeTableItem; 13] = [
-    (0, Opcode::Mcrf, op_mcrf),
-    (16, Opcode::Bclrx, op_bclrx),
-    (33, Opcode::Crnor, op_crnor),
-    (50, Opcode::Rfi, op_rfi),
-    (129, Opcode::Crandc, op_crandc),
-    (150, Opcode::Isync, op_isync),
-    (193, Opcode::Crxor, op_crxor),
-    (225, Opcode::Crnand, op_crnand),
-    (257, Opcode::Crand, op_crand),
-    (289, Opcode::Creqv, op_creqv),
-    (417, Opcode::Crorc, op_crorc),
-    (449, Opcode::Cror, op_cror),
-    (528, Opcode::Bcctrx, op_bcctrx),
+    (OPCODE_MCRF, Opcode::Mcrf, op_mcrf),
+    (OPCODE_BCLRX, Opcode::Bclrx, op_bclrx),
+    (OPCODE_CRNOR, Opcode::Crnor, op_crnor),
+    (OPCODE_RFI, Opcode::Rfi, op_rfi),
+    (OPCODE_CRANDC, Opcode::Crandc, op_crandc),
+    (OPCODE_ISYNC, Opcode::Isync, op_isync),
+    (OPCODE_CRXOR, Opcode::Crxor, op_crxor),
+    (OPCODE_CRNAND, Opcode::Crnand, op_crnand),
+    (OPCODE_CRAND, Opcode::Crand, op_crand),
+    (OPCODE_CREQV, Opcode::Creqv, op_creqv),
+    (OPCODE_CRORC, Opcode::Crorc, op_crorc),
+    (OPCODE_CROR, Opcode::Cror, op_cror),
+    (OPCODE_BCCTRX, Opcode::Bcctrx, op_bcctrx),
 ];
 
 pub const OPCODE31_TABLE: [OpcodeTableItem; 108] = [
-    (0, Opcode::Cmp, op_cmp),
-    (4, Opcode::Tw, op_tw),
-    (8, Opcode::Subfcx, op_subfcx),
-    (10, Opcode::Addcx, op_addcx),
-    (11, Opcode::Mulhwux, op_mulhwux),
-    (19, Opcode::Mfcr, op_mfcr),
-    (20, Opcode::Lwarx, op_lwarx),
-    (23, Opcode::Lwzx, op_lwzx),
-    (24, Opcode::Slwx, op_slwx),
-    (26, Opcode::Cntlzwx, op_cntlzwx),
-    (28, Opcode::Andx, op_andx),
-    (32, Opcode::Cmpl, op_cmpl),
-    (40, Opcode::Subfx, op_subfx),
-    (54, Opcode::Dcbst, op_dcbst),
-    (55, Opcode::Lwzux, op_lwzux),
-    (60, Opcode::Andcx, op_andcx),
-    (75, Opcode::Mulhwx, op_mulhwx),
-    (83, Opcode::Mfmsr, op_mfmsr),
-    (86, Opcode::Dcbf, op_dcbf),
-    (87, Opcode::Lbzx, op_lbzx),
-    (104, Opcode::Negx, op_negx),
-    (119, Opcode::Lbzux, op_lbzux),
-    (124, Opcode::Norx, op_norx),
-    (136, Opcode::Subfex, op_subfex),
-    (138, Opcode::Addex, op_addex),
-    (144, Opcode::Mtcrf, op_mtcrf),
-    (146, Opcode::Mtmsr, op_mtmsr),
-    (150, Opcode::Stwcxrc, op_stwcx_rc),
-    (151, Opcode::Stwx, op_stwx),
-    (183, Opcode::Stwux, op_stwux),
-    (200, Opcode::Subfzex, op_subfzex),
-    (202, Opcode::Addzex, op_addzex),
-    (210, Opcode::Mtsr, op_mtsr),
-    (215, Opcode::Stbx, op_stbx),
-    (232, Opcode::Subfmex, op_subfmex),
-    (234, Opcode::Addmex, op_addmex),
-    (235, Opcode::Mullwx, op_mullwx),
-    (242, Opcode::Mtsrin, op_mtsrin),
-    (246, Opcode::Dcbtst, op_dcbtst),
-    (247, Opcode::Stbux, op_stbux),
-    (266, Opcode::Addx, op_addx),
-    (278, Opcode::Dcbt, op_dcbt),
-    (279, Opcode::Lhzx, op_lhzx),
-    (284, Opcode::Eqvx, op_eqvx),
-    (306, Opcode::Tlbie, op_tlbie),
-    (310, Opcode::Eciwx, op_eciwx),
-    (311, Opcode::Lhzux, op_lhzux),
-    (316, Opcode::Xorx, op_xorx),
-    (339, Opcode::Mfspr, op_mfspr),
-    (343, Opcode::Lhax, op_lhax),
-    (371, Opcode::Mftb, op_mftb),
-    (375, Opcode::Lhaux, op_lhaux),
-    (407, Opcode::Sthx, op_sthx),
-    (412, Opcode::Orcx, op_orcx),
-    (438, Opcode::Ecowx, op_ecowx),
-    (439, Opcode::Sthux, op_sthux),
-    (444, Opcode::Orx, op_orx),
-    (459, Opcode::Divwux, op_divwux),
-    (467, Opcode::Mtspr, op_mtspr),
-    (470, Opcode::Dcbi, op_dcbi),
-    (476, Opcode::Nandx, op_nandx),
-    (491, Opcode::Divwx, op_divwx),
-    (512, Opcode::Mcrxr, op_mcrxr),
-    (520, Opcode::Subfcx, op_subfcx),   // oe = 1
-    (522, Opcode::Addcx, op_addcx),     // oe = 1
-    (523, Opcode::Mulhwux, op_mulhwux), // 21(reserved) = 1
-    (533, Opcode::Lswx, op_lswx),
-    (534, Opcode::Lwbrx, op_lwbrx),
-    (535, Opcode::Lfsx, op_lfsx),
-    (536, Opcode::Srwx, op_srwx),
-    (552, Opcode::Subfx, op_subfx), // oe = 1
-    (566, Opcode::Tlbsync, op_tlbsync),
-    (567, Opcode::Lfsux, op_lfsux),
-    (587, Opcode::Mulhwx, op_mulhwx), // 21(reserved) = 1
-    (595, Opcode::Mfsr, op_mfsr),
-    (597, Opcode::Lswi, op_lswi),
-    (598, Opcode::Sync, op_sync),
-    (599, Opcode::Lfdx, op_lfdx),
-    (616, Opcode::Negx, op_negx), // oe = 1
-    (631, Opcode::Lfdux, op_lfdux),
-    (648, Opcode::Subfex, op_subfex), // oe = 1
-    (650, Opcode::Addex, op_addex),   // oe = 1
-    (659, Opcode::Mfsrin, op_mfsrin),
-    (661, Opcode::Stswx, op_stswx),
-    (662, Opcode::Stwbrx, op_stwbrx),
-    (663, Opcode::Stfsx, op_stfsx),
-    (695, Opcode::Stfsux, op_stfsux),
-    (712, Opcode::Subfzex, op_subfzex), // oe = 1
-    (714, Opcode::Addzex, op_addzex),   // oe = 1
-    (725, Opcode::Stswi, op_stswi),
-    (727, Opcode::Stfdx, op_stfdx),
-    (744, Opcode::Subfmex, op_subfmex), // oe = 1
-    (746, Opcode::Addmex, op_addmex),   // oe = 1
-    (747, Opcode::Mullwx, op_mullwx),   // oe = 1
-    (759, Opcode::Stfdux, op_stfdux),
-    (778, Opcode::Addx, op_addx), // oe = 1
-    (790, Opcode::Lhbrx, op_lhbrx),
-    (792, Opcode::Srawx, op_srawx),
-    (824, Opcode::Srawix, op_srawix),
-    (854, Opcode::Eieio, op_eieio),
-    (918, Opcode::Sthbrx, op_sthbrx),
-    (922, Opcode::Extshx, op_extshx),
-    (954, Opcode::Extsbx, op_extsbx),
-    (971, Opcode::Divwux, op_divwux), // oe = 1
-    (982, Opcode::Icbi, op_icbi),
-    (983, Opcode::Stfiwx, op_stfiwx),
-    (1003, Opcode::Divwx, op_divwx), // oe = 1
-    (1014, Opcode::Dcbz, op_dcbz),
+    (OPCODE_CMP, Opcode::Cmp, op_cmp),
+    (OPCODE_TW, Opcode::Tw, op_tw),
+    (OPCODE_SUBFCX, Opcode::Subfcx, op_subfcx),
+    (OPCODE_ADDCX, Opcode::Addcx, op_addcx),
+    (OPCODE_MULHWUX, Opcode::Mulhwux, op_mulhwux),
+    (OPCODE_MFCR, Opcode::Mfcr, op_mfcr),
+    (OPCODE_LWARX, Opcode::Lwarx, op_lwarx),
+    (OPCODE_LWZX, Opcode::Lwzx, op_lwzx),
+    (OPCODE_SLWX, Opcode::Slwx, op_slwx),
+    (OPCODE_CNTLZWX, Opcode::Cntlzwx, op_cntlzwx),
+    (OPCODE_ANDX, Opcode::Andx, op_andx),
+    (OPCODE_CMPL, Opcode::Cmpl, op_cmpl),
+    (OPCODE_SUBFX, Opcode::Subfx, op_subfx),
+    (OPCODE_DCBST, Opcode::Dcbst, op_dcbst),
+    (OPCODE_LWZUX, Opcode::Lwzux, op_lwzux),
+    (OPCODE_ANDCX, Opcode::Andcx, op_andcx),
+    (OPCODE_MULHWX, Opcode::Mulhwx, op_mulhwx),
+    (OPCODE_MFMSR, Opcode::Mfmsr, op_mfmsr),
+    (OPCODE_DCBF, Opcode::Dcbf, op_dcbf),
+    (OPCODE_LBZX, Opcode::Lbzx, op_lbzx),
+    (OPCODE_NEGX, Opcode::Negx, op_negx),
+    (OPCODE_LBZUX, Opcode::Lbzux, op_lbzux),
+    (OPCODE_NORX, Opcode::Norx, op_norx),
+    (OPCODE_SUBFEX, Opcode::Subfex, op_subfex),
+    (OPCODE_ADDEX, Opcode::Addex, op_addex),
+    (OPCODE_MTCRF, Opcode::Mtcrf, op_mtcrf),
+    (OPCODE_MTMSR, Opcode::Mtmsr, op_mtmsr),
+    (OPCODE_STWCX_RC, Opcode::Stwcxrc, op_stwcx_rc),
+    (OPCODE_STWX, Opcode::Stwx, op_stwx),
+    (OPCODE_STWUX, Opcode::Stwux, op_stwux),
+    (OPCODE_SUBFZEX, Opcode::Subfzex, op_subfzex),
+    (OPCODE_ADDZEX, Opcode::Addzex, op_addzex),
+    (OPCODE_MTSR, Opcode::Mtsr, op_mtsr),
+    (OPCODE_STBX, Opcode::Stbx, op_stbx),
+    (OPCODE_SUBFMEX, Opcode::Subfmex, op_subfmex),
+    (OPCODE_ADDMEX, Opcode::Addmex, op_addmex),
+    (OPCODE_MULLWX, Opcode::Mullwx, op_mullwx),
+    (OPCODE_MTSRIN, Opcode::Mtsrin, op_mtsrin),
+    (OPCODE_DCBTST, Opcode::Dcbtst, op_dcbtst),
+    (OPCODE_STBUX, Opcode::Stbux, op_stbux),
+    (OPCODE_ADDX, Opcode::Addx, op_addx),
+    (OPCODE_DCBT, Opcode::Dcbt, op_dcbt),
+    (OPCODE_LHZX, Opcode::Lhzx, op_lhzx),
+    (OPCODE_EQVX, Opcode::Eqvx, op_eqvx),
+    (OPCODE_TBLIE, Opcode::Tlbie, op_tlbie),
+    (OPCODE_ECIWX, Opcode::Eciwx, op_eciwx),
+    (OPCODE_LHZUX, Opcode::Lhzux, op_lhzux),
+    (OPCODE_XORX, Opcode::Xorx, op_xorx),
+    (OPCODE_MFSPR, Opcode::Mfspr, op_mfspr),
+    (OPCODE_LHAX, Opcode::Lhax, op_lhax),
+    (OPCODE_MFTB, Opcode::Mftb, op_mftb),
+    (OPCODE_LHAUX, Opcode::Lhaux, op_lhaux),
+    (OPCODE_STHX, Opcode::Sthx, op_sthx),
+    (OPCODE_ORCX, Opcode::Orcx, op_orcx),
+    (OPCODE_ECOWX, Opcode::Ecowx, op_ecowx),
+    (OPCODE_STHUX, Opcode::Sthux, op_sthux),
+    (OPCODE_ORX, Opcode::Orx, op_orx),
+    (OPCODE_DIVWUX, Opcode::Divwux, op_divwux),
+    (OPCODE_MTSPR, Opcode::Mtspr, op_mtspr),
+    (OPCODE_DCBI, Opcode::Dcbi, op_dcbi),
+    (OPCODE_NANDX, Opcode::Nandx, op_nandx),
+    (OPCODE_DIVWX, Opcode::Divwx, op_divwx),
+    (OPCODE_MCRXR, Opcode::Mcrxr, op_mcrxr),
+    (OPCODE_SUBFCX_OE, Opcode::Subfcx, op_subfcx), // oe = 1
+    (OPCODE_ADDCX_OE, Opcode::Addcx, op_addcx),    // oe = 1
+    (OPCODE_MULHWUX_21, Opcode::Mulhwux, op_mulhwux), // 21(reserved) = 1
+    (OPCODE_LSWX, Opcode::Lswx, op_lswx),
+    (OPCODE_LWBRX, Opcode::Lwbrx, op_lwbrx),
+    (OPCODE_LFSX, Opcode::Lfsx, op_lfsx),
+    (OPCODE_SRWX, Opcode::Srwx, op_srwx),
+    (OPCODE_SUBFX_OE, Opcode::Subfx, op_subfx), // oe = 1
+    (OPCODE_TLBSYNC, Opcode::Tlbsync, op_tlbsync),
+    (OPCODE_LFSUX, Opcode::Lfsux, op_lfsux),
+    (OPCODE_MULHWX_21, Opcode::Mulhwx, op_mulhwx), // 21(reserved) = 1
+    (OPCODE_MFSR, Opcode::Mfsr, op_mfsr),
+    (OPCODE_LSWI, Opcode::Lswi, op_lswi),
+    (OPCODE_SYNC, Opcode::Sync, op_sync),
+    (OPCODE_LFDX, Opcode::Lfdx, op_lfdx),
+    (OPCODE_NEGX_OE, Opcode::Negx, op_negx), // oe = 1
+    (OPCODE_LFDUX, Opcode::Lfdux, op_lfdux),
+    (OPCODE_SUBFEX_OE, Opcode::Subfex, op_subfex), // oe = 1
+    (OPCODE_ADDEX_OE, Opcode::Addex, op_addex),    // oe = 1
+    (OPCODE_MFSRIN, Opcode::Mfsrin, op_mfsrin),
+    (OPCODE_STSWX, Opcode::Stswx, op_stswx),
+    (OPCODE_STWBRX, Opcode::Stwbrx, op_stwbrx),
+    (OPCODE_STFSX, Opcode::Stfsx, op_stfsx),
+    (OPCODE_STFSUX, Opcode::Stfsux, op_stfsux),
+    (OPCODE_SUBFZEX_OE, Opcode::Subfzex, op_subfzex), // oe = 1
+    (OPCODE_ADDZEX_OE, Opcode::Addzex, op_addzex),    // oe = 1
+    (OPCODE_STSWI, Opcode::Stswi, op_stswi),
+    (OPCODE_STFDX, Opcode::Stfdx, op_stfdx),
+    (OPCODE_SUBFMEX_OE, Opcode::Subfmex, op_subfmex), // oe = 1
+    (OPCODE_ADDMEX_OE, Opcode::Addmex, op_addmex),    // oe = 1
+    (OPCODE_MULLWX_OE, Opcode::Mullwx, op_mullwx),    // oe = 1
+    (OPCODE_STFDUX, Opcode::Stfdux, op_stfdux),
+    (OPCODE_ADDX_OE, Opcode::Addx, op_addx), // oe = 1
+    (OPCODE_LHBRX, Opcode::Lhbrx, op_lhbrx),
+    (OPCODE_SRAWX, Opcode::Srawx, op_srawx),
+    (OPCODE_SRAWIX, Opcode::Srawix, op_srawix),
+    (OPCODE_EIEIO, Opcode::Eieio, op_eieio),
+    (OPCODE_STHBRX, Opcode::Sthbrx, op_sthbrx),
+    (OPCODE_EXTSHX, Opcode::Extshx, op_extshx),
+    (OPCODE_EXTSBX, Opcode::Extsbx, op_extsbx),
+    (OPCODE_DIVWUX_OE, Opcode::Divwux, op_divwux), // oe = 1
+    (OPCODE_ICBI, Opcode::Icbi, op_icbi),
+    (OPCODE_STFIWX, Opcode::Stfiwx, op_stfiwx),
+    (OPCODE_DIVWX_OE, Opcode::Divwx, op_divwx), // oe = 1
+    (OPCODE_DCBZ, Opcode::Dcbz, op_dcbz),
 ];
 
 pub const OPCODE59_TABLE: [OpcodeTableItem; 9] = [
-    (18, Opcode::Fdivsx, op_fdivsx),
-    (20, Opcode::Fsubsx, op_fsubsx),
-    (21, Opcode::Faddsx, op_faddsx),
-    (24, Opcode::Fresx, op_fresx),
-    (25, Opcode::Fmulsx, op_fmulsx),
-    (28, Opcode::Fmsubsx, op_fmsubsx),
-    (29, Opcode::Fmaddsx, op_fmaddsx),
-    (30, Opcode::Fnmsubsx, op_fnmsubsx),
-    (31, Opcode::Fnmaddsx, op_fnmaddsx),
+    (OPCODE_FDIVSX, Opcode::Fdivsx, op_fdivsx),
+    (OPCODE_FSUBSX, Opcode::Fsubsx, op_fsubsx),
+    (OPCODE_FADDSX, Opcode::Faddsx, op_faddsx),
+    (OPCODE_FRESX, Opcode::Fresx, op_fresx),
+    (OPCODE_FMULSX, Opcode::Fmulsx, op_fmulsx),
+    (OPCODE_FMSUBSX, Opcode::Fmsubsx, op_fmsubsx),
+    (OPCODE_FMADDSX, Opcode::Fmaddsx, op_fmaddsx),
+    (OPCODE_FNMSUBSX, Opcode::Fnmsubsx, op_fnmsubsx),
+    (OPCODE_FNMADDSX, Opcode::Fnmaddsx, op_fnmaddsx),
 ];
 
 pub const OPCODE63X_TABLE: [OpcodeTableItem; 15] = [
-    (0, Opcode::Fcmpu, op_fcmpu),
-    (12, Opcode::Frspx, op_frspx),
-    (14, Opcode::Fctiwx, op_fctiwx),
-    (15, Opcode::Fctiwzx, op_fctiwzx),
-    (32, Opcode::Fcmpo, op_fcmpo),
-    (38, Opcode::Mtfsb1x, op_mtfsb1x),
-    (40, Opcode::Fnegx, op_fnegx),
-    (64, Opcode::Mcrfs, op_mcrfs),
-    (70, Opcode::Mtfsb0x, op_mtfsb0x),
-    (72, Opcode::Fmrx, op_fmrx),
-    (134, Opcode::Mtfsfix, op_mtfsfix),
-    (136, Opcode::Fnabsx, op_fnabsx),
-    (264, Opcode::Fabsx, op_fabsx),
-    (583, Opcode::Mffsx, op_mffsx),
-    (711, Opcode::Mtfsfx, op_mtfsfx),
+    (OPCODE_FCMPU, Opcode::Fcmpu, op_fcmpu),
+    (OPCODE_FRSPX, Opcode::Frspx, op_frspx),
+    (OPCODE_FCTIWX, Opcode::Fctiwx, op_fctiwx),
+    (OPCODE_FCTIWZX, Opcode::Fctiwzx, op_fctiwzx),
+    (OPCODE_FCMPO, Opcode::Fcmpo, op_fcmpo),
+    (OPCODE_MTFSB1X, Opcode::Mtfsb1x, op_mtfsb1x),
+    (OPCODE_FNEGX, Opcode::Fnegx, op_fnegx),
+    (OPCODE_MCRFS, Opcode::Mcrfs, op_mcrfs),
+    (OPCODE_MTFSB0X, Opcode::Mtfsb0x, op_mtfsb0x),
+    (OPCODE_FMRX, Opcode::Fmrx, op_fmrx),
+    (OPCODE_MTFSFIX, Opcode::Mtfsfix, op_mtfsfix),
+    (OPCODE_FNABSX, Opcode::Fnabsx, op_fnabsx),
+    (OPCODE_FABSX, Opcode::Fabsx, op_fabsx),
+    (OPCODE_MFFSX, Opcode::Mffsx, op_mffsx),
+    (OPCODE_MTFSFX, Opcode::Mtfsfx, op_mtfsfx),
 ];
 
 pub const OPCODE63A_TABLE: [OpcodeTableItem; 10] = [
-    (18, Opcode::Fdivx, op_fdivx),
-    (20, Opcode::Fsubx, op_fsubx),
-    (21, Opcode::Faddx, op_faddx),
-    (23, Opcode::Fselx, op_fselx),
-    (25, Opcode::Fmulx, op_fmulx),
-    (26, Opcode::Frsqrtex, op_frsqrtex),
-    (28, Opcode::Fmsubx, op_fmsubx),
-    (29, Opcode::Fmaddx, op_fmaddx),
-    (30, Opcode::Fnmsubx, op_fnmsubx),
-    (31, Opcode::Fnmaddx, op_fnmaddx),
+    (OPCODE_FDIVX, Opcode::Fdivx, op_fdivx),
+    (OPCODE_FSUBX, Opcode::Fsubx, op_fsubx),
+    (OPCODE_FADDX, Opcode::Faddx, op_faddx),
+    (OPCODE_FSELX, Opcode::Fselx, op_fselx),
+    (OPCODE_FMULX, Opcode::Fmulx, op_fmulx),
+    (OPCODE_FRSQRTEX, Opcode::Frsqrtex, op_frsqrtex),
+    (OPCODE_FMSUBX, Opcode::Fmsubx, op_fmsubx),
+    (OPCODE_FMADDX, Opcode::Fmaddx, op_fmaddx),
+    (OPCODE_FNMSUBX, Opcode::Fnmsubx, op_fnmsubx),
+    (OPCODE_FNMADDX, Opcode::Fnmaddx, op_fnmaddx),
 ];
 
 fn op_illegal(_ctx: &mut Context, _instr: Instruction) {}
@@ -1016,7 +1018,7 @@ bitfield! {
     oe, _ : 6;               // IEEE floating-point overflow exception enable
     ve, _ : 7;               // Floating-point invalid operation exception enable
     vxcvi, _ : 8;            // Floating-point invalid operation exception for invalid integer convert
-    vxsqrt, _ : 9;           // Floating-point invalid operation exception for invalid square root
+    vxsqrt, set_vxsqrt : 9;  // Floating-point invalid operation exception for invalid square root
     vxsoft, _ : 10;          // Floating-point invalid operation exceptions for woftware request
     fprf, set_fprf : 16, 12; // Floating-point result flags
     fpcc, set_fpcc : 15, 12; // Floating-point condition code

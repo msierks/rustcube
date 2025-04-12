@@ -26,6 +26,42 @@ impl Memory {
         BigEndian::read_u16(&self.data[addr as usize..])
     }
 
+    pub fn read_u32(&self, addr: u32) -> u32 {
+        BigEndian::read_u32(&self.data[addr as usize..])
+    }
+
+    pub fn read_f32(&self, addr: u32) -> f32 {
+        f32::from_bits(BigEndian::read_u32(&self.data[addr as usize..]))
+    }
+
+    #[allow(dead_code)]
+    pub fn read_u64(&self, addr: u32) -> u64 {
+        BigEndian::read_u64(&self.data[addr as usize..])
+    }
+
+    #[allow(dead_code)]
+    pub fn read(&self, addr: u32, buf: &mut [u8]) {
+        for (i, elem) in buf.iter_mut().enumerate() {
+            *elem = self.data[addr as usize + i];
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn read_string(&self, mut addr: u32) -> String {
+        let mut s = String::new();
+        loop {
+            let res = self.read_u8(addr);
+            if res == 0 {
+                break;
+            }
+            s.push(res as char);
+
+            addr += 1;
+        }
+
+        s
+    }
+
     pub fn write_u8(&mut self, addr: u32, val: u8) {
         self.data[addr as usize] = val;
     }

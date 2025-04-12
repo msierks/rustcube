@@ -4,7 +4,7 @@ extern crate bitfield;
 #[macro_use]
 extern crate log;
 
-//mod ai;
+mod ai;
 pub mod cpu;
 mod di;
 mod disc;
@@ -13,15 +13,15 @@ pub mod dsp;
 mod exi;
 mod gp_fifo;
 mod mem;
-//mod pe;
+mod pe;
 mod pi;
 mod si;
 mod timers;
 mod utils;
 mod vi;
-//mod video;
+mod video;
 
-//use self::ai::AudioInterface;
+use self::ai::AudioInterface;
 use self::cpu::Cpu;
 use self::di::DvdInterface;
 use self::disc::Disc;
@@ -30,13 +30,13 @@ use self::dsp::DspInterface;
 use self::exi::ExternalInterface;
 use self::gp_fifo::GpFifo;
 use self::mem::{Memory, MEMORY_SIZE};
-//use self::pe::PixelEngine;
+use self::pe::PixelEngine;
 use self::pi::ProcessorInterface;
 use self::si::SerialInterface;
 use self::timers::{Timers, BUS_CLOCK, CPU_CLOCK};
 use self::vi::VideoInterface;
-//use self::video::cp;
-//use self::video::cp::CommandProcessor;
+use self::video::cp;
+use self::video::cp::CommandProcessor;
 use crate::utils::Halveable;
 
 use byteorder::{BigEndian, ByteOrder};
@@ -71,16 +71,16 @@ pub struct Watchpoint {
 }
 
 pub struct Context {
-    //ai: AudioInterface,
+    ai: AudioInterface,
     cpu: Cpu,
     bootrom: Rc<RefCell<Vec<u8>>>,
     mem: Memory,
-    //cp: CommandProcessor,
+    cp: CommandProcessor,
     di: DvdInterface,
     dsp: DspInterface,
     exi: ExternalInterface,
     gp_fifo: GpFifo,
-    //pe: PixelEngine,
+    pe: PixelEngine,
     pi: ProcessorInterface,
     si: SerialInterface,
     vi: VideoInterface,
@@ -96,16 +96,16 @@ impl Default for Context {
         let exi = ExternalInterface::new(bootrom.clone());
 
         Context {
-            //ai: Default::default(),
+            ai: Default::default(),
             cpu: Default::default(),
             bootrom,
             mem: Default::default(),
-            //cp: Default::default(),
+            cp: Default::default(),
             di: Default::default(),
             dsp: Default::default(),
             exi,
             gp_fifo: Default::default(),
-            //pe: Default::default(),
+            pe: Default::default(),
             pi: Default::default(),
             si: Default::default(),
             vi: Default::default(),
@@ -210,6 +210,7 @@ impl Context {
         cpu::step(self);
 
         vi::update(self);
+        ai::update(self);
         dsp::update(self);
 
         if let Some(access) = self.hit_watchpoint {
@@ -302,7 +303,7 @@ impl Context {
 
         let ret = match map(addr) {
             Memory => mem::read_u16(self, addr),
-            //PixelEngine(reg) => pe::read_u16(self, reg),
+            PixelEngine(reg) => pe::read_u16(self, reg),
             VideoInterface(reg) => vi::read_u16(self, reg),
             DspInterface(reg) => dsp::read_u16(self, reg),
             _ => {
@@ -331,7 +332,7 @@ impl Context {
             ExternalInterface(chan, reg) => exi::read_u32(self, chan, reg),
             DvdInterface(reg) => di::read_u32(self, reg),
             SerialInterface(reg) => si::read_u32(self, reg),
-            //AudioInterface(reg) => ai::read_u32(self, reg),
+            AudioInterface(reg) => ai::read_u32(self, reg),
             Bootrom(offset) => BigEndian::read_u32(&self.bootrom.borrow()[offset as usize..]),
             _ => {
                 warn!(
@@ -359,7 +360,7 @@ impl Context {
             DvdInterface(reg) => di::read_u32(self, reg),
             SerialInterface(reg) => si::read_u32(self, reg),
             ExternalInterface(chan, reg) => exi::read_u32(self, chan, reg),
-            //AudioInterface(reg) => ai::read_u32(self, reg),
+            AudioInterface(reg) => ai::read_u32(self, reg),
             Bootrom(offset) => BigEndian::read_u32(&self.bootrom.borrow()[offset as usize..]),
             _ => 0,
         };
@@ -431,8 +432,8 @@ impl Context {
 
         match map(addr) {
             Memory => mem::write_u16(self, addr, val),
-            //CommandProcessor(reg) => cp::write_u16(self, reg, val),
-            //PixelEngine(reg) => pe::write_u16(self, reg, val),
+            CommandProcessor(reg) => cp::write_u16(self, reg, val),
+            PixelEngine(reg) => pe::write_u16(self, reg, val),
             VideoInterface(reg) => vi::write_u16(self, reg, val),
             DspInterface(reg) => dsp::write_u16(self, reg, val),
             //MemoryInterface(_) => {} //ignore
@@ -466,7 +467,7 @@ impl Context {
             DvdInterface(reg) => di::write_u32(self, reg, val),
             SerialInterface(reg) => si::write_u32(self, reg, val),
             ExternalInterface(chan, reg) => exi::write_u32(self, chan, reg, val),
-            //AudioInterface(reg) => ai::write_u32(self, reg, val),
+            AudioInterface(reg) => ai::write_u32(self, reg, val),
             GpFifo => gp_fifo::write_u32(self, val),
             _ => warn!(
                 "write_u32 not implemented for {:?} address {:#x}",

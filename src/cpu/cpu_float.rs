@@ -198,8 +198,22 @@ fn op_fmulsx(ctx: &mut Context, instr: Instruction) {
     ctx.tick(1);
 }
 
-fn op_fmulx(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_fmulx");
+fn op_fmulx(ctx: &mut Context, instr: Instruction) {
+    if !ctx.cpu.msr.fp() {
+        ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+        return;
+    }
+
+    let fra = ctx.cpu.fpr[instr.a()].ps0_as_f64();
+    let frc = ctx.cpu.fpr[instr.c()].ps0_as_f64();
+
+    let result = fra * frc;
+
+    ctx.cpu.fpr[instr.d()].set_ps0_f64(result);
+
+    if instr.rc() {
+        ctx.cpu.update_cr1();
+    }
 }
 
 fn op_fnabsx(_ctx: &mut Context, _instr: Instruction) {
@@ -224,20 +238,64 @@ fn op_fnmsubsx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_fnsubsx");
 }
 
-fn op_fnmsubx(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_fnmsubx");
+fn op_fnmsubx(ctx: &mut Context, instr: Instruction) {
+    if !ctx.cpu.msr.fp() {
+        ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+        return;
+    }
+
+    let fra = ctx.cpu.fpr[instr.a()].ps0_as_f64();
+    let frb = ctx.cpu.fpr[instr.b()].ps0_as_f64();
+    let frc = ctx.cpu.fpr[instr.c()].ps0_as_f64();
+
+    let result = fra.mul_add(frc, -frb);
+
+    ctx.cpu.fpr[instr.d()].set_ps0_f64(result);
+
+    if instr.rc() {
+        ctx.cpu.update_cr1();
+    }
+
+    ctx.tick(2);
 }
 
 fn op_fresx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_fresx");
 }
 
-fn op_frspx(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_frspx");
+fn op_frspx(ctx: &mut Context, instr: Instruction) {
+    if !ctx.cpu.msr.fp() {
+        ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+        return;
+    }
+
+    let frb = ctx.cpu.fpr[instr.b()].ps0_as_f64();
+
+    if frb.is_nan() {
+        unimplemented!();
+    }
+
+    ctx.cpu.fpr[instr.d()].set_ps0_f64(frb);
+
+    if ctx.cpu.hid2.pse() {
+        ctx.cpu.fpr[instr.d()].set_ps1_f64(frb);
+    }
+
+    if instr.rc() {
+        ctx.cpu.update_cr1();
+    }
 }
 
-fn op_frsqrtex(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_frsqrtex");
+fn op_frsqrtex(ctx: &mut Context, instr: Instruction) {
+    let frb = ctx.cpu.fpr[instr.b()].ps0_as_f64();
+
+    ctx.cpu.fpr[instr.d()].set_ps0_f64(1.0 / frb.sqrt());
+
+    if instr.rc() {
+        ctx.cpu.update_cr1();
+    }
+
+    ctx.tick(2);
 }
 
 fn op_fselx(_ctx: &mut Context, _instr: Instruction) {
@@ -269,8 +327,22 @@ fn op_ps_absx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ps_absx");
 }
 
-fn op_ps_addx(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_ps_addx");
+fn op_ps_addx(ctx: &mut Context, instr: Instruction) {
+    let fra = ctx.cpu.fpr[instr.a()].ps0_as_f64();
+    let frb = ctx.cpu.fpr[instr.b()].ps0_as_f64();
+
+    ctx.cpu.fpr[instr.d()].set_ps0_f64(fra + frb);
+
+    let fra = ctx.cpu.fpr[instr.a()].ps1_as_f64();
+    let frb = ctx.cpu.fpr[instr.b()].ps1_as_f64();
+
+    ctx.cpu.fpr[instr.d()].set_ps1_f64(fra + frb);
+
+    if instr.rc() {
+        ctx.cpu.update_cr1();
+    }
+
+    ctx.tick(1);
 }
 
 fn op_ps_cmpo0(_ctx: &mut Context, _instr: Instruction) {
@@ -293,8 +365,24 @@ fn op_ps_divx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ps_divx");
 }
 
-fn op_ps_maddx(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_ps_maddx");
+fn op_ps_maddx(ctx: &mut Context, instr: Instruction) {
+    let fra = ctx.cpu.fpr[instr.a()].ps0_as_f64();
+    let frb = ctx.cpu.fpr[instr.b()].ps0_as_f64();
+    let frc = ctx.cpu.fpr[instr.c()].ps0_as_f64();
+
+    ctx.cpu.fpr[instr.d()].set_ps0_f64(fra.mul_add(frc, frb));
+
+    let fra = ctx.cpu.fpr[instr.a()].ps1_as_f64();
+    let frb = ctx.cpu.fpr[instr.b()].ps1_as_f64();
+    let frc = ctx.cpu.fpr[instr.c()].ps1_as_f64();
+
+    ctx.cpu.fpr[instr.d()].set_ps1_f64(fra.mul_add(frc, frb));
+
+    if instr.rc() {
+        ctx.cpu.update_cr1();
+    }
+
+    ctx.tick(1);
 }
 
 fn op_ps_madds0x(_ctx: &mut Context, _instr: Instruction) {
@@ -305,20 +393,80 @@ fn op_ps_madds1x(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ps_madds1x");
 }
 
-fn op_ps_merge00x(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_ps_merge00x");
+fn op_ps_merge00x(ctx: &mut Context, instr: Instruction) {
+    if !ctx.cpu.msr.fp() {
+        ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+        return;
+    }
+
+    let fra = ctx.cpu.fpr[instr.a()].ps0();
+    let frb = ctx.cpu.fpr[instr.b()].ps0();
+
+    ctx.cpu.fpr[instr.d()].set_ps0(fra);
+    ctx.cpu.fpr[instr.d()].set_ps1(frb);
+
+    if instr.rc() {
+        ctx.cpu.update_cr1();
+    }
+
+    ctx.tick(1);
 }
 
-fn op_ps_merge01x(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_ps_merge01x");
+fn op_ps_merge01x(ctx: &mut Context, instr: Instruction) {
+    if !ctx.cpu.msr.fp() {
+        ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+        return;
+    }
+
+    let fra = ctx.cpu.fpr[instr.a()].ps0();
+    let frb = ctx.cpu.fpr[instr.b()].ps1();
+
+    ctx.cpu.fpr[instr.d()].set_ps0(fra);
+    ctx.cpu.fpr[instr.d()].set_ps1(frb);
+
+    if instr.rc() {
+        ctx.cpu.update_cr1();
+    }
+
+    ctx.tick(1);
 }
 
-fn op_ps_merge10x(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_ps_merge10x");
+fn op_ps_merge10x(ctx: &mut Context, instr: Instruction) {
+    if !ctx.cpu.msr.fp() {
+        ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+        return;
+    }
+
+    let fra = ctx.cpu.fpr[instr.a()].ps1();
+    let frb = ctx.cpu.fpr[instr.b()].ps0();
+
+    ctx.cpu.fpr[instr.d()].set_ps0(fra);
+    ctx.cpu.fpr[instr.d()].set_ps1(frb);
+
+    if instr.rc() {
+        ctx.cpu.update_cr1();
+    }
+
+    ctx.tick(1);
 }
 
-fn op_ps_merge11x(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_ps_merge11x");
+fn op_ps_merge11x(ctx: &mut Context, instr: Instruction) {
+    if !ctx.cpu.msr.fp() {
+        ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+        return;
+    }
+
+    let fra = ctx.cpu.fpr[instr.a()].ps1();
+    let frb = ctx.cpu.fpr[instr.b()].ps1();
+
+    ctx.cpu.fpr[instr.d()].set_ps0(fra);
+    ctx.cpu.fpr[instr.d()].set_ps1(frb);
+
+    if instr.rc() {
+        ctx.cpu.update_cr1();
+    }
+
+    ctx.tick(1);
 }
 
 fn op_ps_mrx(_ctx: &mut Context, _instr: Instruction) {
@@ -329,8 +477,19 @@ fn op_ps_msubx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ps_msubx");
 }
 
-fn op_ps_mulx(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_fsel");
+fn op_ps_mulx(ctx: &mut Context, instr: Instruction) {
+    let fra = ctx.cpu.fpr[instr.a()].ps0_as_f64();
+    let frc = ctx.cpu.fpr[instr.c()].ps0_as_f64();
+
+    let result = fra * frc;
+
+    ctx.cpu.fpr[instr.d()].set_ps0_f64(result);
+
+    if instr.rc() {
+        ctx.cpu.update_cr1();
+    }
+
+    ctx.tick(2);
 }
 
 fn op_ps_muls0x(_ctx: &mut Context, _instr: Instruction) {
@@ -381,30 +540,87 @@ fn op_ps_sum1x(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ps_sum1x");
 }
 
-fn op_fsubx(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_fsubx");
+fn op_fsubx(ctx: &mut Context, instr: Instruction) {
+    if !ctx.cpu.msr.fp() {
+        ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+        return;
+    }
+
+    let result = ctx.cpu.fpr[instr.a()].ps0_as_f64() - ctx.cpu.fpr[instr.b()].ps0_as_f64();
+
+    ctx.cpu.fpr[instr.d()].set_ps0_f64(result);
+
+    if ctx.cpu.hid2.pse() {
+        ctx.cpu.fpr[instr.d()].set_ps1_f64(result);
+    }
+
+    if instr.rc() {
+        ctx.cpu.update_cr1();
+    }
+
+    ctx.tick(1);
 }
 
 fn op_mcrfs(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_mcrfs");
 }
 
-fn op_mffsx(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_mffsx");
+fn op_mffsx(ctx: &mut Context, instr: Instruction) {
+    ctx.cpu.fpr[instr.d()].set_ps0(ctx.cpu.fpscr.0 as u64);
+
+    if instr.rc() {
+        ctx.cpu.update_cr1();
+    }
+
+    ctx.tick(1);
 }
 
-fn op_mtfsb0x(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_mtfsb0x");
+// TODO: test this implementation
+fn op_mtfsb0x(ctx: &mut Context, instr: Instruction) {
+    let b = 0x8000_0000_u32 >> instr.crbd();
+
+    ctx.cpu.fpscr.0 &= !b;
+
+    if instr.rc() {
+        ctx.cpu.update_cr1();
+    }
+
+    ctx.tick(3);
 }
 
-fn op_mtfsb1x(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_mtfsb1x");
+// TODO: test this implementation
+fn op_mtfsb1x(ctx: &mut Context, instr: Instruction) {
+    let b = 0x8000_0000_u32 >> instr.crbd();
+
+    ctx.cpu.fpscr.0 |= b;
+
+    if instr.rc() {
+        ctx.cpu.update_cr1();
+    }
+
+    ctx.tick(3);
 }
 
 fn op_mtfsfix(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_mtfsfix");
 }
 
-fn op_mtfsfx(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_mtfsfx");
+// TODO: test this implementation
+fn op_mtfsfx(ctx: &mut Context, instr: Instruction) {
+    let (mut m, mut i) = (0, 7);
+    let fm = instr.fm();
+
+    while i >= 0 {
+        if (fm >> i) & 1 != 0 {
+            m |= 0xF;
+        }
+        m <<= 4;
+        i -= 1;
+    }
+
+    ctx.cpu.fpscr.0 = (ctx.cpu.fpscr.0 & !m) | (ctx.cpu.fpr[instr.b()].ps0() as u32 & m);
+
+    if instr.rc() {
+        ctx.cpu.update_cr1();
+    }
 }

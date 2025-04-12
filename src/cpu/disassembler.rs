@@ -31,17 +31,17 @@ impl Default for Disassembler {
         let mut optable63 = [ILLEGAL_OP.0; OPTABLE63_SIZE];
 
         for op in OPCODE_TABLE.iter() {
-            optable[op.0] = op.1;
+            optable[op.0 as usize] = op.1;
         }
 
         for op in OPCODE4X_TABLE.iter() {
-            optable4[op.0] = op.1;
+            optable4[op.0 as usize] = op.1;
         }
 
         for n in 0..32 {
             let fill = n << 5;
             for op in OPCODE4A_TABLE.iter() {
-                let xo_x = op.0 | fill;
+                let xo_x = op.0 as usize | fill;
                 optable4[xo_x] = op.1;
             }
         }
@@ -49,31 +49,31 @@ impl Default for Disassembler {
         for n in 0..16 {
             let fill = n << 6;
             for op in OPCODE4AA_TABLE.iter() {
-                let xo_x = op.0 | fill;
+                let xo_x = op.0 as usize | fill;
                 optable4[xo_x] = op.1;
             }
         }
 
         for op in OPCODE19_TABLE.iter() {
-            optable19[op.0] = op.1;
+            optable19[op.0 as usize] = op.1;
         }
 
         for op in OPCODE31_TABLE.iter() {
-            optable31[op.0] = op.1;
+            optable31[op.0 as usize] = op.1;
         }
 
         for op in OPCODE59_TABLE.iter() {
-            optable59[op.0] = op.1;
+            optable59[op.0 as usize] = op.1;
         }
 
         for op in OPCODE63X_TABLE.iter() {
-            optable63[op.0] = op.1;
+            optable63[op.0 as usize] = op.1;
         }
 
         for n in 0..32 {
             let fill = n << 5;
             for op in OPCODE63A_TABLE.iter() {
-                let xo_x = op.0 | fill;
+                let xo_x = op.0 as usize | fill;
                 optable63[xo_x] = op.1;
             }
         }

@@ -18,6 +18,10 @@ fn get_ea_x(ctx: &Context, instr: Instruction) -> u32 {
     }
 }
 
+fn get_ea_ux(ctx: &Context, instr: Instruction) -> u32 {
+    ctx.cpu.gpr[instr.a()].wrapping_add(ctx.cpu.gpr[instr.b()])
+}
+
 fn op_dcbf(ctx: &mut Context, _instr: Instruction) {
     // don't do anything
 
@@ -30,24 +34,26 @@ fn op_dcbi(ctx: &mut Context, _instr: Instruction) {
     ctx.tick(3);
 }
 
-fn op_dcbst(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_dcbst");
+fn op_dcbst(ctx: &mut Context, _instr: Instruction) {
+    ctx.tick(3);
 }
 
-fn op_dcbt(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_dcbt");
+fn op_dcbt(ctx: &mut Context, _instr: Instruction) {
+    ctx.tick(2);
 }
 
-fn op_dcbtst(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_dcbtst");
+fn op_dcbtst(ctx: &mut Context, _instr: Instruction) {
+    ctx.tick(2);
 }
 
-fn op_dcbz(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_dcbz");
+// Ignore this for the time being
+fn op_dcbz(ctx: &mut Context, _instr: Instruction) {
+    ctx.tick(3);
 }
 
-fn op_dcbz_l(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_dcbz_l");
+// Ignore this for the time being
+fn op_dcbz_l(ctx: &mut Context, _instr: Instruction) {
+    ctx.tick(3);
 }
 
 fn op_eciwx(_ctx: &mut Context, _instr: Instruction) {
@@ -130,8 +136,18 @@ fn op_lfs(ctx: &mut Context, instr: Instruction) {
     ctx.tick(2);
 }
 
-fn op_lfsu(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_lfsu");
+fn op_lfsu(ctx: &mut Context, instr: Instruction) {
+    let ea = get_ea_u(ctx, instr);
+
+    let val = convert_to_double(ctx.read_u32(ea));
+
+    ctx.cpu.fpr[instr.d()].set_ps0(val);
+
+    if ctx.cpu.hid2.pse() {
+        ctx.cpu.fpr[instr.d()].set_ps1(val);
+    }
+
+    ctx.cpu.gpr[instr.a()] = ea;
 }
 
 fn op_lfsux(_ctx: &mut Context, _instr: Instruction) {
@@ -185,8 +201,8 @@ fn op_lhzux(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_lhzux");
 }
 
-fn op_lhzx(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_lhzx");
+fn op_lhzx(ctx: &mut Context, instr: Instruction) {
+    ctx.cpu.gpr[instr.d()] = ctx.read_u16(get_ea_x(ctx, instr)) as u32;
 }
 
 fn op_lmw(ctx: &mut Context, instr: Instruction) {
@@ -446,8 +462,12 @@ fn op_stfsux(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_stfsux");
 }
 
-fn op_stfsx(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_stfsx");
+fn op_stfsx(ctx: &mut Context, instr: Instruction) {
+    let ea = get_ea_x(ctx, instr);
+
+    let val = ctx.cpu.fpr[instr.s()].ps0();
+
+    ctx.write_u32(ea, convert_to_single(val));
 }
 
 fn op_sth(ctx: &mut Context, instr: Instruction) {
@@ -507,8 +527,8 @@ fn op_stswx(_ctx: &mut Context, _instr: Instruction) {
 fn op_stw(ctx: &mut Context, instr: Instruction) {
     //if ctx.cpu.cia == 0x8130_04c4 {
     // TODO: remove this at some point
-    // set console type to latest Devkit HW
-    //ctx.write_u32(get_ea(ctx, instr), 0x1000_0006);
+    // set console type to latest Devkit HW, which results in OSReport output going to UART
+    //    ctx.write_u32(get_ea(ctx, instr), 0x1000_0006);
     //} else {
     ctx.write_u32(get_ea(ctx, instr), ctx.cpu.gpr[instr.s()]);
     //}
@@ -538,8 +558,18 @@ fn op_stwu(ctx: &mut Context, instr: Instruction) {
     ctx.tick(2);
 }
 
-fn op_stwux(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_stwux");
+fn op_stwux(ctx: &mut Context, instr: Instruction) {
+    if instr.a() == 0 {
+        panic!("stwu: invalid instruction");
+    }
+
+    let ea = get_ea_ux(ctx, instr);
+
+    ctx.write_u32(ea, ctx.cpu.gpr[instr.s()]);
+
+    ctx.cpu.gpr[instr.a()] = ea;
+
+    ctx.tick(2);
 }
 
 fn op_stwx(ctx: &mut Context, instr: Instruction) {

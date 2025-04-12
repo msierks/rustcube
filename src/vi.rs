@@ -23,8 +23,8 @@ const VI_FB_TOP_LEFT_HI: u32 = 0x1C;
 const VI_FB_TOP_LEFT_LO: u32 = 0x1E;
 //const VI_FB_TOP_RIGHT_HI: u32 = 0x20;
 //const VI_FB_TOP_RIGHT_LO: u32 = 0x22;
-//const VI_FB_BOTTOM_LEFT_HI: u32 = 0x24;
-//const VI_FB_BOTTOM_LEFT_LO: u32 = 0x26;
+const VI_FB_BOTTOM_LEFT_HI: u32 = 0x24;
+const VI_FB_BOTTOM_LEFT_LO: u32 = 0x26;
 //const VI_FB_BOTTOM_RIGHT_HI: u32 = 0x28;
 //const VI_FB_BOTTOM_RIGHT_LO: u32 = 0x2A;
 const VI_BEAM_POSITION_VERTICAL: u32 = 0x2C;
@@ -42,7 +42,7 @@ const VI_DISPLAY_INTERRUPT_3_LO: u32 = 0x3E;
 //const VI_DISPLAY_LATCH_1_LO: u32 = 0x44;
 //const VI_DISPLAY_LATCH_1_HI: u32 = 0x46;
 const VI_HORIZONTAL_SCALING_WIDTH: u32 = 0x48;
-//const VI_HORIZONTAL_SCALING_REGISTER: u32 = 0x4A;
+const VI_HORIZONTAL_SCALING_REGISTER: u32 = 0x4A;
 const VI_FILTER_COEFFICIENT_0_HI: u32 = 0x4C;
 const VI_FILTER_COEFFICIENT_0_LO: u32 = 0x4E;
 const VI_FILTER_COEFFICIENT_1_HI: u32 = 0x50;
@@ -89,6 +89,8 @@ pub struct VideoInterface {
     ofbbi: OddFieldBurstBlankingIntervalRegister,
     // Top Field Base Register Left
     tfbl: u32,
+    // Bottom Field Base Register
+    bfbl: u32,
     // Burst Blanking Even Interval
     efbbi: EvenFieldBurstBlankingIntervalRegister,
     // Current Vertical Beam Position
@@ -131,6 +133,7 @@ impl Default for VideoInterface {
             ofbbi: 0.into(),
             efbbi: 0.into(),
             tfbl: 0,
+            bfbl: 0,
             vbp: 1,
             //hbp: 1,
             di: Default::default(),
@@ -401,7 +404,11 @@ pub fn write_u16(ctx: &mut Context, register: u32, val: u16) {
             ctx.vi.config = val.into();
             if ctx.vi.config.reset() {
                 ctx.vi.config.set_reset(false);
-                // TODO: clear interrupts
+                ctx.vi.di[0] = 0.into();
+                ctx.vi.di[1] = 0.into();
+                ctx.vi.di[2] = 0.into();
+                ctx.vi.di[3] = 0.into();
+                update_interrupt(ctx);
             }
         }
         VI_HORIZONTAL_TIMING_0_HI => ctx.vi.htr0 = ctx.vi.htr0.set_hi(val),
@@ -418,6 +425,8 @@ pub fn write_u16(ctx: &mut Context, register: u32, val: u16) {
         VI_BURST_BLANKING_EVEN_LO => ctx.vi.efbbi = ctx.vi.efbbi.set_lo(val),
         VI_FB_TOP_LEFT_HI => ctx.vi.tfbl = ctx.vi.tfbl.set_hi(val),
         VI_FB_TOP_LEFT_LO => ctx.vi.tfbl = ctx.vi.tfbl.set_lo(val),
+        VI_FB_BOTTOM_LEFT_HI => ctx.vi.bfbl = ctx.vi.bfbl.set_hi(val),
+        VI_FB_BOTTOM_LEFT_LO => ctx.vi.bfbl = ctx.vi.bfbl.set_lo(val),
         VI_DISPLAY_INTERRUPT_0_HI => {
             ctx.vi.di[0] = ctx.vi.di[0].0.set_hi(val).into();
             update_interrupt(ctx);
@@ -453,6 +462,7 @@ pub fn write_u16(ctx: &mut Context, register: u32, val: u16) {
         VI_FILTER_COEFFICIENT_6_HI => ctx.vi.fct[6] = ctx.vi.fct[6].set_hi(val),
         VI_FILTER_COEFFICIENT_6_LO => ctx.vi.fct[6] = ctx.vi.fct[6].set_lo(val),
         VI_HORIZONTAL_SCALING_WIDTH => ctx.vi.hsw = val.into(),
+        VI_HORIZONTAL_SCALING_REGISTER => (),
         VI_CLOCK_SELECT => ctx.vi.clock = val,
         VI_UNKNOWN => ctx.vi.unknown = val,
         _ => warn!("write_u16 unrecognized vi register {:#x}", register),
@@ -476,10 +486,10 @@ pub fn update(ctx: &mut Context) {
         if ctx.vi.config.format() == 0 && ctx.vi.vbp > 525 {
             ctx.vi.vbp = 1;
 
-            let mut i = ctx.vi.tfbl;
+            let mut i = ctx.vi.tfbl & 0xFF_FFFF;
             let mut j = 0;
 
-            while i < ctx.vi.tfbl + 320 * 480 * 4 {
+            while i < (ctx.vi.tfbl & 0xFF_FFFF) + 320 * 480 * 4 {
                 let y1 = i32::from(ctx.mem.read_u8(i));
                 let v = i32::from(ctx.mem.read_u8(i + 1));
                 let y2 = i32::from(ctx.mem.read_u8(i + 2));
@@ -493,7 +503,10 @@ pub fn update(ctx: &mut Context) {
             }
 
             #[cfg(not(test))]
-            ctx.vi.window.update_with_buffer(&ctx.vi.buffer).unwrap();
+            ctx.vi
+                .window
+                .update_with_buffer(&ctx.vi.buffer, WIDTH, HEIGHT)
+                .unwrap();
         }
 
         ctx.vi.half_line_count += 1;

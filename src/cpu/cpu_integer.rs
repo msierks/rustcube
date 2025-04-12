@@ -281,6 +281,7 @@ fn op_divwux(ctx: &mut Context, instr: Instruction) {
     ctx.tick(19);
 }
 
+// TODO: review this implementation
 fn op_divwx(ctx: &mut Context, instr: Instruction) {
     let ra = ctx.cpu.gpr[instr.a()] as i32;
     let rb = ctx.cpu.gpr[instr.b()] as i32;
@@ -458,9 +459,8 @@ fn op_orx(ctx: &mut Context, instr: Instruction) {
 
 fn op_rlwimix(ctx: &mut Context, instr: Instruction) {
     let m = mask(instr.mb(), instr.me());
-    let r = ctx.cpu.gpr[instr.s()].rotate_left(instr.sh());
 
-    let ra = (r & m) | (ctx.cpu.gpr[instr.a()] & !m);
+    let ra = (ctx.cpu.gpr[instr.a()] & !m) | (ctx.cpu.gpr[instr.s()].rotate_left(instr.sh()) & m);
 
     ctx.cpu.gpr[instr.a()] = ra;
 
@@ -472,10 +472,9 @@ fn op_rlwimix(ctx: &mut Context, instr: Instruction) {
 }
 
 fn op_rlwinmx(ctx: &mut Context, instr: Instruction) {
-    let m = mask(instr.mb(), instr.me());
-    let r = ctx.cpu.gpr[instr.s()].rotate_left(instr.sh());
+    let mask = mask(instr.mb(), instr.me());
 
-    let ra = r & m;
+    let ra = (ctx.cpu.gpr[instr.s()].rotate_left(instr.sh())) & mask;
 
     ctx.cpu.gpr[instr.a()] = ra;
 
@@ -695,8 +694,10 @@ fn op_twi(ctx: &mut Context, instr: Instruction) {
     }
 }
 
-fn op_xori(_ctx: &mut Context, _instr: Instruction) {
-    unimplemented!("op_xori");
+fn op_xori(ctx: &mut Context, instr: Instruction) {
+    ctx.cpu.gpr[instr.a()] = ctx.cpu.gpr[instr.s()] ^ instr.uimm();
+
+    ctx.tick(1);
 }
 
 fn op_xoris(ctx: &mut Context, instr: Instruction) {
