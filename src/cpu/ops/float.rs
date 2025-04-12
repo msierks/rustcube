@@ -1,8 +1,13 @@
-fn op_fabsx(_ctx: &mut Context, _instr: Instruction) {
+use crate::cpu::float::Nan;
+use crate::cpu::instruction::Instruction;
+use crate::cpu::EXCEPTION_FPU_UNAVAILABLE;
+use crate::Context;
+
+pub fn op_fabsx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_fabsx");
 }
 
-fn op_faddsx(ctx: &mut Context, instr: Instruction) {
+pub fn op_faddsx(ctx: &mut Context, instr: Instruction) {
     if !ctx.cpu.msr.fp() {
         ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
         return;
@@ -26,11 +31,11 @@ fn op_faddsx(ctx: &mut Context, instr: Instruction) {
     ctx.tick(1);
 }
 
-fn op_faddx(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_faddx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_faddx");
 }
 
-fn op_fcmpo(ctx: &mut Context, instr: Instruction) {
+pub fn op_fcmpo(ctx: &mut Context, instr: Instruction) {
     if !ctx.cpu.msr.fp() {
         ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
         return;
@@ -64,7 +69,7 @@ fn op_fcmpo(ctx: &mut Context, instr: Instruction) {
     ctx.tick(1);
 }
 
-fn op_fcmpu(ctx: &mut Context, instr: Instruction) {
+pub fn op_fcmpu(ctx: &mut Context, instr: Instruction) {
     if !ctx.cpu.msr.fp() {
         ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
         return;
@@ -93,7 +98,7 @@ fn op_fcmpu(ctx: &mut Context, instr: Instruction) {
     ctx.tick(1);
 }
 
-fn op_fctiwzx(ctx: &mut Context, instr: Instruction) {
+pub fn op_fctiwzx(ctx: &mut Context, instr: Instruction) {
     let frb = ctx.cpu.fpr[instr.b()].ps0_as_f64();
 
     // TODO: implement more accurate conversion
@@ -108,11 +113,11 @@ fn op_fctiwzx(ctx: &mut Context, instr: Instruction) {
     ctx.tick(1);
 }
 
-fn op_fctiwx(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_fctiwx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_fctiwx");
 }
 
-fn op_fdivsx(ctx: &mut Context, instr: Instruction) {
+pub fn op_fdivsx(ctx: &mut Context, instr: Instruction) {
     let fra = ctx.cpu.fpr[instr.a()].ps0_as_f64();
     let frb = ctx.cpu.fpr[instr.b()].ps0_as_f64();
 
@@ -135,20 +140,20 @@ fn op_fdivsx(ctx: &mut Context, instr: Instruction) {
     ctx.tick(17);
 }
 
-fn op_fdivx(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_fdivx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_fdivx");
 }
 
-fn op_fmaddsx(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_fmaddsx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_fmaddsx");
 }
 
-fn op_fmaddx(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_fmaddx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_fmaddx");
 }
 
 // FIXME: Verify paired single functionality with HID2[PSE] value
-fn op_fmrx(ctx: &mut Context, instr: Instruction) {
+pub fn op_fmrx(ctx: &mut Context, instr: Instruction) {
     if !ctx.cpu.msr.fp() {
         ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
         return;
@@ -169,15 +174,15 @@ fn op_fmrx(ctx: &mut Context, instr: Instruction) {
     ctx.tick(1);
 }
 
-fn op_fmsubsx(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_fmsubsx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_fmsubsx");
 }
 
-fn op_fmsubx(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_fmsubx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_fmsubx");
 }
 
-fn op_fmulsx(ctx: &mut Context, instr: Instruction) {
+pub fn op_fmulsx(ctx: &mut Context, instr: Instruction) {
     if !ctx.cpu.msr.fp() {
         ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
         return;
@@ -198,7 +203,7 @@ fn op_fmulsx(ctx: &mut Context, instr: Instruction) {
     ctx.tick(1);
 }
 
-fn op_fmulx(ctx: &mut Context, instr: Instruction) {
+pub fn op_fmulx(ctx: &mut Context, instr: Instruction) {
     if !ctx.cpu.msr.fp() {
         ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
         return;
@@ -216,29 +221,29 @@ fn op_fmulx(ctx: &mut Context, instr: Instruction) {
     }
 }
 
-fn op_fnabsx(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_fnabsx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_fnabsx");
 }
 
-fn op_fnegx(ctx: &mut Context, instr: Instruction) {
+pub fn op_fnegx(ctx: &mut Context, instr: Instruction) {
     ctx.cpu.fpr[instr.d()].set_ps0(ctx.cpu.fpr[instr.b()].ps0() | (1_u64 << 63));
 
     ctx.tick(1);
 }
 
-fn op_fnmaddsx(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_fnmaddsx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_fnmaddsx");
 }
 
-fn op_fnmaddx(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_fnmaddx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_fnmaddx");
 }
 
-fn op_fnmsubsx(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_fnmsubsx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_fnsubsx");
 }
 
-fn op_fnmsubx(ctx: &mut Context, instr: Instruction) {
+pub fn op_fnmsubx(ctx: &mut Context, instr: Instruction) {
     if !ctx.cpu.msr.fp() {
         ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
         return;
@@ -259,11 +264,11 @@ fn op_fnmsubx(ctx: &mut Context, instr: Instruction) {
     ctx.tick(2);
 }
 
-fn op_fresx(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_fresx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_fresx");
 }
 
-fn op_frspx(ctx: &mut Context, instr: Instruction) {
+pub fn op_frspx(ctx: &mut Context, instr: Instruction) {
     if !ctx.cpu.msr.fp() {
         ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
         return;
@@ -286,7 +291,7 @@ fn op_frspx(ctx: &mut Context, instr: Instruction) {
     }
 }
 
-fn op_frsqrtex(ctx: &mut Context, instr: Instruction) {
+pub fn op_frsqrtex(ctx: &mut Context, instr: Instruction) {
     let frb = ctx.cpu.fpr[instr.b()].ps0_as_f64();
 
     ctx.cpu.fpr[instr.d()].set_ps0_f64(1.0 / frb.sqrt());
@@ -298,11 +303,11 @@ fn op_frsqrtex(ctx: &mut Context, instr: Instruction) {
     ctx.tick(2);
 }
 
-fn op_fselx(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_fselx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_fselx");
 }
 
-fn op_fsubsx(ctx: &mut Context, instr: Instruction) {
+pub fn op_fsubsx(ctx: &mut Context, instr: Instruction) {
     if !ctx.cpu.msr.fp() {
         ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
         return;
@@ -323,11 +328,11 @@ fn op_fsubsx(ctx: &mut Context, instr: Instruction) {
     ctx.tick(1);
 }
 
-fn op_ps_absx(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_ps_absx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ps_absx");
 }
 
-fn op_ps_addx(ctx: &mut Context, instr: Instruction) {
+pub fn op_ps_addx(ctx: &mut Context, instr: Instruction) {
     let fra = ctx.cpu.fpr[instr.a()].ps0_as_f64();
     let frb = ctx.cpu.fpr[instr.b()].ps0_as_f64();
 
@@ -345,27 +350,27 @@ fn op_ps_addx(ctx: &mut Context, instr: Instruction) {
     ctx.tick(1);
 }
 
-fn op_ps_cmpo0(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_ps_cmpo0(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ps_cmpo0");
 }
 
-fn op_ps_cmpo1(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_ps_cmpo1(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ps_cmpo1");
 }
 
-fn op_ps_cmpu0(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_ps_cmpu0(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ps_cmpu0");
 }
 
-fn op_ps_cmpu1(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_ps_cmpu1(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ps_cmpu1");
 }
 
-fn op_ps_divx(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_ps_divx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ps_divx");
 }
 
-fn op_ps_maddx(ctx: &mut Context, instr: Instruction) {
+pub fn op_ps_maddx(ctx: &mut Context, instr: Instruction) {
     let fra = ctx.cpu.fpr[instr.a()].ps0_as_f64();
     let frb = ctx.cpu.fpr[instr.b()].ps0_as_f64();
     let frc = ctx.cpu.fpr[instr.c()].ps0_as_f64();
@@ -385,15 +390,15 @@ fn op_ps_maddx(ctx: &mut Context, instr: Instruction) {
     ctx.tick(1);
 }
 
-fn op_ps_madds0x(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_ps_madds0x(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ps_madds0x");
 }
 
-fn op_ps_madds1x(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_ps_madds1x(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ps_madds1x");
 }
 
-fn op_ps_merge00x(ctx: &mut Context, instr: Instruction) {
+pub fn op_ps_merge00x(ctx: &mut Context, instr: Instruction) {
     if !ctx.cpu.msr.fp() {
         ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
         return;
@@ -412,7 +417,7 @@ fn op_ps_merge00x(ctx: &mut Context, instr: Instruction) {
     ctx.tick(1);
 }
 
-fn op_ps_merge01x(ctx: &mut Context, instr: Instruction) {
+pub fn op_ps_merge01x(ctx: &mut Context, instr: Instruction) {
     if !ctx.cpu.msr.fp() {
         ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
         return;
@@ -431,7 +436,7 @@ fn op_ps_merge01x(ctx: &mut Context, instr: Instruction) {
     ctx.tick(1);
 }
 
-fn op_ps_merge10x(ctx: &mut Context, instr: Instruction) {
+pub fn op_ps_merge10x(ctx: &mut Context, instr: Instruction) {
     if !ctx.cpu.msr.fp() {
         ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
         return;
@@ -450,7 +455,7 @@ fn op_ps_merge10x(ctx: &mut Context, instr: Instruction) {
     ctx.tick(1);
 }
 
-fn op_ps_merge11x(ctx: &mut Context, instr: Instruction) {
+pub fn op_ps_merge11x(ctx: &mut Context, instr: Instruction) {
     if !ctx.cpu.msr.fp() {
         ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
         return;
@@ -469,15 +474,15 @@ fn op_ps_merge11x(ctx: &mut Context, instr: Instruction) {
     ctx.tick(1);
 }
 
-fn op_ps_mrx(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_ps_mrx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ps_mrx");
 }
 
-fn op_ps_msubx(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_ps_msubx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ps_msubx");
 }
 
-fn op_ps_mulx(ctx: &mut Context, instr: Instruction) {
+pub fn op_ps_mulx(ctx: &mut Context, instr: Instruction) {
     let fra = ctx.cpu.fpr[instr.a()].ps0_as_f64();
     let frc = ctx.cpu.fpr[instr.c()].ps0_as_f64();
 
@@ -492,55 +497,55 @@ fn op_ps_mulx(ctx: &mut Context, instr: Instruction) {
     ctx.tick(2);
 }
 
-fn op_ps_muls0x(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_ps_muls0x(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ps_muls0x");
 }
 
-fn op_ps_muls1x(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_ps_muls1x(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ps_muls1x");
 }
 
-fn op_ps_nabsx(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_ps_nabsx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ps_nabsx");
 }
 
-fn op_ps_negx(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_ps_negx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ps_negx");
 }
 
-fn op_ps_nmaddx(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_ps_nmaddx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ps_nmaddx");
 }
 
-fn op_ps_nmsubx(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_ps_nmsubx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ps_nmsubx");
 }
 
-fn op_ps_resx(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_ps_resx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_resx");
 }
 
-fn op_ps_rsqrtex(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_ps_rsqrtex(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ps_rsqrtex");
 }
 
-fn op_ps_selx(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_ps_selx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_selx");
 }
 
-fn op_ps_subx(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_ps_subx(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ps_subx");
 }
 
-fn op_ps_sum0x(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_ps_sum0x(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ps_sum0x");
 }
 
-fn op_ps_sum1x(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_ps_sum1x(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_ps_sum1x");
 }
 
-fn op_fsubx(ctx: &mut Context, instr: Instruction) {
+pub fn op_fsubx(ctx: &mut Context, instr: Instruction) {
     if !ctx.cpu.msr.fp() {
         ctx.cpu.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
         return;
@@ -561,11 +566,11 @@ fn op_fsubx(ctx: &mut Context, instr: Instruction) {
     ctx.tick(1);
 }
 
-fn op_mcrfs(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_mcrfs(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_mcrfs");
 }
 
-fn op_mffsx(ctx: &mut Context, instr: Instruction) {
+pub fn op_mffsx(ctx: &mut Context, instr: Instruction) {
     ctx.cpu.fpr[instr.d()].set_ps0(ctx.cpu.fpscr.0 as u64);
 
     if instr.rc() {
@@ -576,7 +581,7 @@ fn op_mffsx(ctx: &mut Context, instr: Instruction) {
 }
 
 // TODO: test this implementation
-fn op_mtfsb0x(ctx: &mut Context, instr: Instruction) {
+pub fn op_mtfsb0x(ctx: &mut Context, instr: Instruction) {
     let b = 0x8000_0000_u32 >> instr.crbd();
 
     ctx.cpu.fpscr.0 &= !b;
@@ -589,7 +594,7 @@ fn op_mtfsb0x(ctx: &mut Context, instr: Instruction) {
 }
 
 // TODO: test this implementation
-fn op_mtfsb1x(ctx: &mut Context, instr: Instruction) {
+pub fn op_mtfsb1x(ctx: &mut Context, instr: Instruction) {
     let b = 0x8000_0000_u32 >> instr.crbd();
 
     ctx.cpu.fpscr.0 |= b;
@@ -601,12 +606,12 @@ fn op_mtfsb1x(ctx: &mut Context, instr: Instruction) {
     ctx.tick(3);
 }
 
-fn op_mtfsfix(_ctx: &mut Context, _instr: Instruction) {
+pub fn op_mtfsfix(_ctx: &mut Context, _instr: Instruction) {
     unimplemented!("op_mtfsfix");
 }
 
 // TODO: test this implementation
-fn op_mtfsfx(ctx: &mut Context, instr: Instruction) {
+pub fn op_mtfsfx(ctx: &mut Context, instr: Instruction) {
     let (mut m, mut i) = (0, 7);
     let fm = instr.fm();
 

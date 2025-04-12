@@ -1177,7 +1177,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn dsp_optable_lookup() {
+    fn optable_lookup() {
         let mut optable: [Opcode; OPTABLE_SIZE] = [Opcode::Illegal; OPTABLE_SIZE];
 
         let mut i = 0;

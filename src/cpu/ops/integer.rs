@@ -1,463 +1,728 @@
+use crate::cpu::instruction::Instruction;
+use crate::cpu::{check_overflowed, mask, Ordering, EXCEPTION_PROGRAM, SPR_SRR1};
+use crate::Context;
+
+pub fn op_addcx(ctx: &mut Context, instr: Instruction) {
+    let ra = ctx.cpu.gpr[instr.a()];
+    let rb = ctx.cpu.gpr[instr.b()];
+
+    let (rd, ca) = ra.overflowing_add(rb);
+
+    ctx.cpu.gpr[instr.d()] = rd;
+
+    ctx.cpu.xer.set_carry(ca);
+
+    if instr.oe() {
+        ctx.cpu.set_xer_so(check_overflowed(ra, rb, rd));
+    }
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(rd);
+    }
+
+    ctx.tick(1);
+}
+
+pub fn op_addx(ctx: &mut Context, instr: Instruction) {
+    let ra = ctx.cpu.gpr[instr.a()];
+    let rb = ctx.cpu.gpr[instr.b()];
+    let rd = ra.wrapping_add(rb);
+
+    ctx.cpu.gpr[instr.d()] = rd;
+
+    if instr.oe() {
+        ctx.cpu.set_xer_so(check_overflowed(ra, rb, rd));
+    }
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(rd);
+    }
+
+    ctx.tick(1);
+}
+
+pub fn op_addi(ctx: &mut Context, instr: Instruction) {
+    ctx.cpu.gpr[instr.d()] = if instr.a() == 0 {
+        i32::from(instr.simm()) as u32
+    } else {
+        ctx.cpu.gpr[instr.a()].wrapping_add(i32::from(instr.simm()) as u32)
+    };
+
+    ctx.tick(1);
+}
+
+pub fn op_addic(ctx: &mut Context, instr: Instruction) {
+    let ra = ctx.cpu.gpr[instr.a()];
+    let imm = i32::from(instr.simm()) as u32;
+
+    let (rd, ca) = ra.overflowing_add(imm);
+
+    ctx.cpu.gpr[instr.d()] = rd;
+
+    ctx.cpu.xer.set_carry(ca);
+
+    ctx.tick(1);
+}
+
+pub fn op_addic_rc(ctx: &mut Context, instr: Instruction) {
+    let ra = ctx.cpu.gpr[instr.a()];
+    let imm = i32::from(instr.simm()) as u32;
+
+    let (rd, ca) = ra.overflowing_add(imm);
+
+    ctx.cpu.gpr[instr.d()] = rd;
+
+    ctx.cpu.xer.set_carry(ca);
+
+    ctx.cpu.update_cr0(rd);
+
+    ctx.tick(1);
+}
+
+pub fn op_addis(ctx: &mut Context, instr: Instruction) {
+    ctx.cpu.gpr[instr.d()] = if instr.a() == 0 {
+        instr.uimm() << 16
+    } else {
+        ctx.cpu.gpr[instr.a()].wrapping_add(instr.uimm() << 16)
+    };
+
+    ctx.tick(1);
+}
+
+pub fn op_addmex(_ctx: &mut Context, _instr: Instruction) {
+    unimplemented!("op_addmex");
+}
+
+pub fn op_addex(ctx: &mut Context, instr: Instruction) {
+    let ra = ctx.cpu.gpr[instr.a()];
+    let rb = ctx.cpu.gpr[instr.b()];
+
+    let (rd, ca1) = ra.overflowing_add(rb);
+    let (rd, ca2) = rd.overflowing_add(ctx.cpu.xer.carry() as u32);
+
+    ctx.cpu.gpr[instr.d()] = rd;
+
+    ctx.cpu.xer.set_carry(ca1 | ca2);
+
+    if instr.oe() {
+        ctx.cpu.set_xer_so(check_overflowed(ra, rb, rd));
+    }
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(rd);
+    }
+
+    ctx.tick(1);
+}
+
+pub fn op_addzex(ctx: &mut Context, instr: Instruction) {
+    let ra = ctx.cpu.gpr[instr.a()];
+
+    let (rd, ca) = ra.overflowing_add(ctx.cpu.xer.carry() as u32);
+
+    ctx.cpu.gpr[instr.d()] = rd;
+
+    ctx.cpu.xer.set_carry(ca);
+
+    if instr.oe() {
+        ctx.cpu.set_xer_so(check_overflowed(ra, 0, rd));
+    }
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(rd);
+    }
+
+    ctx.tick(1);
+}
+
+pub fn op_andcx(ctx: &mut Context, instr: Instruction) {
+    let ra = ctx.cpu.gpr[instr.s()] & (!ctx.cpu.gpr[instr.b()]);
+
+    ctx.cpu.gpr[instr.a()] = ra;
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(ra);
+    }
+
+    ctx.tick(1);
+}
+
+pub fn op_andi_rc(ctx: &mut Context, instr: Instruction) {
+    let ra = ctx.cpu.gpr[instr.s()] & instr.uimm();
+
+    ctx.cpu.gpr[instr.a()] = ra;
+
+    ctx.cpu.update_cr0(ra);
+
+    ctx.tick(1);
+}
+
+pub fn op_andis_rc(_ctx: &mut Context, _instr: Instruction) {
+    unimplemented!("op_andis_rc");
+}
+
+pub fn op_andx(ctx: &mut Context, instr: Instruction) {
+    let ra = ctx.cpu.gpr[instr.s()] & ctx.cpu.gpr[instr.b()];
+
+    ctx.cpu.gpr[instr.a()] = ra;
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(ra);
+    }
+
+    ctx.tick(1);
+}
+
+pub fn op_cmp(ctx: &mut Context, instr: Instruction) {
+    let ra = ctx.cpu.gpr[instr.a()] as i32;
+    let rb = ctx.cpu.gpr[instr.b()] as i32;
+
+    let mut c = match ra.cmp(&rb) {
+        Ordering::Less => 0x8,
+        Ordering::Greater => 0x4,
+        Ordering::Equal => 0x2,
+    };
+
+    c |= ctx.cpu.xer.summary_overflow() as u32;
+
+    ctx.cpu.cr.set_field(instr.crfd(), c);
+
+    ctx.tick(1);
+}
+
+pub fn op_cmpi(ctx: &mut Context, instr: Instruction) {
+    if instr.l() {
+        panic!("cmpi: invalid instruction");
+    }
+
+    let ra = ctx.cpu.gpr[instr.a()] as i32;
+    let simm = i32::from(instr.simm());
+
+    let mut c = match ra.cmp(&simm) {
+        Ordering::Less => 0x8,
+        Ordering::Greater => 0x4,
+        Ordering::Equal => 0x2,
+    };
+
+    c |= ctx.cpu.xer.summary_overflow() as u32;
+
+    ctx.cpu.cr.set_field(instr.crfd(), c);
+
+    ctx.tick(1);
+}
+
+pub fn op_cmpl(ctx: &mut Context, instr: Instruction) {
+    if instr.l() {
+        panic!("cmpl: invalid instruction");
+    }
+
+    let ra = ctx.cpu.gpr[instr.a()];
+    let rb = ctx.cpu.gpr[instr.b()];
+
+    let mut c = match ra.cmp(&rb) {
+        Ordering::Less => 0x8,
+        Ordering::Greater => 0x4,
+        Ordering::Equal => 0x2,
+    };
+
+    c |= ctx.cpu.xer.summary_overflow() as u32;
+
+    ctx.cpu.cr.set_field(instr.crfd(), c);
+
+    ctx.tick(1);
+}
+
+pub fn op_cmpli(ctx: &mut Context, instr: Instruction) {
+    if instr.l() {
+        panic!("cmpli: invalid instruction");
+    }
+
+    let ra = ctx.cpu.gpr[instr.a()];
+    let uimm = instr.uimm();
+
+    let mut c = match ra.cmp(&uimm) {
+        Ordering::Less => 0x8,
+        Ordering::Greater => 0x4,
+        Ordering::Equal => 0x2,
+    };
+
+    c |= ctx.cpu.xer.summary_overflow() as u32;
+
+    ctx.cpu.cr.set_field(instr.crfd(), c);
+
+    ctx.tick(1);
+}
+
+pub fn op_cntlzwx(ctx: &mut Context, instr: Instruction) {
+    let n = ctx.cpu.gpr[instr.s()].leading_zeros();
+
+    ctx.cpu.gpr[instr.a()] = n;
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(n);
+    }
+
+    ctx.tick(1);
+}
+
+pub fn op_divwux(ctx: &mut Context, instr: Instruction) {
+    let ra = ctx.cpu.gpr[instr.a()];
+    let rb = ctx.cpu.gpr[instr.b()];
+    let overflow = rb == 0;
+
+    let rd = if overflow { 0 } else { ra / rb };
+
+    ctx.cpu.gpr[instr.d()] = rd;
+
+    if instr.oe() {
+        ctx.cpu.set_xer_so(overflow);
+    }
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(rd);
+    }
+
+    ctx.tick(19);
+}
+
+// TODO: review this implementation
+pub fn op_divwx(ctx: &mut Context, instr: Instruction) {
+    let ra = ctx.cpu.gpr[instr.a()] as i32;
+    let rb = ctx.cpu.gpr[instr.b()] as i32;
+    let overflow = rb == 0 || (ra as u32 == 0x8000_0000 && rb == -1);
+
+    let rd = if overflow {
+        if ra as u32 == 0x8000_0000 && rb == 0 {
+            0xFFFF_FFFF
+        } else {
+            0
+        }
+    } else {
+        (ra / rb) as u32
+    };
+
+    ctx.cpu.gpr[instr.d()] = rd;
+
+    if instr.oe() {
+        ctx.cpu.set_xer_so(overflow);
+    }
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(rd);
+    }
+
+    ctx.tick(19);
+}
+
+pub fn op_eqvx(_ctx: &mut Context, _instr: Instruction) {
+    unimplemented!("op_eqvx");
+}
+
+pub fn op_extsbx(ctx: &mut Context, instr: Instruction) {
+    let ra = ((ctx.cpu.gpr[instr.s()] as i8) as i32) as u32;
+
+    ctx.cpu.gpr[instr.a()] = ra;
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(ra);
+    }
+
+    ctx.tick(1);
+}
+
+pub fn op_extshx(ctx: &mut Context, instr: Instruction) {
+    let ra = ((ctx.cpu.gpr[instr.s()] as i16) as i32) as u32;
+
+    ctx.cpu.gpr[instr.a()] = ra;
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(ra);
+    }
+
+    ctx.tick(1);
+}
+
+pub fn op_mulhwux(ctx: &mut Context, instr: Instruction) {
+    let ra = ctx.cpu.gpr[instr.a()] as u64;
+    let rb = ctx.cpu.gpr[instr.b()] as u64;
+
+    let rd = ((ra * rb) >> 32) as u32;
+
+    ctx.cpu.gpr[instr.d()] = rd;
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(rd);
+    }
+
+    ctx.tick(2);
+}
+
+pub fn op_mulhwx(ctx: &mut Context, instr: Instruction) {
+    let ra = (ctx.cpu.gpr[instr.a()] as i32) as i64;
+    let rb = (ctx.cpu.gpr[instr.b()] as i32) as i64;
+
+    let rd = ((ra * rb) >> 32) as u32;
+
+    ctx.cpu.gpr[instr.d()] = rd;
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(rd);
+    }
+
+    ctx.tick(2);
+}
+
+// TODO: review this implementation
+pub fn op_mulli(ctx: &mut Context, instr: Instruction) {
+    ctx.cpu.gpr[instr.d()] =
+        (ctx.cpu.gpr[instr.a()] as i32).wrapping_mul(i32::from(instr.simm())) as u32;
+
+    ctx.tick(2);
+}
+
+pub fn op_mullwx(ctx: &mut Context, instr: Instruction) {
+    let ra = (ctx.cpu.gpr[instr.a()] as i32) as i64;
+    let rb = (ctx.cpu.gpr[instr.b()] as i32) as i64;
+
+    let rd = ra.wrapping_mul(rb);
+
+    ctx.cpu.gpr[instr.d()] = rd as u32;
+
+    if instr.oe() {
+        ctx.cpu
+            .set_xer_so(!(-0x8000_0000..=0x7FFF_FFFF).contains(&rd));
+    }
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(rd as u32);
+    }
+
+    ctx.tick(2);
+}
+
+pub fn op_nandx(_ctx: &mut Context, _instr: Instruction) {
+    unimplemented!("op_nandx");
+}
+
+pub fn op_negx(ctx: &mut Context, instr: Instruction) {
+    let ra = ctx.cpu.gpr[instr.a()];
+    let rd = (!ra).wrapping_add(1);
+
+    ctx.cpu.gpr[instr.d()] = rd;
+
+    if instr.oe() {
+        ctx.cpu.set_xer_so(ra == 0x8000_0000);
+    }
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(rd);
+    }
+
+    ctx.tick(1);
+}
+
+pub fn op_norx(ctx: &mut Context, instr: Instruction) {
+    let ra = !(ctx.cpu.gpr[instr.s()] | ctx.cpu.gpr[instr.b()]);
+
+    ctx.cpu.gpr[instr.a()] = ra;
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(ra);
+    }
+
+    ctx.tick(1);
+}
+
+pub fn op_orcx(_ctx: &mut Context, _instr: Instruction) {
+    unimplemented!("op_orcx");
+}
+
+pub fn op_ori(ctx: &mut Context, instr: Instruction) {
+    ctx.cpu.gpr[instr.a()] = ctx.cpu.gpr[instr.s()] | instr.uimm();
+
+    ctx.tick(1);
+}
+
+pub fn op_oris(ctx: &mut Context, instr: Instruction) {
+    ctx.cpu.gpr[instr.a()] = ctx.cpu.gpr[instr.s()] | (instr.uimm() << 16);
+
+    ctx.tick(1);
+}
+
+pub fn op_orx(ctx: &mut Context, instr: Instruction) {
+    let ra = ctx.cpu.gpr[instr.s()] | ctx.cpu.gpr[instr.b()];
+
+    ctx.cpu.gpr[instr.a()] = ra;
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(ra);
+    }
+
+    ctx.tick(1);
+}
+
+pub fn op_rlwimix(ctx: &mut Context, instr: Instruction) {
+    let m = mask(instr.mb(), instr.me());
+
+    let ra = (ctx.cpu.gpr[instr.a()] & !m) | (ctx.cpu.gpr[instr.s()].rotate_left(instr.sh()) & m);
+
+    ctx.cpu.gpr[instr.a()] = ra;
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(ra);
+    }
+
+    ctx.tick(1);
+}
+
+pub fn op_rlwinmx(ctx: &mut Context, instr: Instruction) {
+    let mask = mask(instr.mb(), instr.me());
+
+    let ra = (ctx.cpu.gpr[instr.s()].rotate_left(instr.sh())) & mask;
+
+    ctx.cpu.gpr[instr.a()] = ra;
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(ra);
+    }
+
+    ctx.tick(1);
+}
+
+pub fn op_rlwnmx(_ctx: &mut Context, _instr: Instruction) {
+    unimplemented!("op_rlwnmx");
+}
+
+pub fn op_slwx(ctx: &mut Context, instr: Instruction) {
+    let rb = ctx.cpu.gpr[instr.b()];
+
+    let ra = if rb & 0x20 != 0 {
+        0
+    } else {
+        ctx.cpu.gpr[instr.s()] << (rb & 0x1F)
+    };
+
+    ctx.cpu.gpr[instr.a()] = ra;
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(ra);
+    }
+
+    ctx.tick(1);
+}
+
+pub fn op_srawix(ctx: &mut Context, instr: Instruction) {
+    let rs = ctx.cpu.gpr[instr.s()] as i32;
+    let s = instr.s();
+
+    ctx.cpu.gpr[instr.a()] = (rs >> instr.sh()) as u32;
+    ctx.cpu
+        .xer
+        .set_carry(rs < 0 && ((rs as u32) << (32 - s)) != 0);
+
+    ctx.tick(1);
+}
+
+// TODO: review this implementation
+pub fn op_srawx(ctx: &mut Context, instr: Instruction) {
+    let rb = ctx.cpu.gpr[instr.b()];
+
+    if rb & 0x20 != 0 {
+        if ctx.cpu.gpr[instr.s()] & 0x8000_0000 != 0 {
+            ctx.cpu.gpr[instr.a()] = 0xFFFF_FFFF;
+            ctx.cpu.xer.set_carry(true);
+        } else {
+            ctx.cpu.gpr[instr.a()] = 0;
+            ctx.cpu.xer.set_carry(false);
+        }
+    } else {
+        let n = rb & 0x1F;
+
+        if n != 0 {
+            let rs = ctx.cpu.gpr[instr.s()] as i32;
+
+            ctx.cpu.gpr[instr.a()] = (rs >> n) as u32;
+
+            ctx.cpu.xer.set_carry(rs < 0 && (rs << (32 - n) != 0));
+        } else {
+            ctx.cpu.gpr[instr.a()] = ctx.cpu.gpr[instr.s()];
+            ctx.cpu.xer.set_carry(false);
+        }
+    }
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(ctx.cpu.gpr[instr.a()]);
+    }
+
+    ctx.tick(1);
+}
+
+pub fn op_srwx(ctx: &mut Context, instr: Instruction) {
+    let rb = ctx.cpu.gpr[instr.b()];
+
+    let ra = if rb & 0x20 != 0 {
+        0
+    } else {
+        ctx.cpu.gpr[instr.s()] >> (rb & 0x1F)
+    };
+
+    ctx.cpu.gpr[instr.a()] = ra;
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(ra);
+    }
+
+    ctx.tick(1);
+}
+
+pub fn op_subfcx(ctx: &mut Context, instr: Instruction) {
+    let ra = ctx.cpu.gpr[instr.a()];
+    let rb = ctx.cpu.gpr[instr.b()];
+
+    let (rd, ca1) = (!ra).overflowing_add(rb);
+    let (rd, ca2) = rd.overflowing_add(1);
+
+    ctx.cpu.gpr[instr.d()] = rd;
+
+    ctx.cpu.xer.set_carry(ca1 || ca2);
+
+    if instr.oe() {
+        ctx.cpu.set_xer_so(check_overflowed(!ra, rb, rd));
+    }
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(rd);
+    }
+
+    ctx.tick(1);
+}
+
+pub fn op_subfex(ctx: &mut Context, instr: Instruction) {
+    let ra = ctx.cpu.gpr[instr.a()];
+    let rb = ctx.cpu.gpr[instr.b()];
+
+    let (rd, ca1) = (!ra).overflowing_add(rb);
+    let (rd, ca2) = rd.overflowing_add(ctx.cpu.xer.carry() as u32);
+
+    ctx.cpu.gpr[instr.d()] = rd;
+
+    ctx.cpu.xer.set_carry(ca1 | ca2);
+
+    if instr.oe() {
+        ctx.cpu.set_xer_so(check_overflowed(!ra, rb, rd));
+    }
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(rd);
+    }
+
+    ctx.tick(1);
+}
+
+pub fn op_subfic(ctx: &mut Context, instr: Instruction) {
+    let ra = ctx.cpu.gpr[instr.a()];
+    let simm = (instr.simm() as i32) as u32;
+
+    let (rd, ca) = simm.overflowing_sub(ra);
+
+    ctx.cpu.gpr[instr.d()] = rd;
+
+    ctx.cpu.xer.set_carry(ca);
+
+    ctx.tick(1);
+}
+
+pub fn op_subfmex(_ctx: &mut Context, _instr: Instruction) {
+    unimplemented!("op_subfmex");
+}
+
+pub fn op_subfzex(ctx: &mut Context, instr: Instruction) {
+    let ra = ctx.cpu.gpr[instr.a()];
+    let ca = ctx.cpu.xer.carry() as u32;
+
+    let rd = (!ra).wrapping_add(ca);
+
+    ctx.cpu.gpr[instr.d()] = rd;
+
+    ctx.cpu.xer.set_carry(ca > ra);
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(rd);
+    }
+
+    if instr.oe() {
+        panic!("OE: subfzex");
+    }
+
+    ctx.tick(1);
+}
+
+pub fn op_subfx(ctx: &mut Context, instr: Instruction) {
+    let ra = ctx.cpu.gpr[instr.a()] as i32;
+    let rb = ctx.cpu.gpr[instr.b()] as i32;
+
+    let (rd, ov) = rb.overflowing_sub(ra);
+    let rd = rd as u32;
+
+    ctx.cpu.gpr[instr.d()] = rd;
+
+    if instr.oe() {
+        ctx.cpu.set_xer_so(ov);
+    }
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(rd);
+    }
+
+    ctx.tick(1);
+}
+
+pub fn op_tw(_ctx: &mut Context, _instr: Instruction) {
+    unimplemented!("op_tw");
+}
+
+pub fn op_twi(ctx: &mut Context, instr: Instruction) {
+    let a = ctx.cpu.gpr[instr.a()] as i32;
+    let simm = instr.simm() as i32;
+    let to = instr.to();
+
+    if (a < simm && (to & 0x10) != 0)
+        || (a > simm && (to & 0x80) != 0)
+        || (a == simm && (to & 0x04) != 0)
+        || ((a as u32) < simm as u32 && (to & 0x02) != 0)
+        || (a as u32 > simm as u32 && (to & 0x01) != 0)
+    {
+        ctx.cpu.exceptions |= EXCEPTION_PROGRAM;
+        // Set trap program exception flag
+        ctx.cpu.spr[SPR_SRR1] = 1 << (31 - 14);
+    }
+}
+
+pub fn op_xori(ctx: &mut Context, instr: Instruction) {
+    ctx.cpu.gpr[instr.a()] = ctx.cpu.gpr[instr.s()] ^ instr.uimm();
+
+    ctx.tick(1);
+}
+
+pub fn op_xoris(ctx: &mut Context, instr: Instruction) {
+    ctx.cpu.gpr[instr.a()] = ctx.cpu.gpr[instr.s()] ^ (instr.uimm() << 16);
+
+    ctx.tick(1);
+}
+
+pub fn op_xorx(ctx: &mut Context, instr: Instruction) {
+    ctx.cpu.gpr[instr.a()] = ctx.cpu.gpr[instr.s()] ^ ctx.cpu.gpr[instr.b()];
+
+    if instr.rc() {
+        ctx.cpu.update_cr0(ctx.cpu.gpr[instr.a()]);
+    }
+
+    ctx.tick(1);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    // TODO: expand on these test cases
-    #[test]
-    fn convert_to_double() {
-        let test_values: [(f32, f64); 3] = [
-            (0.0, 0.0),
-            (1.0, 1.0),
-            (1.1754942e-38, 1.1754942106924411e-38),
-        ];
-
-        for t in test_values.iter() {
-            let result = f64::from_bits(super::convert_to_double(f32::to_bits(t.0)));
-
-            assert_eq!(result, t.1);
-        }
-    }
-
-    // TODO: expand on these test cases
-    #[test]
-    fn convert_to_single() {
-        let test_values: [(f64, f32); 4] = [
-            (0.0, 0.0),
-            (1.0, 1.0),
-            (4.484155085839414e-44, 4.3e-44),
-            (1.4693679385492415e-39, 1.469368e-39),
-        ];
-
-        for t in test_values.iter() {
-            let result = f32::from_bits(super::convert_to_single(f64::to_bits(t.0)));
-
-            assert_eq!(result, t.1);
-        }
-    }
-
-    #[test]
-    fn f32_is_snan() {
-        let snan = f32::from_bits(0xFF800001);
-
-        assert!(snan.is_nan());
-        assert!(snan.is_snan());
-        assert!(!snan.is_qnan());
-
-        let snan = f32::from_bits(0xFF800301);
-
-        assert!(snan.is_nan());
-        assert!(snan.is_snan());
-        assert!(!snan.is_qnan());
-    }
-
-    #[test]
-    fn f64_is_snan() {
-        let snan = f64::from_bits(0x7FF0000000000001);
-
-        assert!(snan.is_nan());
-        assert!(snan.is_snan());
-        assert!(!snan.is_qnan());
-
-        let snan = f64::from_bits(0x7FF0000000020001);
-
-        assert!(snan.is_nan());
-        assert!(snan.is_snan());
-        assert!(!snan.is_qnan());
-    }
-
-    #[test]
-    fn f64_is_qnan() {
-        let qnan = f64::from_bits(0x7FF8000000000001);
-
-        assert!(qnan.is_nan());
-        assert!(!qnan.is_snan());
-        assert!(qnan.is_qnan());
-
-        let qnan = f64::from_bits(0x7FF8000000020001);
-
-        assert!(qnan.is_nan());
-        assert!(!qnan.is_snan());
-        assert!(qnan.is_qnan());
-    }
-
-    #[test]
-    fn f632_is_qnan() {
-        let qnan = f32::from_bits(0xFFC00001);
-
-        assert!(qnan.is_nan());
-        assert!(!qnan.is_snan());
-        assert!(qnan.is_qnan());
-
-        let qnan = f32::from_bits(0xFFC00301);
-
-        assert!(qnan.is_nan());
-        assert!(!qnan.is_snan());
-        assert!(qnan.is_qnan());
-    }
-
-    #[test]
-    fn condition_register() {
-        let mut cr = ConditionRegister(0x00F0_F0F0);
-
-        cr.set_bit(2, 1);
-        assert_eq!(cr.0, 0x20F0_F0F0);
-        assert_eq!(cr.get_bit(2), 1);
-
-        cr.set_bit(2, 0);
-        assert_eq!(cr.0, 0x00F0_F0F0);
-        assert_eq!(cr.get_bit(2), 0);
-
-        cr.set_field(0, 0xF);
-        assert_eq!(cr.0, 0xF0F0_F0F0);
-
-        cr.set_field(0, 0x3);
-        assert_eq!(cr.0, 0x30F0_F0F0);
-
-        cr.set_field(0, 0x0);
-        assert_eq!(cr.0, 0x00F0_F0F0);
-    }
-
-    #[test]
-    fn optable_lookup() {
-        let mut optable: [Opcode; OPTABLE_SIZE] = [Opcode::Illegal; OPTABLE_SIZE];
-        let mut optable4: [Opcode; OPTABLE4_SIZE] = [Opcode::Illegal; OPTABLE4_SIZE];
-        let mut optable19: [Opcode; OPTABLE19_SIZE] = [Opcode::Illegal; OPTABLE19_SIZE];
-        let mut optable31: [Opcode; OPTABLE31_SIZE] = [Opcode::Illegal; OPTABLE31_SIZE];
-        let mut optable59: [Opcode; OPTABLE59_SIZE] = [Opcode::Illegal; OPTABLE59_SIZE];
-        let mut optable63: [Opcode; OPTABLE63_SIZE] = [Opcode::Illegal; OPTABLE63_SIZE];
-
-        for op in OPCODE_TABLE.iter() {
-            optable[op.0 as usize] = op.1;
-        }
-
-        for op in OPCODE4X_TABLE.iter() {
-            optable4[op.0 as usize] = op.1;
-        }
-
-        for n in 0..32 {
-            let fill = n << 5;
-            for op in OPCODE4A_TABLE.iter() {
-                let xo_x = (op.0 as usize) | fill;
-                optable4[xo_x] = op.1;
-            }
-        }
-
-        for n in 0..16 {
-            let fill = n << 6;
-            for op in OPCODE4AA_TABLE.iter() {
-                let xo_x = (op.0 as usize) | fill;
-                optable4[xo_x] = op.1;
-            }
-        }
-
-        for op in OPCODE19_TABLE.iter() {
-            optable19[op.0 as usize] = op.1;
-        }
-
-        for op in OPCODE31_TABLE.iter() {
-            optable31[op.0 as usize] = op.1;
-        }
-
-        for op in OPCODE59_TABLE.iter() {
-            optable59[op.0 as usize] = op.1;
-        }
-
-        for op in OPCODE63X_TABLE.iter() {
-            optable63[op.0 as usize] = op.1;
-        }
-
-        for n in 0..32 {
-            let fill = n << 5;
-            for op in OPCODE63A_TABLE.iter() {
-                let xo_x = (op.0 as usize) | fill;
-                optable63[xo_x] = op.1;
-            }
-        }
-
-        let data = [
-            (0x7C00_0214, Opcode::Addx),
-            (0x7C00_0014, Opcode::Addcx),
-            (0x7C00_0114, Opcode::Addex),
-            (0x3800_0000, Opcode::Addi),
-            (0x3000_0000, Opcode::Addic),
-            (0x3400_0000, Opcode::Addicrc),
-            (0x3C00_0000, Opcode::Addis),
-            (0x7C00_01D4, Opcode::Addmex),
-            (0x7C00_0194, Opcode::Addzex),
-            (0x7C00_0038, Opcode::Andx),
-            (0x7C00_0078, Opcode::Andcx),
-            (0x7000_0000, Opcode::Andirc),
-            (0x7400_0000, Opcode::Andisrc),
-            (0x4800_0000, Opcode::Bx),
-            (0x4000_0000, Opcode::Bcx),
-            (0x4C00_0420, Opcode::Bcctrx),
-            (0x4c00_0020, Opcode::Bclrx),
-            (0x7C00_0000, Opcode::Cmp),
-            (0x2C00_0000, Opcode::Cmpi),
-            (0x7C00_0040, Opcode::Cmpl),
-            (0x2800_0000, Opcode::Cmpli),
-            (0x7C00_0034, Opcode::Cntlzwx),
-            (0x4C00_0202, Opcode::Crand),
-            (0x4C00_0102, Opcode::Crandc),
-            (0x4C00_0242, Opcode::Creqv),
-            (0x4C00_01C2, Opcode::Crnand),
-            (0x4C00_0042, Opcode::Crnor),
-            (0x4C00_0382, Opcode::Cror),
-            (0x4C00_0342, Opcode::Crorc),
-            (0x4C00_0182, Opcode::Crxor),
-            (0x7C00_00AC, Opcode::Dcbf),
-            (0x7C00_03AC, Opcode::Dcbi),
-            (0x7C00_006C, Opcode::Dcbst),
-            (0x7C00_022C, Opcode::Dcbt),
-            (0x7C00_01EC, Opcode::Dcbtst),
-            (0x7C00_07EC, Opcode::Dcbz),
-            (0x1000_07EC, Opcode::DcbzL),
-            (0x7C00_03D6, Opcode::Divwx),
-            (0x7C00_0396, Opcode::Divwux),
-            (0x7C00_026C, Opcode::Eciwx),
-            (0x7C00_036C, Opcode::Ecowx),
-            (0x7C00_06AC, Opcode::Eieio),
-            (0x7C00_0238, Opcode::Eqvx),
-            (0x7C00_0774, Opcode::Extsbx),
-            (0x7C00_0734, Opcode::Extshx),
-            (0xFC00_0210, Opcode::Fabsx),
-            (0xFC00_002A, Opcode::Faddx),
-            (0xEC00_002A, Opcode::Faddsx),
-            (0xFC00_0040, Opcode::Fcmpo),
-            (0xFC00_0000, Opcode::Fcmpu),
-            (0xFC00_001C, Opcode::Fctiwx),
-            (0xFC00_001E, Opcode::Fctiwzx),
-            (0xFC00_0024, Opcode::Fdivx),
-            (0xEC00_0024, Opcode::Fdivsx),
-            (0xFC00_003A, Opcode::Fmaddx),
-            (0xEC00_003A, Opcode::Fmaddsx),
-            (0xFC00_0090, Opcode::Fmrx),
-            (0xFC00_0038, Opcode::Fmsubx),
-            (0xEC00_0038, Opcode::Fmsubsx),
-            (0xFC00_0032, Opcode::Fmulx),
-            (0xEC00_0032, Opcode::Fmulsx),
-            (0xFC00_0110, Opcode::Fnabsx),
-            (0xFC00_0050, Opcode::Fnegx),
-            (0xFC00_003E, Opcode::Fnmaddx),
-            (0xEC00_003E, Opcode::Fnmaddsx),
-            (0xFC00_003C, Opcode::Fnmsubx),
-            (0xEC00_003C, Opcode::Fnmsubsx),
-            (0xEC00_0030, Opcode::Fresx),
-            (0xFC00_0018, Opcode::Frspx),
-            (0xFC00_0034, Opcode::Frsqrtex),
-            (0xFC00_002E, Opcode::Fselx),
-            (0xFC00_0028, Opcode::Fsubx),
-            (0xEC00_0028, Opcode::Fsubsx),
-            (0x7C00_07AC, Opcode::Icbi),
-            (0x4C00_012C, Opcode::Isync),
-            (0x8800_0000, Opcode::Lbz),
-            (0x8C00_0000, Opcode::Lbzu),
-            (0x7C00_00EE, Opcode::Lbzux),
-            (0x7C00_00AE, Opcode::Lbzx),
-            (0xC800_0000, Opcode::Lfd),
-            (0xCC00_0000, Opcode::Lfdu),
-            (0x7C00_04EE, Opcode::Lfdux),
-            (0x7C00_04AE, Opcode::Lfdx),
-            (0xC000_0000, Opcode::Lfs),
-            (0xC400_0000, Opcode::Lfsu),
-            (0x7C00_046E, Opcode::Lfsux),
-            (0x7C00_042E, Opcode::Lfsx),
-            (0xA800_0000, Opcode::Lha),
-            (0xAC00_0000, Opcode::Lhau),
-            (0x7C00_02EE, Opcode::Lhaux),
-            (0x7C00_02AE, Opcode::Lhax),
-            (0x7C00_062C, Opcode::Lhbrx),
-            (0xA000_0000, Opcode::Lhz),
-            (0xA400_0000, Opcode::Lhzu),
-            (0x7C00_026E, Opcode::Lhzux),
-            (0x7C00_022E, Opcode::Lhzx),
-            (0xB800_0000, Opcode::Lmw),
-            (0x7C00_04AA, Opcode::Lswi),
-            (0x7C00_042A, Opcode::Lswx),
-            (0x7C00_0028, Opcode::Lwarx),
-            (0x7C00_042C, Opcode::Lwbrx),
-            (0x8000_0000, Opcode::Lwz),
-            (0x8400_0000, Opcode::Lwzu),
-            (0x7C00_006E, Opcode::Lwzux),
-            (0x7C00_002E, Opcode::Lwzx),
-            (0x4C00_0000, Opcode::Mcrf),
-            (0xFC00_0080, Opcode::Mcrfs),
-            (0x7c00_0400, Opcode::Mcrxr),
-            (0x7C00_0026, Opcode::Mfcr),
-            (0xFC00_048E, Opcode::Mffsx),
-            (0x7C00_00A6, Opcode::Mfmsr),
-            (0x7C00_02A6, Opcode::Mfspr),
-            (0x7C00_04A6, Opcode::Mfsr),
-            (0x7C00_0526, Opcode::Mfsrin),
-            (0x7C00_02E6, Opcode::Mftb),
-            (0x7C00_0120, Opcode::Mtcrf),
-            (0xFC00_008C, Opcode::Mtfsb0x),
-            (0xFC00_004C, Opcode::Mtfsb1x),
-            (0xFC00_058E, Opcode::Mtfsfx),
-            (0xFC00_010C, Opcode::Mtfsfix),
-            (0x7C00_0124, Opcode::Mtmsr),
-            (0x7C00_03A6, Opcode::Mtspr),
-            (0x7C00_01A4, Opcode::Mtsr),
-            (0x7C00_01E4, Opcode::Mtsrin),
-            (0x7C00_0096, Opcode::Mulhwx),
-            (0x7C00_0016, Opcode::Mulhwux),
-            (0x1C00_0000, Opcode::Mulli),
-            (0x7C00_01D6, Opcode::Mullwx),
-            (0x7C00_03B8, Opcode::Nandx),
-            (0x7C00_00D0, Opcode::Negx),
-            (0x7C00_00F8, Opcode::Norx),
-            (0x7C00_0378, Opcode::Orx),
-            (0x7C00_0338, Opcode::Orcx),
-            (0x6000_0000, Opcode::Ori),
-            (0x6400_0000, Opcode::Oris),
-            (0xE000_0000, Opcode::PsqL),
-            (0xE400_0000, Opcode::PsqLu),
-            (0x1000_004C, Opcode::PsqLux),
-            (0x1000_000C, Opcode::PsqLx),
-            (0xF000_0000, Opcode::PsqSt),
-            (0xF400_0000, Opcode::PsqStu),
-            (0x1000_004E, Opcode::PsqStux),
-            (0x1000_000E, Opcode::PsqStx),
-            (0x1000_0210, Opcode::PsAbsx),
-            (0x1000_002A, Opcode::PsAddx),
-            (0x1000_0040, Opcode::PsCmpo0),
-            (0x1000_00C0, Opcode::PsCmpo1),
-            (0x1000_0000, Opcode::PsCmpu0),
-            (0x1000_0080, Opcode::PsCmpu1),
-            (0x1000_0024, Opcode::PsDivx),
-            (0x1000_003A, Opcode::PsMaddx),
-            (0x1000_001C, Opcode::PsMadds0x),
-            (0x1000_001E, Opcode::PsMadds1x),
-            (0x1000_0420, Opcode::PsMerge00x),
-            (0x1000_0460, Opcode::PsMerge01x),
-            (0x1000_04A0, Opcode::PsMerge10x),
-            (0x1000_04E0, Opcode::PsMerge11x),
-            (0x1000_0090, Opcode::PsMrx),
-            (0x1000_0038, Opcode::PsMsubx),
-            (0x1000_0032, Opcode::PsMulx),
-            (0x1000_0018, Opcode::PsMuls0x),
-            (0x1000_001A, Opcode::PsMuls1x),
-            (0x1000_0110, Opcode::PsNabsx),
-            (0x1000_0050, Opcode::PsNegx),
-            (0x1000_003E, Opcode::PsNmaddx),
-            (0x1000_003C, Opcode::PsNmsubx),
-            (0x1000_0030, Opcode::PsResx),
-            (0x1000_0034, Opcode::PsRsqrtex),
-            (0x1000_002E, Opcode::PsSelx),
-            (0x1000_0028, Opcode::PsSubx),
-            (0x1000_0014, Opcode::PsSum0x),
-            (0x1000_0016, Opcode::PsSum1x),
-            (0x4C00_0064, Opcode::Rfi),
-            (0x5000_0000, Opcode::Rlwimix),
-            (0x5400_0000, Opcode::Rlwinmx),
-            (0x5C00_0000, Opcode::Rlwnmx),
-            (0x4400_0002, Opcode::Sc),
-            (0x7C00_0030, Opcode::Slwx),
-            (0x7C00_0630, Opcode::Srawx),
-            (0x7C00_0670, Opcode::Srawix),
-            (0x7C00_0430, Opcode::Srwx),
-            (0x9800_0000, Opcode::Stb),
-            (0x9C00_0000, Opcode::Stbu),
-            (0x7C00_01EE, Opcode::Stbux),
-            (0x7C00_01AE, Opcode::Stbx),
-            (0xD800_0000, Opcode::Stfd),
-            (0xDC00_0000, Opcode::Stfdu),
-            (0x7C00_05EE, Opcode::Stfdux),
-            (0x7C00_05AE, Opcode::Stfdx),
-            (0x7C00_07AE, Opcode::Stfiwx),
-            (0xD000_0000, Opcode::Stfs),
-            (0xD400_0000, Opcode::Stfsu),
-            (0x7C00_056E, Opcode::Stfsux),
-            (0x7C00_052E, Opcode::Stfsx),
-            (0xB000_0000, Opcode::Sth),
-            (0x7C00_072C, Opcode::Sthbrx),
-            (0xB400_0000, Opcode::Sthu),
-            (0x7C00_036E, Opcode::Sthux),
-            (0x7C00_032E, Opcode::Sthx),
-            (0xBC00_0000, Opcode::Stmw),
-            (0x7C00_05AA, Opcode::Stswi),
-            (0x7C00_052A, Opcode::Stswx),
-            (0x9000_0000, Opcode::Stw),
-            (0x7C00_052C, Opcode::Stwbrx),
-            (0x7C00_012D, Opcode::Stwcxrc),
-            (0x9400_0000, Opcode::Stwu),
-            (0x7C00_016E, Opcode::Stwux),
-            (0x7C00_012E, Opcode::Stwx),
-            (0x7C00_0050, Opcode::Subfx),
-            (0x7C00_0010, Opcode::Subfcx),
-            (0x7C00_0110, Opcode::Subfex),
-            (0x2000_0000, Opcode::Subfic),
-            (0x7C00_01D0, Opcode::Subfmex),
-            (0x7C00_0190, Opcode::Subfzex),
-            (0x7C00_04AC, Opcode::Sync),
-            (0x7C00_0264, Opcode::Tlbie),
-            (0x7C00_046C, Opcode::Tlbsync),
-            (0x7C00_0008, Opcode::Tw),
-            (0x0C00_0000, Opcode::Twi),
-            (0x7C00_0278, Opcode::Xorx),
-            (0x6800_0000, Opcode::Xori),
-            (0x6C00_0000, Opcode::Xoris),
-        ];
-
-        for i in data.iter() {
-            let instr = Instruction(i.0);
-            let opcode = optable[instr.opcd()];
-            match opcode {
-                Opcode::Table4 => assert_eq!(optable4[instr.xo_x()], i.1),
-                Opcode::Table19 => assert_eq!(optable19[instr.xo_x()], i.1),
-                Opcode::Table31 => assert_eq!(optable31[instr.xo_x()], i.1),
-                Opcode::Table59 => assert_eq!(optable59[instr.xo_a()], i.1),
-                Opcode::Table63 => assert_eq!(optable63[instr.xo_x()], i.1),
-                _ => assert_eq!(opcode, i.1),
-            }
-        }
-    }
-
-    #[test]
-    fn op_bcx() {
-        let mut ctx = Context::default();
-
-        // addi 8,0,3
-        let (rd, ra, simm) = (8, 0, 0x3);
-        let instr = Instruction::new_addi(rd, ra, simm);
-
-        super::op_addi(&mut ctx, instr);
-
-        assert_eq!(ctx.cpu.gpr[rd], 0x0000_0003);
-
-        // mtctr 8
-        let instr = Instruction::new_mtspr(0x9, 0x8);
-        super::op_mtspr(&mut ctx, instr);
-
-        // check counter register is set to 0x3
-        assert_eq!(ctx.cpu.spr[SPR_CTR], 0x0000_0003);
-
-        // addic. 9,8,0x1
-        let (rd, ra, simm) = (9, 8, 0x1);
-        let instr = Instruction::new_addic_rc(rd, ra, simm);
-
-        super::op_addic_rc(&mut ctx, instr);
-
-        assert_eq!(ctx.cpu.gpr[rd], 0x0000_0004);
-        assert_eq!(ctx.cpu.cr.get_cr0(), 0x0000_0004);
-
-        // bc 0xC,1,0x456
-        let (bo, bi, bd) = (0xC, 1, 0x456);
-        let instr = Instruction::new_bcx(bo, bi, bd);
-
-        super::op_bcx(&mut ctx, instr);
-
-        assert_eq!(ctx.cpu.nia, 0xFFF0_1258);
-
-        // bcl 0x8,1,0x456
-        let (bo, bi, bd, lk) = (0x8, 1, 0x456, 1);
-        let instr = Instruction::new_bcx(bo, bi, bd).set_lk(lk);
-
-        super::op_bcx(&mut ctx, instr);
-
-        assert_eq!(ctx.cpu.spr[SPR_CTR], 0x2);
-        assert_eq!(ctx.cpu.spr[SPR_LR], 0xFFF0_0104);
-    }
 
     #[test]
     fn op_addi() {
@@ -1461,123 +1726,5 @@ mod tests {
         super::op_xoris(&mut ctx, instr);
 
         assert_eq!(ctx.cpu.gpr[ra], 0x9079_3000);
-    }
-
-    // load and store ops
-    #[test]
-    fn op_dcbf() {
-        let mut ctx = Context::default();
-
-        let (ra, rb) = (4, 3);
-        let instr = Instruction::new_dcbf(ra, rb);
-
-        super::op_dcbf(&mut ctx, instr);
-    }
-
-    // system ops
-
-    #[test]
-    fn op_eieio() {}
-
-    #[test]
-    fn op_isync() {}
-
-    #[test]
-    fn op_mfmsr() {
-        let mut ctx = Context::default();
-
-        let rd = 6;
-        let instr = Instruction::new_mfmsr(rd);
-
-        ctx.cpu.msr = 0x0D15_AA5E.into();
-
-        super::op_mfmsr(&mut ctx, instr);
-
-        assert_eq!(ctx.cpu.gpr[rd], 0x0D15_AA5E);
-    }
-
-    #[test]
-    fn op_mfspr() {
-        let mut ctx = Context::default();
-
-        let (rd, spr) = (6, SPR_LR as u32); // FIXME: make spr a usize
-        let instr = Instruction::new_mfspr(rd, spr);
-
-        ctx.cpu.spr[SPR_LR] = 0xDEAD_BEEF;
-        super::op_mfspr(&mut ctx, instr);
-
-        assert_eq!(ctx.cpu.gpr[rd], 0xDEAD_BEEF);
-    }
-
-    #[test]
-    fn op_mfsr() {}
-
-    #[test]
-    fn op_mfsrin() {}
-
-    #[test]
-    fn op_mftb() {
-        let mut ctx = Context::default();
-
-        let (rd, tbr) = (6, TBR_TBL); // FIXME: make tbr usize
-        let instr = Instruction::new_mftb(rd, tbr as u32);
-
-        ctx.timers.tick(0x1784);
-        super::op_mftb(&mut ctx, instr);
-
-        assert_eq!(ctx.cpu.gpr[rd], 501); // FIXME: this needs to be better
-    }
-
-    #[test]
-    fn op_mtmsr() {
-        let mut ctx = Context::default();
-
-        let rs = 6;
-        let instr = Instruction::new_mtmsr(rs);
-
-        ctx.cpu.gpr[rs] = 0x0D15_AA5E;
-
-        super::op_mtmsr(&mut ctx, instr);
-
-        assert_eq!(ctx.cpu.msr.0, 0x0D15_AA5E);
-    }
-
-    #[test]
-    fn op_mtspr() {}
-
-    #[test]
-    fn op_mtsrin() {}
-
-    #[test]
-    fn op_rfi() {}
-
-    #[test]
-    fn op_sc() {
-        let mut ctx = Context::default();
-
-        let instr = Instruction::new_sc();
-
-        super::op_sc(&mut ctx, instr);
-
-        assert_eq!(ctx.cpu.exceptions, EXCEPTION_SYSTEM_CALL);
-    }
-
-    #[test]
-    fn op_sync() {
-        let mut ctx = Context::default();
-
-        let instr = Instruction::new_sync();
-
-        super::op_sync(&mut ctx, instr);
-    }
-
-    #[test]
-    #[should_panic]
-    fn op_tlbsync() {
-        let mut ctx = Context::default();
-
-        let instr = Instruction::new_tlbsync();
-
-        super::op_tlbsync(&mut ctx, instr);
     }
 }

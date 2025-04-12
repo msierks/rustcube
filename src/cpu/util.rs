@@ -98,3 +98,40 @@ pub fn mask(mb: u8, me: u8) -> u32 {
 pub fn check_overflowed(a: u32, b: u32, result: u32) -> bool {
     ((a ^ result) & (b ^ result)) >> 31 != 0
 }
+
+#[cfg(test)]
+mod tests {
+
+    // TODO: expand on these test cases
+    #[test]
+    fn convert_to_double() {
+        let test_values: [(f32, f64); 3] = [
+            (0.0, 0.0),
+            (1.0, 1.0),
+            (1.1754942e-38, 1.1754942106924411e-38),
+        ];
+
+        for t in test_values.iter() {
+            let result = f64::from_bits(super::convert_to_double(f32::to_bits(t.0)));
+
+            assert_eq!(result, t.1);
+        }
+    }
+
+    // TODO: expand on these test cases
+    #[test]
+    fn convert_to_single() {
+        let test_values: [(f64, f32); 4] = [
+            (0.0, 0.0),
+            (1.0, 1.0),
+            (4.484155085839414e-44, 4.3e-44),
+            (1.4693679385492415e-39, 1.469368e-39),
+        ];
+
+        for t in test_values.iter() {
+            let result = f32::from_bits(super::convert_to_single(f64::to_bits(t.0)));
+
+            assert_eq!(result, t.1);
+        }
+    }
+}

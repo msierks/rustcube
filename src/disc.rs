@@ -4,7 +4,7 @@ use std::io::prelude::*;
 use std::io::{Error, ErrorKind, Read, SeekFrom};
 use std::path::Path;
 
-use crate::cpu::{step, SPR_LR};
+use crate::cpu::{spr::SPR_LR, step};
 use crate::Context;
 
 const DISC_MAGIC: u32 = 0xC2339F3D;
