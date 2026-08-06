@@ -1,12 +1,8 @@
-extern crate getopts;
-extern crate rustcube;
-
-use rustcube::Context;
+use std::{env, path::Path};
 
 use env_logger::Env;
 use getopts::Options;
-use std::env;
-use std::path::Path;
+use rustcube::System;
 
 pub type DynResult<T> = Result<T, Box<dyn std::error::Error>>;
 
@@ -41,23 +37,23 @@ fn main() -> DynResult<()> {
         return Ok(());
     };
 
-    let mut ctx = Context::default();
+    let mut sys = System::default();
 
     match file_name.extension() {
         Some(ext) => {
             if ext == "dol" {
-                ctx.load_dol(file_name);
+                sys.load_dol(file_name);
             } else if ext == "iso" || ext == "gcm" {
-                ctx.load_iso(file_name);
+                sys.load_iso(file_name);
             } else {
                 // assume ipl
-                ctx.load_ipl(file_name);
+                sys.load_ipl(file_name);
             }
         }
-        None => ctx.load_ipl(file_name),
+        None => sys.load_ipl(file_name),
     }
 
     loop {
-        ctx.step();
+        sys.step();
     }
 }

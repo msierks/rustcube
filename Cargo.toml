@@ -5,16 +5,14 @@ authors = ["Michael Sierks <msierks@117@gmail.com>"]
 license = "MIT/Apache-2.0"
 edition = "2021"
 
-[workspace]
-members = ["debugger"]
-
 [[bin]]
 name = "rustcube"
 doc = false
 
 [dependencies]
-bitfield = "0.14"
-byteorder = "1.4"
+bitfield = "0.19"
+byteorder = "1.5"
+encoding_rs = "0.8"
 getopts = "0.2"
 env_logger = "0.8.2"
 minifb = "0.27"

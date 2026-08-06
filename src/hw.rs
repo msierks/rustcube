@@ -1,0 +1,11 @@
+pub(crate) mod ai;
+pub(crate) mod bootrom;
+pub(crate) mod di;
+pub(crate) mod exi;
+pub(crate) mod gp_fifo;
+pub(crate) mod memory;
+pub(crate) mod mmio;
+pub(crate) mod pe;
+pub(crate) mod pi;
+pub(crate) mod si;
+pub(crate) mod vi;

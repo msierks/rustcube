@@ -1,7 +1,3 @@
-pub fn bon(bo: u8, n: u8) -> u8 {
-    (bo >> (4 - n)) & 1
-}
-
 pub fn convert_to_double(v: u32) -> u64 {
     let x = v as u64;
     let mut exp = (x >> 23) & 0xFF;

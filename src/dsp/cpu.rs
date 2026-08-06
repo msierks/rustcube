@@ -5,6 +5,15 @@ type OpcodeTableItem = (usize, usize, Opcode, OpcodeTableFunction);
 
 const OPTABLE_SIZE: usize = u16::MAX as usize + 1;
 
+pub(crate) const INTERRUPT_RESET: u16 = 0x8000;
+const _INTERRUPT_ERR: u16 = 0x0002;
+const _INTERRUPT_TRAP: u16 = 0x0004;
+const _INTERRUOT_ACRS: u16 = 0x0006;
+const _INTERRUOT_ACWE: u16 = 0x0008;
+const _INTERRUOT_DCRE: u16 = 0x000A;
+const _INTERRUOT_AI_INT: u16 = 0x000C;
+const _INTERRUPT_CPU_INT: u16 = 0x000E;
+
 pub struct DspCpu {
     pc: u16,
     r: [u16; 4],

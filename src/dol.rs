@@ -1,10 +1,12 @@
-use byteorder::{BigEndian, ByteOrder};
-use std::fs;
-use std::io::prelude::*;
-use std::io::{Error, Read, SeekFrom};
-use std::path::Path;
+use std::{
+    fs,
+    io::{prelude::*, Error, Read, SeekFrom},
+    path::Path,
+};
 
-use super::Context;
+use byteorder::{BigEndian, ByteOrder};
+
+use crate::{bus::Bus, cpu::Cpu};
 
 const NUM_TEXT: usize = 7;
 const NUM_DATA: usize = 11;
@@ -100,13 +102,13 @@ impl Dol {
         self.header.entry_point
     }
 
-    pub fn load(&self, ctx: &mut Context) {
+    pub fn load(&self, cpu: &mut Cpu, bus: &mut Bus) {
         for (x, section) in self.text_sections.iter().enumerate() {
-            ctx.write(self.header.text_address[x], section.as_slice());
+            cpu.write_bytes(bus, self.header.text_address[x], section.as_slice());
         }
 
         for (x, section) in self.data_sections.iter().enumerate() {
-            ctx.write(self.header.data_address[x], section.as_slice());
+            cpu.write_bytes(bus, self.header.data_address[x], section.as_slice());
         }
     }
 }

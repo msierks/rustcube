@@ -1,16 +1,20 @@
-use crate::gp_fifo::BURST_SIZE;
-use crate::mem;
-use crate::utils::Halveable;
-use crate::video::bp::BlittingProcessor;
-use crate::video::xf::TransformUnit;
-use crate::Context;
+use crate::{
+    bus::Bus,
+    cpu::CpuState,
+    hw::{
+        gp_fifo::BURST_SIZE,
+        mmio::{Mmio, MmioDevice},
+    },
+    utils::Halveable,
+    video::{bp::BlittingProcessor, xf::TransformUnit},
+};
+
 const CP_STATUS: u32 = 0x00;
 const CP_CONTROL: u32 = 0x02;
 const CP_CLEAR: u32 = 0x04;
-
-//const CP_TOKEN: u32 = 0x0E;
-//const CP_BOUNDING_BOX: u32 = 0x10;
-
+const CP_PERF_SELECT: u32 = 0x06;
+const _CP_TOKEN: u32 = 0x0E;
+const _CP_BOUNDING_BOX: u32 = 0x10;
 const CP_FIFO_BASE_LO: u32 = 0x20;
 const CP_FIFO_BASE_HI: u32 = 0x22;
 const CP_FIFO_END_LO: u32 = 0x24;
@@ -27,6 +31,9 @@ const CP_FIFO_READ_POINTER_LO: u32 = 0x38;
 const CP_FIFO_READ_POINTER_HI: u32 = 0x3A;
 //const CP_FIFO_BREAKPOINT_LO: u32 = 0x3C;
 //const CP_FIFO_BREAKPOINT_HI: u32 = 0x3E;
+
+const LO_MASK: u16 = 0xFFE0;
+const HI_MASK: u16 = 0x03FF;
 
 // GP Packet Opcodes
 const NO_OPERATION: u8 = 0x00; // NOP - No Operation
@@ -71,6 +78,7 @@ pub struct CommandProcessor {
     status: StatusRegister,
     control: ControlRegister,
     clear: ClearRegister,
+    perf_select: u16,
     //token: u16,
     //bounding_box_left: u16,
     //bounding_box_right: u16,
@@ -91,9 +99,187 @@ pub struct CommandProcessor {
     vat: [Vat; NUM_VAT_REGS],
 }
 
+impl MmioDevice for CommandProcessor {
+    const BASE_ADDR: u32 = 0x0C00_0000;
+
+    fn register_mmio(mmio: &mut Mmio) {
+        mmio.register_write_u16(Self::BASE_ADDR + CP_STATUS, |bus, _, _, val| {
+            bus.cp.status = val.into();
+        });
+        mmio.register_write_u16(Self::BASE_ADDR + CP_CONTROL, |bus, _, _, val| {
+            bus.cp.control = val.into();
+        });
+        mmio.register_write_u16(Self::BASE_ADDR + CP_CLEAR, |bus, _, _, val| {
+            bus.cp.clear = ClearRegister(val);
+        });
+        mmio.register_write_u16(Self::BASE_ADDR + CP_PERF_SELECT, |bus, _, _, val| {
+            bus.cp.perf_select = val;
+        });
+        mmio.register_write_u16(Self::BASE_ADDR + CP_FIFO_BASE_LO, |bus, _, _, val| {
+            bus.cp.fifo_base = bus.cp.fifo_base.set_lo(val & LO_MASK);
+        });
+        mmio.register_write_u16(Self::BASE_ADDR + CP_FIFO_BASE_HI, |bus, _, _, val| {
+            bus.cp.fifo_base = bus.cp.fifo_base.set_hi(val & HI_MASK);
+        });
+        mmio.register_write_u16(Self::BASE_ADDR + CP_FIFO_END_LO, |bus, _, _, val| {
+            bus.cp.fifo_end = bus.cp.fifo_end.set_lo(val & LO_MASK);
+        });
+        mmio.register_write_u16(Self::BASE_ADDR + CP_FIFO_END_HI, |bus, _, _, val| {
+            bus.cp.fifo_end = bus.cp.fifo_end.set_hi(val & HI_MASK);
+        });
+        mmio.register_write_u16(
+            Self::BASE_ADDR + CP_FIFO_HIGH_WATERMARK_LO,
+            |bus, _, _, val| {
+                bus.cp.fifo_high_watermark = bus.cp.fifo_high_watermark.set_lo(val & LO_MASK);
+            },
+        );
+        mmio.register_write_u16(
+            Self::BASE_ADDR + CP_FIFO_HIGH_WATERMARK_HI,
+            |bus, _, _, val| {
+                bus.cp.fifo_high_watermark = bus.cp.fifo_high_watermark.set_hi(val & HI_MASK);
+            },
+        );
+        mmio.register_write_u16(
+            Self::BASE_ADDR + CP_FIFO_LOW_WATERMARK_LO,
+            |bus, _, _, val| {
+                bus.cp.fifo_low_watermark = bus.cp.fifo_low_watermark.set_lo(val & LO_MASK);
+            },
+        );
+        mmio.register_write_u16(
+            Self::BASE_ADDR + CP_FIFO_LOW_WATERMARK_HI,
+            |bus, _, _, val| {
+                bus.cp.fifo_low_watermark = bus.cp.fifo_low_watermark.set_hi(val & HI_MASK);
+            },
+        );
+        mmio.register_write_u16(
+            Self::BASE_ADDR + CP_FIFO_RW_DISTANCE_LO,
+            |bus, _, _, val| {
+                bus.cp.fifo_rw_distance = bus.cp.fifo_rw_distance.set_lo(val & LO_MASK);
+            },
+        );
+        mmio.register_write_u16(
+            Self::BASE_ADDR + CP_FIFO_RW_DISTANCE_HI,
+            |bus, _, _, val| {
+                bus.cp.fifo_rw_distance = bus.cp.fifo_rw_distance.set_hi(val & HI_MASK);
+            },
+        );
+        mmio.register_write_u16(
+            Self::BASE_ADDR + CP_FIFO_WRITE_POINTER_LO,
+            |bus, _, _, val| {
+                bus.cp.fifo_write_pointer = bus.cp.fifo_write_pointer.set_lo(val & LO_MASK);
+            },
+        );
+        mmio.register_write_u16(
+            Self::BASE_ADDR + CP_FIFO_WRITE_POINTER_HI,
+            |bus, _, _, val| {
+                bus.cp.fifo_write_pointer = bus.cp.fifo_write_pointer.set_hi(val & HI_MASK);
+            },
+        );
+        mmio.register_write_u16(
+            Self::BASE_ADDR + CP_FIFO_READ_POINTER_LO,
+            |bus, _, _, val| {
+                bus.cp.fifo_read_pointer = bus.cp.fifo_read_pointer.set_lo(val & LO_MASK);
+            },
+        );
+        mmio.register_write_u16(
+            Self::BASE_ADDR + CP_FIFO_READ_POINTER_HI,
+            |bus, _, _, val| {
+                bus.cp.fifo_read_pointer = bus.cp.fifo_read_pointer.set_hi(val & HI_MASK);
+            },
+        );
+    }
+}
+
 impl CommandProcessor {
     fn fifo_size(&self) -> u32 {
         self.fifo_write_pointer - self.fifo_read_pointer
+    }
+
+    pub fn gather_pipe_burst(bus: &mut Bus, _cpu_state: &mut CpuState) {
+        if !bus.cp.control.gp_link_enable() {
+            panic!("cp::gather_pipe_burst disabled");
+        }
+
+        bus.cp.fifo_write_pointer += BURST_SIZE as u32;
+
+        if bus.cp.fifo_write_pointer == bus.cp.fifo_end {
+            bus.cp.fifo_write_pointer = bus.cp.fifo_base;
+        }
+
+        if bus.cp.fifo_write_pointer >= bus.cp.fifo_read_pointer {
+            bus.cp.fifo_rw_distance = bus.cp.fifo_write_pointer - bus.cp.fifo_read_pointer;
+        }
+
+        while bus.cp.control.gp_fifo_read_enable() && bus.cp.fifo_rw_distance != 0 {
+            let opcode = bus.memory.read_u8(bus.cp.fifo_read_pointer);
+
+            bus.cp.fifo_read_pointer += 1;
+
+            match opcode {
+                NO_OPERATION => (),
+                LOAD_BP_REG => {
+                    if bus.cp.fifo_size() < 4 {
+                        bus.cp.fifo_read_pointer -= 1;
+                        break;
+                    }
+
+                    let value = bus.memory.read_u32(bus.cp.fifo_read_pointer);
+
+                    bus.cp.bp.load(value, &mut bus.memory);
+
+                    bus.cp.fifo_read_pointer += 4;
+                }
+                LOAD_CP_REG => {
+                    if bus.cp.fifo_size() < 5 {
+                        bus.cp.fifo_read_pointer -= 1;
+                        break;
+                    }
+
+                    let cmd = bus.memory.read_u8(bus.cp.fifo_read_pointer);
+                    let value = bus.memory.read_u32(bus.cp.fifo_read_pointer + 1);
+
+                    bus.cp.load(cmd, value);
+
+                    bus.cp.fifo_read_pointer += 5;
+                }
+                LOAD_XF_REG => {
+                    let cmd = bus.memory.read_u32(bus.cp.fifo_read_pointer);
+                    let xf_size = ((cmd >> 16) & 15) + 1;
+                    let xf_address = cmd & 0xFFFF;
+
+                    if bus.cp.fifo_size() < (xf_size * 4) + 4 {
+                        bus.cp.fifo_read_pointer -= 1;
+                        break;
+                    }
+
+                    bus.cp.fifo_read_pointer += 4; // cmd
+
+                    bus.cp.xf.load(
+                        xf_size,
+                        xf_address,
+                        &mut bus.memory,
+                        bus.cp.fifo_read_pointer,
+                    );
+
+                    bus.cp.fifo_read_pointer += xf_size * 4;
+                }
+                CMD_INV_VC => warn!("FIXME: Invalidate Vertex Cache"),
+                _ => {
+                    if opcode & 0x80 != 0 {
+                        panic!("Vertex Opcode: {:#x}", opcode ^ 0x80);
+                    } else {
+                        println!("gp_fifo unexpected opcode {:#x}", opcode);
+                        panic!("Error, maybe dump here");
+                    }
+                }
+            }
+
+            if bus.cp.fifo_read_pointer == bus.cp.fifo_end {
+                bus.cp.fifo_read_pointer = bus.cp.fifo_base;
+            }
+
+            bus.cp.fifo_rw_distance = bus.cp.fifo_write_pointer - bus.cp.fifo_read_pointer;
+        }
     }
 
     // Internal CP Registers
@@ -292,123 +478,4 @@ struct Vat {
     group0: VatGroup0,
     group1: VatGroup1,
     group2: VatGroup2,
-}
-
-pub fn write_u16(ctx: &mut Context, register: u32, val: u16) {
-    match register {
-        CP_STATUS => ctx.cp.status = val.into(),
-        CP_CONTROL => ctx.cp.control = val.into(),
-        CP_CLEAR => ctx.cp.clear = ClearRegister(val),
-        CP_FIFO_BASE_LO => ctx.cp.fifo_base = ctx.cp.fifo_base.set_lo(val),
-        CP_FIFO_BASE_HI => ctx.cp.fifo_base = ctx.cp.fifo_base.set_hi(val),
-        CP_FIFO_END_LO => ctx.cp.fifo_end = ctx.cp.fifo_end.set_lo(val),
-        CP_FIFO_END_HI => ctx.cp.fifo_end = ctx.cp.fifo_end.set_hi(val),
-        CP_FIFO_HIGH_WATERMARK_LO => {
-            ctx.cp.fifo_high_watermark = ctx.cp.fifo_high_watermark.set_lo(val)
-        }
-        CP_FIFO_HIGH_WATERMARK_HI => {
-            ctx.cp.fifo_high_watermark = ctx.cp.fifo_high_watermark.set_hi(val)
-        }
-        CP_FIFO_LOW_WATERMARK_LO => {
-            ctx.cp.fifo_low_watermark = ctx.cp.fifo_low_watermark.set_lo(val)
-        }
-        CP_FIFO_LOW_WATERMARK_HI => {
-            ctx.cp.fifo_low_watermark = ctx.cp.fifo_low_watermark.set_hi(val)
-        }
-        CP_FIFO_RW_DISTANCE_LO => ctx.cp.fifo_rw_distance = ctx.cp.fifo_rw_distance.set_lo(val),
-        CP_FIFO_RW_DISTANCE_HI => ctx.cp.fifo_rw_distance = ctx.cp.fifo_rw_distance.set_hi(val),
-        CP_FIFO_WRITE_POINTER_LO => {
-            ctx.cp.fifo_write_pointer = ctx.cp.fifo_write_pointer.set_lo(val)
-        }
-        CP_FIFO_WRITE_POINTER_HI => {
-            ctx.cp.fifo_write_pointer = ctx.cp.fifo_write_pointer.set_hi(val)
-        }
-        CP_FIFO_READ_POINTER_LO => ctx.cp.fifo_read_pointer = ctx.cp.fifo_read_pointer.set_lo(val),
-        CP_FIFO_READ_POINTER_HI => ctx.cp.fifo_read_pointer = ctx.cp.fifo_read_pointer.set_hi(val),
-        _ => warn!("write_u16 unrecognized cp register {:#x}", register),
-    }
-}
-
-pub fn gather_pipe_burst(ctx: &mut Context) {
-    if !ctx.cp.control.gp_link_enable() {
-        panic!("cp::gather_pipe_burst disabled");
-    }
-
-    ctx.cp.fifo_write_pointer += BURST_SIZE as u32;
-
-    if ctx.cp.fifo_write_pointer == ctx.cp.fifo_end {
-        ctx.cp.fifo_write_pointer = ctx.cp.fifo_base;
-    }
-
-    if ctx.cp.fifo_write_pointer >= ctx.cp.fifo_read_pointer {
-        ctx.cp.fifo_rw_distance = ctx.cp.fifo_write_pointer - ctx.cp.fifo_read_pointer;
-    }
-
-    while ctx.cp.control.gp_fifo_read_enable() && ctx.cp.fifo_rw_distance != 0 {
-        let opcode = ctx.mem.read_u8(ctx.cp.fifo_read_pointer);
-
-        ctx.cp.fifo_read_pointer += 1;
-
-        match opcode {
-            NO_OPERATION => (),
-            LOAD_BP_REG => {
-                if ctx.cp.fifo_size() < 4 {
-                    ctx.cp.fifo_read_pointer -= 1;
-                    break;
-                }
-
-                let value = mem::read_u32(ctx, ctx.cp.fifo_read_pointer);
-
-                ctx.cp.bp.load(value, &mut ctx.mem);
-
-                ctx.cp.fifo_read_pointer += 4;
-            }
-            LOAD_CP_REG => {
-                if ctx.cp.fifo_size() < 5 {
-                    ctx.cp.fifo_read_pointer -= 1;
-                    break;
-                }
-
-                let cmd = ctx.mem.read_u8(ctx.cp.fifo_read_pointer);
-                let value = mem::read_u32(ctx, ctx.cp.fifo_read_pointer + 1);
-
-                ctx.cp.load(cmd, value);
-
-                ctx.cp.fifo_read_pointer += 5;
-            }
-            LOAD_XF_REG => {
-                let cmd = mem::read_u32(ctx, ctx.cp.fifo_read_pointer);
-                let xf_size = ((cmd >> 16) & 15) + 1;
-                let xf_address = cmd & 0xFFFF;
-
-                if ctx.cp.fifo_size() < (xf_size * 4) + 4 {
-                    ctx.cp.fifo_read_pointer -= 1;
-                    break;
-                }
-
-                ctx.cp.fifo_read_pointer += 4; // cmd
-
-                ctx.cp
-                    .xf
-                    .load(xf_size, xf_address, &mut ctx.mem, ctx.cp.fifo_read_pointer);
-
-                ctx.cp.fifo_read_pointer += xf_size * 4;
-            }
-            CMD_INV_VC => warn!("FIXME: Invalidate Vertex Cache"),
-            _ => {
-                if opcode & 0x80 != 0 {
-                    panic!("Vertex Opcode: {:#x}", opcode ^ 0x80);
-                } else {
-                    println!("gp_fifo unexpected opcode {:#x}", opcode);
-                    panic!("Error, maybe dump here");
-                }
-            }
-        }
-
-        if ctx.cp.fifo_read_pointer == ctx.cp.fifo_end {
-            ctx.cp.fifo_read_pointer = ctx.cp.fifo_base;
-        }
-
-        ctx.cp.fifo_rw_distance = ctx.cp.fifo_write_pointer - ctx.cp.fifo_read_pointer;
-    }
 }

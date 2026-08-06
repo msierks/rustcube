@@ -1,4 +1,4 @@
-use crate::mem::Memory;
+use crate::hw::memory::Memory;
 
 const IND_IMASK: u32 = 0x0F;
 const IND_CMD0: u32 = 0x10;
@@ -28,7 +28,7 @@ const SU_SSIZE7: u32 = 0x3E;
 const PE_ZMODE: u32 = 0x40;
 const PE_CMODE0: u32 = 0x41;
 const PE_CMODE1: u32 = 0x42;
-const PE_CONTROL: u32 = 0x43; // ZCOMPARE ???
+const PE_CONTROL: u32 = 0x43;
 const FIELD_MASK: u32 = 0x44;
 const PE_DONE: u32 = 0x45;
 const CLOCK_0: u32 = 0x46;
@@ -69,7 +69,7 @@ pub struct BlittingProcessor {
     clock_0: u32,
     clock_1: u32,
     copy_control: CopyControl,
-    xfb_addr: u32, // Note: physical address shifted right by 5
+    xfb_addr: u32,
     efb_coord: Coords,
     efb_boxsize: Coords,
     xfb_stride: u32,

@@ -1,5 +1,7 @@
-use crate::mem;
-use crate::video::cp::{MatrixIndexA, MatrixIndexB};
+use crate::{
+    hw::memory::Memory,
+    video::cp::{MatrixIndexA, MatrixIndexB},
+};
 
 const NUM_COLOR_CHANNELS: usize = 2;
 
@@ -79,7 +81,7 @@ impl Default for TransformUnit {
 }
 
 impl TransformUnit {
-    pub fn load(&mut self, mut size: u32, mut address: u32, ram: &mut mem::Memory, mut index: u32) {
+    pub fn load(&mut self, mut size: u32, mut address: u32, ram: &mut Memory, mut index: u32) {
         if size > 0 {
             if address < 0x1000 {
                 for i in 0..size {

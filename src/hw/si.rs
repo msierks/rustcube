@@ -1,4 +1,4 @@
-use crate::Context;
+use crate::hw::mmio::{Mmio, MmioDevice};
 
 const SI_POLL: u32 = 0x30;
 const SI_COMM_CONTROL: u32 = 0x34;
@@ -12,6 +12,52 @@ pub struct SerialInterface {
     comm_cont_status: CommunicationControlStatusRegister,
     status: StatusRegister,
     clock_count: u32,
+}
+
+impl MmioDevice for SerialInterface {
+    const BASE_ADDR: u32 = 0x0C00_6400;
+
+    fn register_mmio(mmio: &mut Mmio) {
+        mmio.register_write_u32(Self::BASE_ADDR + SI_POLL, |bus, _, _, val| {
+            bus.si.poll = val.into()
+        });
+        mmio.register_u32(
+            Self::BASE_ADDR + SI_COMM_CONTROL,
+            |bus, _, _| bus.si.comm_cont_status.into(),
+            |bus, _, _, val| {
+                let mut cont: CommunicationControlStatusRegister = val.into();
+
+                if cont.rdstint() {
+                    cont.set_rdstint(false);
+                }
+                if cont.tcint() {
+                    cont.set_tcint(false);
+                }
+                bus.si.comm_cont_status = cont;
+
+                if cont.tstart() {
+                    warn!("FIXME tstart");
+                }
+
+                if !cont.tstart() {
+                    warn!("Update interrupt");
+                }
+            },
+        );
+        mmio.register_u32(
+            Self::BASE_ADDR + SI_STATUS,
+            |bus, _, _| bus.si.status.into(),
+            |bus, _, _, val| bus.si.status = val.into(),
+        );
+        mmio.register_u32(
+            Self::BASE_ADDR + SI_EXI_CLOCK_LOCK,
+            |bus, _, _| bus.si.clock_count,
+            |bus, _, _, val| bus.si.clock_count = val,
+        );
+        mmio.register_write_u32(Self::BASE_ADDR + SI_IO_BUFFER, |_bus, _, _, _val| {
+            warn!("Warning, ignoring si buffer right now")
+        });
+    }
 }
 
 bitfield! {
@@ -84,48 +130,5 @@ impl From<u32> for StatusRegister {
 impl From<StatusRegister> for u32 {
     fn from(s: StatusRegister) -> u32 {
         s.0
-    }
-}
-
-pub fn read_u32(ctx: &mut Context, register: u32) -> u32 {
-    match register {
-        SI_COMM_CONTROL => ctx.si.comm_cont_status.into(),
-        SI_STATUS => ctx.si.status.into(),
-        SI_EXI_CLOCK_LOCK => ctx.si.clock_count,
-        _ => {
-            warn!("read_u32 unrecognized register {:#x}", register);
-            0
-        }
-    }
-}
-
-pub fn write_u32(ctx: &mut Context, register: u32, val: u32) {
-    match register {
-        SI_POLL => ctx.si.poll = val.into(),
-        SI_COMM_CONTROL => {
-            let mut cont: CommunicationControlStatusRegister = val.into();
-
-            if cont.rdstint() {
-                cont.set_rdstint(false);
-            }
-            if cont.tcint() {
-                cont.set_tcint(false);
-            }
-            ctx.si.comm_cont_status = cont;
-
-            if cont.tstart() {
-                warn!("FIXME tstart");
-            }
-
-            if !cont.tstart() {
-                warn!("Update interrupt");
-            }
-        }
-        SI_STATUS => {
-            ctx.si.status = val.into();
-        }
-        SI_EXI_CLOCK_LOCK => ctx.si.clock_count = val,
-        SI_IO_BUFFER => (), // ignore for now
-        _ => warn!("write_u32 unrecognized register {:#x}:{}", register, val),
     }
 }

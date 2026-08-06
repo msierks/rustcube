@@ -1,13 +1,19 @@
 mod cpu;
 
-use crate::pi::{clear_interrupt, set_interrupt, PI_INTERRUPT_DSP};
-use crate::utils::Halveable;
-use crate::Context;
-
-use byteorder::{BigEndian, ReadBytesExt};
 use std::fs;
 
-use crate::dsp::cpu::{dsp_step, DspCpu};
+use byteorder::{BigEndian, ReadBytesExt};
+
+use self::cpu::{dsp_step, DspCpu, INTERRUPT_RESET};
+use crate::{
+    bus::Bus,
+    cpu::CpuState,
+    hw::{
+        mmio::{Mmio, MmioDevice},
+        pi::{ProcessorInterface, PI_INTERRUPT_DSP},
+    },
+    utils::Halveable,
+};
 
 const DSP_CTDMBH: u32 = 0x00; // CPU -> DSP Mailbox High Address (0xFFFE)
 const DSP_CTDMBL: u32 = 0x02; // CPU -> DSP Mailbox Low Address (0xFFFF)
@@ -26,11 +32,11 @@ const ARAM_DMA_SIZE_LO: u32 = 0x2A; // ARAM DMA Block Length High Register
 const DSP_AIDMAMAH: u32 = 0x30; // AI DMA Maim Memory Starting Address High Register
 const DSP_AIDMAMAL: u32 = 0x32; // AI DMA Maim Memory Starting Address Low Register
 const DSP_AIDMABL: u32 = 0x36; // AI DMA Block Length
-                               //const AI_DMA_BYTES_LEFT: u32 = 0x3A;
+const DSP_AIDMABR: u32 = 0x3A; // AI DMA Blocks Remaining
 
-//const AI_DMA_INT: u32 = 0x0;
-//const ARAM_DMA_INT: u32 = 0x0;
-//const DSP_INT: u32 = 0x0;
+const AI_DMA_INT: u16 = 0x0;
+//const ARAM_DMA_INT: u16 = 0x0;
+//const DSP_INT: u16 = 0x0;
 
 const TIMER_RATIO: u64 = 6;
 
@@ -44,6 +50,7 @@ pub struct DspInterface {
     aram_dma_size: u32,
     aidma: u32,
     aidmabl: u16,
+    aidmabr: u16,
     cpu_ticks: u64,
     ctx: DspContext,
 }
@@ -68,9 +75,268 @@ impl Default for DspInterface {
             aram_dma_size: 0,
             aidma: 0,
             aidmabl: 0,
+            aidmabr: 0,
             cpu_ticks: 0,
             ctx,
         }
+    }
+}
+
+impl MmioDevice for DspInterface {
+    const BASE_ADDR: u32 = 0x0C00_5000;
+
+    fn register_mmio(mmio: &mut Mmio) {
+        mmio.register_u16(
+            Self::BASE_ADDR + DSP_CTDMBH,
+            |bus, _, _| bus.dsp.ctx.cdmb.hi(),
+            |bus, _, _, val| {
+                bus.dsp.ctx.cdmb = bus.dsp.ctx.cdmb.set_hi(val & 0x7FFF); // Clear valid flag
+            },
+        );
+        mmio.register_u16(
+            Self::BASE_ADDR + DSP_CTDMBL,
+            |bus, _, _| bus.dsp.ctx.cdmb.lo(),
+            |bus, _, _, val| {
+                bus.dsp.ctx.cdmb = bus.dsp.ctx.cdmb.set_lo(val) | 0x8000_0000; // Set valid flag
+            },
+        );
+        mmio.register_read_u16(Self::BASE_ADDR + DSP_DTCMBH, |bus, _, _| {
+            bus.dsp.ctx.dcmb.hi()
+        });
+        mmio.register_read_u16(Self::BASE_ADDR + DSP_DTCMBL, |bus, _, _| {
+            let val = bus.dsp.ctx.dcmb.lo();
+            bus.dsp.ctx.dcmb &= 0x7FFF_FFFF; // Clear valid flag
+            val
+        });
+        mmio.register_u16(
+            Self::BASE_ADDR + DSP_CTDCR,
+            |bus, _, _| bus.dsp.control_register.into(),
+            |bus, cpu_state, _, val| {
+                let tmp = ControlRegister(val);
+
+                if tmp.reset() {
+                    if tmp.dsp_init() {
+                        info!("DSP reset");
+                        bus.dsp.ctx.reset(INTERRUPT_RESET);
+                    } else {
+                        bus.dsp.ctx.reset(0x0000);
+                    }
+                    bus.dsp.aidmabl = 0;
+                    bus.dsp.aidmabr = 0;
+                }
+
+                bus.dsp.control_register.set_reset(false);
+                bus.dsp.control_register.set_interrupt(tmp.interrupt());
+                bus.dsp.control_register.set_halt(tmp.halt());
+                bus.dsp.control_register.set_init_code(tmp.init_code());
+                bus.dsp.control_register.set_dsp_init(tmp.dsp_init());
+
+                bus.dsp
+                    .control_register
+                    .set_ai_interrupt_mask(tmp.ai_interrupt_mask());
+                bus.dsp
+                    .control_register
+                    .set_aram_interrupt_mask(tmp.aram_interrupt_mask());
+                bus.dsp
+                    .control_register
+                    .set_dsp_interrupt_mask(tmp.dsp_interrupt_mask());
+
+                if tmp.ai_interrupt() {
+                    bus.dsp.control_register.set_ai_interrupt(false);
+                }
+                if tmp.aram_interrupt() {
+                    bus.dsp.control_register.set_aram_interrupt(false);
+                }
+                if tmp.dsp_interrupt() {
+                    bus.dsp.control_register.set_dsp_interrupt(false);
+                }
+
+                Self::update_interrupts(bus, cpu_state);
+            },
+        );
+        mmio.register_u16(
+            Self::BASE_ADDR + DSP_ARAMC,
+            |bus, _, _| bus.dsp.aram_conf.0,
+            |bus, _, _, val| {
+                bus.dsp.aram_conf = AramConfigRegister(val & 0x7F);
+            },
+        );
+        mmio.register_read_u16(Self::BASE_ADDR + DSP_ARAMSF, |bus, _, _| bus.dsp.aram_state);
+        mmio.register_u16(
+            Self::BASE_ADDR + DSP_ARAMCT,
+            |bus, _, _| bus.dsp.aram_refresh.0,
+            |bus, _, _, val| {
+                bus.dsp.aram_refresh = AramControlTestRegister(val & 0x7FF);
+            },
+        );
+        mmio.register_u16(
+            Self::BASE_ADDR + ARAM_DMA_MMAADDR_HI,
+            |bus, _, _| bus.dsp.aram_mma_addr.hi(),
+            |bus, _, _, val| {
+                bus.dsp.aram_mma_addr = bus.dsp.aram_mma_addr.set_hi(val & 0x3FF);
+            },
+        );
+        mmio.register_u16(
+            Self::BASE_ADDR + ARAM_DMA_MMAADDR_LO,
+            |bus, _, _| bus.dsp.aram_mma_addr.lo(),
+            |bus, _, _, val| {
+                bus.dsp.aram_mma_addr = bus.dsp.aram_mma_addr.set_lo(val & 0xFFE0);
+            },
+        );
+        mmio.register_write_u32(Self::BASE_ADDR + ARAM_DMA_MMAADDR_HI, |bus, _, _, val| {
+            bus.dsp.aram_mma_addr = val & 0x03FF_FFE0;
+        });
+        mmio.register_u16(
+            Self::BASE_ADDR + ARAM_DMA_ARADDR_HI,
+            |bus, _, _| bus.dsp.aram_ar_addr.hi(),
+            |bus, _, _, val| {
+                bus.dsp.aram_ar_addr = bus.dsp.aram_ar_addr.set_hi(val & 0x3FF);
+            },
+        );
+        mmio.register_u16(
+            Self::BASE_ADDR + ARAM_DMA_ARADDR_LO,
+            |bus, _, _| bus.dsp.aram_ar_addr.lo(),
+            |bus, _, _, val| {
+                bus.dsp.aram_ar_addr = bus.dsp.aram_ar_addr.set_lo(val & 0xFFE0);
+            },
+        );
+        mmio.register_write_u32(Self::BASE_ADDR + ARAM_DMA_ARADDR_HI, |bus, _, _, val| {
+            bus.dsp.aram_ar_addr = val & 0x03FF_FFE0;
+        });
+        mmio.register_u16(
+            Self::BASE_ADDR + ARAM_DMA_SIZE_HI,
+            |bus, _, _| bus.dsp.aram_dma_size.hi(),
+            |bus, _, _, val| {
+                bus.dsp.aram_dma_size = bus.dsp.aram_dma_size.set_hi(val);
+            },
+        );
+        mmio.register_u16(
+            Self::BASE_ADDR + ARAM_DMA_SIZE_LO,
+            |bus, _, _| bus.dsp.aram_dma_size.lo(),
+            |bus, cpu_state, _, val| {
+                bus.dsp.aram_dma_size = bus.dsp.aram_dma_size.set_lo(val);
+
+                Self::aram_dma(bus);
+
+                Self::generate_interrupt(bus, cpu_state, 0x20);
+            },
+        );
+        mmio.register_write_u32(
+            Self::BASE_ADDR + ARAM_DMA_SIZE_HI,
+            |bus, cpu_state, _, val| {
+                bus.dsp.aram_dma_size = val;
+
+                Self::aram_dma(bus);
+
+                Self::generate_interrupt(bus, cpu_state, 0x20);
+            },
+        );
+        mmio.register_u16(
+            Self::BASE_ADDR + DSP_AIDMAMAH,
+            |bus, _, _| bus.dsp.aidma.hi(),
+            |bus, _, _, val| {
+                bus.dsp.aidma = bus.dsp.aidma.set_hi(val & 0x3FF);
+            },
+        );
+        mmio.register_u16(
+            Self::BASE_ADDR + DSP_AIDMAMAL,
+            |bus, _, _| bus.dsp.aidma.lo(),
+            |bus, _, _, val| {
+                bus.dsp.aidma = bus.dsp.aidma.set_lo(val & 0xFFE0);
+            },
+        );
+        mmio.register_u16(
+            Self::BASE_ADDR + DSP_AIDMABL,
+            |bus, _, _| bus.dsp.aidmabl,
+            |bus, cpu_state, _, val| {
+                let already_enabled = bus.dsp.aidmabl & 0x8000 != 0;
+                bus.dsp.aidmabl = val;
+                let control = DmaControlRegister(val);
+                if !already_enabled && control.enable() {
+                    bus.dsp.aidmabr = control.size();
+                    Self::generate_interrupt(bus, cpu_state, AI_DMA_INT);
+                    bus.dsp.aidmabr = 0;
+                }
+            },
+        );
+        mmio.register_read_u16(Self::BASE_ADDR + DSP_AIDMABR, |bus, _, _| {
+            // Remaining is zero-based on hardware; never stuck non-zero or games hang.
+            if bus.dsp.aidmabr > 0 {
+                bus.dsp.aidmabr - 1
+            } else {
+                0
+            }
+        });
+    }
+}
+
+impl DspInterface {
+    fn generate_interrupt(bus: &mut Bus, cpu_state: &mut CpuState, interrupt: u16) {
+        bus.dsp.control_register = ControlRegister(bus.dsp.control_register.0 | (interrupt));
+
+        Self::update_interrupts(bus, cpu_state);
+    }
+
+    pub fn update_interrupts(bus: &mut Bus, cpu_state: &mut CpuState) {
+        let control = bus.dsp.control_register.0;
+
+        if ((control >> 1) & control) & 0xA8 != 0 {
+            ProcessorInterface::set_interrupt(bus, cpu_state, PI_INTERRUPT_DSP);
+        } else {
+            ProcessorInterface::clear_interrupt(bus, cpu_state, PI_INTERRUPT_DSP);
+        }
+    }
+
+    fn aram_dma(bus: &mut Bus) {
+        let mut cnt = bus.dsp.aram_dma_size & 0x3FF_FFE0;
+        let dir = (bus.dsp.aram_dma_size & 0x8000_0000) != 0; // 0: MM → ARAM, 1: ARAM → MM
+
+        // Mirrored every 64MB (Dolphin / hardware)
+        bus.dsp.aram_ar_addr &= 0x03FF_FFFF;
+        bus.dsp.aram_mma_addr &= 0x03FF_FFFF;
+
+        if !dir {
+            info!(
+                "DMA from Main Memory {:#010x} to ARAM {:#010x} ({:#x})",
+                bus.dsp.aram_mma_addr, bus.dsp.aram_ar_addr, cnt,
+            );
+        } else {
+            info!(
+                "DMA from ARAM {:#010x} to Main Memory {:#010x} ({:#x})",
+                bus.dsp.aram_ar_addr, bus.dsp.aram_mma_addr, cnt,
+            );
+        }
+
+        if bus.dsp.aram_ar_addr < ARAM_SIZE as u32 && cnt != 0 {
+            let aram_mask = (ARAM_SIZE as u32) - 1;
+            while cnt != 0 {
+                let ar_idx = (bus.dsp.aram_ar_addr & aram_mask) as usize;
+                if !dir {
+                    // MM -> ARAM
+                    bus.dsp.ctx.aram[ar_idx] = bus.memory.read_u8(bus.dsp.aram_mma_addr);
+                } else {
+                    // ARAM -> MM
+                    bus.memory
+                        .write_u8(bus.dsp.aram_mma_addr, bus.dsp.ctx.aram[ar_idx]);
+                }
+                bus.dsp.aram_mma_addr += 1;
+                bus.dsp.aram_ar_addr += 1;
+                cnt -= 1;
+            }
+
+            bus.dsp.aram_dma_size &= 0x8000_0000; // clear count
+        }
+    }
+
+    pub fn update(bus: &mut Bus, cpu_state: &mut CpuState) {
+        let ticks = cpu_state.timers.get_ticks();
+        if ticks - bus.dsp.cpu_ticks > TIMER_RATIO {
+            bus.dsp.cpu_ticks = ticks;
+        } else {
+            return;
+        }
+
+        bus.dsp.ctx.step();
     }
 }
 
@@ -149,184 +415,6 @@ impl From<u16> for AramControlTestRegister {
     fn from(v: u16) -> Self {
         AramControlTestRegister(v)
     }
-}
-
-pub fn read_u16(ctx: &mut Context, register: u32) -> u16 {
-    match register {
-        DSP_CTDMBH => ctx.dsp.ctx.cdmb.hi(),
-        DSP_CTDMBL => ctx.dsp.ctx.cdmb.lo(),
-        DSP_DTCMBH => ctx.dsp.ctx.dcmb.hi(),
-        DSP_DTCMBL => {
-            let val = ctx.dsp.ctx.dcmb.lo();
-            ctx.dsp.ctx.dcmb &= 0x7FFF_FFFF; // Clear valid flag
-            val
-        }
-        DSP_CTDCR => ctx.dsp.control_register.into(),
-        DSP_ARAMC => ctx.dsp.aram_conf.0,
-        DSP_ARAMSF => ctx.dsp.aram_state,
-        DSP_ARAMCT => ctx.dsp.aram_refresh.0,
-        ARAM_DMA_MMAADDR_HI => ctx.dsp.aram_mma_addr.hi(),
-        ARAM_DMA_MMAADDR_LO => ctx.dsp.aram_mma_addr.lo(),
-        ARAM_DMA_ARADDR_HI => ctx.dsp.aram_ar_addr.hi(),
-        ARAM_DMA_ARADDR_LO => ctx.dsp.aram_ar_addr.lo(),
-        ARAM_DMA_SIZE_HI => ctx.dsp.aram_dma_size.hi(),
-        ARAM_DMA_SIZE_LO => ctx.dsp.aram_dma_size.lo(),
-        DSP_AIDMAMAH => ctx.dsp.aidma.hi(),
-        DSP_AIDMAMAL => ctx.dsp.aidma.lo(),
-        DSP_AIDMABL => ctx.dsp.aidmabl,
-        _ => {
-            panic!("read_u16 unrecognized dsp register {:#x}", register);
-        }
-    }
-}
-
-pub fn write_u16(ctx: &mut Context, register: u32, val: u16) {
-    match register {
-        DSP_CTDMBH => ctx.dsp.ctx.cdmb = ctx.dsp.ctx.cdmb.set_hi(val & 0x7FFF), // Clear valid flag
-        DSP_CTDMBL => ctx.dsp.ctx.cdmb = ctx.dsp.ctx.cdmb.set_lo(val) | 0x8000_0000, // Set valid flag
-        DSP_CTDCR => {
-            let tmp = ControlRegister(val);
-
-            if tmp.reset() {
-                info!("DSP reset");
-                if tmp.dsp_init() {
-                    ctx.dsp.ctx.reset(0x8000);
-                } else {
-                    ctx.dsp.ctx.reset(0x0000);
-                }
-            }
-
-            ctx.dsp.control_register.set_interrupt(tmp.interrupt());
-            ctx.dsp.control_register.set_halt(tmp.halt());
-            ctx.dsp.control_register.set_init_code(tmp.init_code());
-            ctx.dsp.control_register.set_dsp_init(tmp.dsp_init());
-
-            ctx.dsp
-                .control_register
-                .set_ai_interrupt_mask(tmp.ai_interrupt_mask());
-            ctx.dsp
-                .control_register
-                .set_aram_interrupt_mask(tmp.aram_interrupt_mask());
-            ctx.dsp
-                .control_register
-                .set_dsp_interrupt_mask(tmp.dsp_interrupt_mask());
-
-            if tmp.ai_interrupt() {
-                ctx.dsp.control_register.set_ai_interrupt(false);
-            }
-            if tmp.aram_interrupt() {
-                ctx.dsp.control_register.set_aram_interrupt(false);
-            }
-            if tmp.dsp_interrupt() {
-                ctx.dsp.control_register.set_dsp_interrupt(false);
-            }
-
-            update_interrupt(ctx);
-        }
-        DSP_ARAMC => ctx.dsp.aram_conf = AramConfigRegister(val & 0x7F),
-        DSP_ARAMCT => ctx.dsp.aram_refresh = AramControlTestRegister(val & 0x7FF),
-        ARAM_DMA_MMAADDR_HI => ctx.dsp.aram_mma_addr = ctx.dsp.aram_mma_addr.set_hi(val & 0x3FF),
-        ARAM_DMA_MMAADDR_LO => ctx.dsp.aram_mma_addr = ctx.dsp.aram_mma_addr.set_lo(val & 0xFFF0),
-        ARAM_DMA_ARADDR_HI => ctx.dsp.aram_ar_addr = ctx.dsp.aram_ar_addr.set_hi(val & 0x3FF),
-        ARAM_DMA_ARADDR_LO => ctx.dsp.aram_ar_addr = ctx.dsp.aram_ar_addr.set_lo(val & 0xFFE0),
-        ARAM_DMA_SIZE_HI => ctx.dsp.aram_dma_size = ctx.dsp.aram_dma_size.set_hi(val & 0x83FF),
-        ARAM_DMA_SIZE_LO => {
-            ctx.dsp.aram_dma_size = ctx.dsp.aram_dma_size.set_lo(val & 0xFFE0);
-
-            aram_dma(ctx);
-
-            generate_interrupt(ctx, 0x20);
-        }
-        DSP_AIDMAMAH => ctx.dsp.aidma = ctx.dsp.aidma.set_hi(val & 0x3FF),
-        DSP_AIDMAMAL => ctx.dsp.aidma = ctx.dsp.aidma.set_lo(val & 0xFFE0),
-        DSP_AIDMABL => ctx.dsp.aidmabl = val & 0x7FFF,
-        _ => panic!(
-            "write_u16 unrecognized dsp register {:#x} {:#x}",
-            register, val
-        ),
-    }
-}
-
-fn generate_interrupt(ctx: &mut Context, interrupt: u16) {
-    ctx.dsp.control_register = ControlRegister(ctx.dsp.control_register.0 | (interrupt));
-
-    update_interrupt(ctx);
-}
-
-pub fn update_interrupt(ctx: &mut Context) {
-    let control = ctx.dsp.control_register.0;
-
-    if ((control >> 1) & control) & 0xA8 != 0 {
-        set_interrupt(ctx, PI_INTERRUPT_DSP);
-    } else {
-        clear_interrupt(ctx, PI_INTERRUPT_DSP);
-    }
-}
-
-fn aram_dma(ctx: &mut Context) {
-    let mut cnt = ctx.dsp.aram_dma_size & 0x3FF_FFE0;
-    let dir = (ctx.dsp.aram_dma_size & 0x80000) != 0; // 0: main memory -> ARAM, 1: ARAM -> main memory
-
-    if !dir {
-        info!(
-            "DMA from Main Memory {:#010x} to ARAM {:#010x} ({:#x}) PC: {:#x}",
-            ctx.dsp.aram_mma_addr,
-            ctx.dsp.aram_ar_addr,
-            cnt,
-            ctx.cpu.pc()
-        );
-    } else {
-        info!(
-            "DMA from ARAM {:#010x} to Main Memory{:#010x} ({:#x}) PC: {:#x}",
-            ctx.dsp.aram_ar_addr,
-            ctx.dsp.aram_mma_addr,
-            cnt,
-            ctx.cpu.pc()
-        );
-    }
-
-    if ctx.dsp.aram_ar_addr >= ARAM_SIZE as u32 {
-        return;
-    }
-
-    if cnt != 0 {
-        while cnt != 0 {
-            // MM -> ARAM
-            if !dir {
-                // go to iram
-                // NOTE: DSP IRAM is mapped to first 8kB of ARAM, therefore cpu can directly DMA DSP code to DSP IRAM
-                if ctx.dsp.aram_ar_addr < 0x2000 {
-                    let data = ctx.mem.read_u16(ctx.dsp.aram_mma_addr);
-
-                    ctx.dsp.ctx.iram[ctx.dsp.aram_ar_addr as usize] = data;
-                // go to aram
-                } else {
-                    ctx.dsp.ctx.aram[ctx.dsp.aram_ar_addr as usize] =
-                        ctx.mem.read_u8(ctx.dsp.aram_mma_addr);
-                }
-            // ARAM -> MM
-            } else {
-                unimplemented!("DSP ARAM -> MM");
-            }
-
-            ctx.dsp.aram_mma_addr += 8;
-            ctx.dsp.aram_ar_addr += 8;
-            cnt -= 8;
-        }
-
-        ctx.dsp.aram_dma_size &= 0x8000_0000; // clear count
-    }
-}
-
-pub fn update(ctx: &mut Context) {
-    let ticks = ctx.get_ticks();
-    if ticks - ctx.dsp.cpu_ticks > TIMER_RATIO {
-        ctx.dsp.cpu_ticks = ticks;
-    } else {
-        return;
-    }
-
-    ctx.dsp.ctx.step();
 }
 
 /// ARAM Size: 16MB
