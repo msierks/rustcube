@@ -450,19 +450,15 @@ pub fn simplified_mnemonic(
                     };
                     return Some((mnemonic, format_bc_cr_target(bi, target)));
                 }
-                16 => {
-                    if bi == 0 {
-                        operands = format!("{target:#x}");
+                16 if bi == 0 => {
+                    operands = format!("{target:#x}");
 
-                        return Some(("bdnz", operands));
-                    }
+                    return Some(("bdnz", operands));
                 }
-                18 => {
-                    if bi == 0 {
-                        operands = format!("{target:#x}");
+                18 if bi == 0 => {
+                    operands = format!("{target:#x}");
 
-                        return Some(("bdz", operands));
-                    }
+                    return Some(("bdz", operands));
                 }
                 _ => (),
             }
@@ -502,20 +498,14 @@ pub fn simplified_mnemonic(
                     };
                     return Some((mnemonic, format_bclr_cr(bi)));
                 }
-                16 => {
-                    if bi == 0 {
-                        return Some(("bdnzlr", operands));
-                    }
+                16 if bi == 0 => {
+                    return Some(("bdnzlr", operands));
                 }
-                18 => {
-                    if bi == 0 {
-                        return Some(("bdzlr", operands));
-                    }
+                18 if bi == 0 => {
+                    return Some(("bdzlr", operands));
                 }
-                20 => {
-                    if bi == 0 {
-                        return Some(("blr", operands));
-                    }
+                20 if bi == 0 => {
+                    return Some(("blr", operands));
                 }
                 _ => (),
             }
@@ -544,10 +534,8 @@ pub fn simplified_mnemonic(
                     };
                     return Some((mnemonic, format_bclr_cr(bi)));
                 }
-                20 => {
-                    if bi == 0 {
-                        return Some(("bctr", operands));
-                    }
+                20 if bi == 0 => {
+                    return Some(("bctr", operands));
                 }
                 _ => (),
             }
