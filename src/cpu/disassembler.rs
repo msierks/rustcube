@@ -7,7 +7,7 @@ use crate::cpu::{
         OPTABLE_SIZE,
     },
     registers::{SPR_CTR, SPR_LR, SPR_XER},
-    utils::{sign_ext_16, sign_ext_26},
+    utils::{sign_ext_12, sign_ext_16, sign_ext_26},
 };
 
 pub struct Disassembler {
@@ -168,9 +168,9 @@ pub fn mnemonic(opcode: Opcode) -> &'static str {
         Opcode::Bcx => "bc",
         Opcode::Sc => "sc",
         Opcode::Bx => "b",
-        Opcode::Rlwimix => "rlwimix",
-        Opcode::Rlwinmx => "rlwinmx",
-        Opcode::Rlwnmx => "rlwnmx",
+        Opcode::Rlwimix => "rlwimi",
+        Opcode::Rlwinmx => "rlwinm",
+        Opcode::Rlwnmx => "rlwnm",
         Opcode::Ori => "ori",
         Opcode::Oris => "oris",
         Opcode::Xori => "xori",
@@ -183,7 +183,7 @@ pub fn mnemonic(opcode: Opcode) -> &'static str {
         Opcode::Lbzu => "lbzu",
         Opcode::Stw => "stw",
         Opcode::Stwu => "stwu",
-        Opcode::Stb => "stbu",
+        Opcode::Stb => "stb",
         Opcode::Stbu => "stbu",
         Opcode::Lhz => "lhz",
         Opcode::Lhzu => "lhzu",
@@ -199,7 +199,7 @@ pub fn mnemonic(opcode: Opcode) -> &'static str {
         Opcode::Lfdu => "lfdu",
         Opcode::Stfs => "stfs",
         Opcode::Stfsu => "stfsu",
-        Opcode::Stfd => "stfdu",
+        Opcode::Stfd => "stfd",
         Opcode::Stfdu => "stfdu",
         Opcode::PsqL => "psq_l",
         Opcode::PsqLu => "psq_lu",
@@ -213,7 +213,7 @@ pub fn mnemonic(opcode: Opcode) -> &'static str {
         Opcode::Illegal => "<illegal>",
         // Table4,
         Opcode::PsCmpu0 => "ps_cmpu0",
-        Opcode::PsqLx => "ps_lx",
+        Opcode::PsqLx => "psq_lx",
         Opcode::PsqStx => "psq_stx",
         Opcode::PsSum0x => "ps_sum0",
         Opcode::PsSum1x => "ps_sum1",
@@ -232,9 +232,9 @@ pub fn mnemonic(opcode: Opcode) -> &'static str {
         Opcode::PsMaddx => "ps_madd",
         Opcode::PsNmsubx => "ps_nmsub",
         Opcode::PsNmaddx => "ps_nmadd",
-        Opcode::PsCmpo0 => "ps_cmp0",
+        Opcode::PsCmpo0 => "ps_cmpo0",
         Opcode::PsqLux => "psq_lux",
-        Opcode::PsqStux => "ps_Stux",
+        Opcode::PsqStux => "psq_stux",
         Opcode::PsNegx => "ps_neg",
         Opcode::PsCmpu1 => "ps_cmpu1",
         Opcode::PsMrx => "ps_mr",
@@ -273,7 +273,7 @@ pub fn mnemonic(opcode: Opcode) -> &'static str {
         Opcode::Cntlzwx => "cntlzw",
         Opcode::Andx => "and",
         Opcode::Cmpl => "cmpl",
-        Opcode::Subfx => "subfx",
+        Opcode::Subfx => "subf",
         Opcode::Dcbst => "dcbst",
         Opcode::Lwzux => "lwzux",
         Opcode::Andcx => "andc",
@@ -416,52 +416,19 @@ pub fn simplified_mnemonic(
                     return Some(("bdnzf", operands));
                 }
                 2 => {
-                    operands = format!("{bi}, {target:#x}");
+                    operands = format!("{bi},{target:#x}");
 
                     return Some(("bdzf", operands));
                 }
                 4 => {
-                    if bi == 0 {
-                        operands = format!("{target:#x}");
-
-                        return Some(("bge", operands)); // or bnl
-                    }
-
-                    if bi & 0b11 == 0 {
-                        operands = format!("cr{},{target:#x}", bi & 0b11);
-
-                        return Some(("bge", operands)); // or bnl
-                    }
-
-                    if bi & 0b11 == 1 {
-                        if bi != 1 {
-                            operands = format!("cr{},{target:#x}", bi & 0b11);
-                        } else {
-                            operands = format!("{target:#x}");
-                        }
-
-                        return Some(("ble", operands)); // or bng
-                    }
-
-                    if bi & 0b11 == 2 {
-                        if bi != 2 {
-                            operands = format!("cr{},{target:#x}", bi & 0b11);
-                        } else {
-                            operands = format!("{target:#x}");
-                        }
-
-                        return Some(("bne", operands));
-                    }
-
-                    if bi & 0b11 == 3 {
-                        if bi != 3 {
-                            operands = format!("cr{},{:#x}", bi & 0b11, target);
-                        } else {
-                            operands = format!("{target:#x}");
-                        }
-
-                        return Some(("bns", operands));
-                    }
+                    let mnemonic = match bi & 0b11 {
+                        0 => "bge", // or bnl
+                        1 => "ble", // or bng
+                        2 => "bne",
+                        3 => "bns",
+                        _ => unreachable!(),
+                    };
+                    return Some((mnemonic, format_bc_cr_target(bi, target)));
                 }
                 8 => {
                     operands = format!("{bi},{target:#x}");
@@ -474,47 +441,14 @@ pub fn simplified_mnemonic(
                     return Some(("bdzt", operands));
                 }
                 12 => {
-                    if bi & 0b11 == 0 {
-                        operands = format!("cr{},{:#x}", bi & 0b11, target);
-
-                        return Some(("blt", operands));
-                    }
-
-                    if bi == 0 {
-                        operands = format!("{target:#x}");
-
-                        return Some(("blt", operands));
-                    }
-
-                    if bi & 0b11 == 1 {
-                        if bi != 1 {
-                            operands = format!("cr{},{:#x}", bi & 0b11, target);
-                        } else {
-                            operands = format!("{target:#x}");
-                        }
-
-                        return Some(("bgt", operands));
-                    }
-
-                    if bi & 0b11 == 2 {
-                        if bi != 2 {
-                            operands = format!("cr{},{:#x}", bi & 0b11, target);
-                        } else {
-                            operands = format!("{target:#x}");
-                        }
-
-                        return Some(("beq", operands));
-                    }
-
-                    if bi & 0b11 == 3 {
-                        if bi != 3 {
-                            operands = format!("cr{},{:#x}", bi & 0b11, target);
-                        } else {
-                            operands = format!("{target:#x}");
-                        }
-
-                        return Some(("bso", operands)); // or bun
-                    }
+                    let mnemonic = match bi & 0b11 {
+                        0 => "blt",
+                        1 => "bgt",
+                        2 => "beq",
+                        3 => "bso", // or bun
+                        _ => unreachable!(),
+                    };
+                    return Some((mnemonic, format_bc_cr_target(bi, target)));
                 }
                 16 => {
                     if bi == 0 {
@@ -538,85 +472,35 @@ pub fn simplified_mnemonic(
 
             match bo {
                 0 => {
-                    operands = format!("cr{bi}");
+                    operands = format!("{bi}");
                     return Some(("bdnzflr", operands));
                 }
                 4 => {
-                    if bi == 0 {
-                        return Some(("bgelr", operands));
-                    }
-
-                    if bi & 0b11 == 0 {
-                        operands = format!("cr{}", bi & 0b11);
-
-                        return Some(("bgelr", operands));
-                    }
-
-                    if bi & 0b11 == 1 {
-                        if bi != 1 {
-                            operands = format!("cr{bi}");
-                        }
-
-                        return Some(("blelr", operands));
-                    }
-
-                    if bi & 0b11 == 2 {
-                        if bi != 2 {
-                            operands = format!("cr{}", bi & 0b11);
-                        }
-
-                        return Some(("bnelr", operands));
-                    }
-
-                    if bi & 0b11 == 3 {
-                        if bi != 3 {
-                            operands = format!("cr{bi}");
-                        }
-
-                        return Some(("bnslr", operands));
-                    }
+                    let mnemonic = match bi & 0b11 {
+                        0 => "bgelr",
+                        1 => "blelr",
+                        2 => "bnelr",
+                        3 => "bnslr",
+                        _ => unreachable!(),
+                    };
+                    return Some((mnemonic, format_bclr_cr(bi)));
                 }
                 8 => {
-                    operands = format!("cr{bi}");
+                    operands = format!("{bi}");
                     return Some(("bdnztlr", operands));
                 }
                 10 => {
                     return Some(("bdztlr", operands));
                 }
                 12 => {
-                    if bi == 0 {
-                        return Some(("bltlr", operands));
-                    }
-
-                    if bi & 0b11 == 0 {
-                        operands = format!("cr{}", bi & 0b11);
-
-                        return Some(("bltlr", operands));
-                    }
-
-                    if bi & 0b11 == 1 {
-                        if bi != 1 {
-                            operands = format!("cr{bi}");
-                        }
-
-                        return Some(("bgtlr", operands));
-                    }
-
-                    if bi & 0b11 == 2 {
-                        if bi != 2 {
-                            operands = format!("cr{bi}");
-                        }
-
-                        return Some(("beqlr", operands));
-                    }
-
-                    if bi & 0b11 == 3 {
-                        if bi != 3 {
-                            operands = format!("cr{bi}");
-                        }
-
-                        return Some(("bsolr", operands));
-                    }
+                    let mnemonic = match bi & 0b11 {
+                        0 => "bltlr",
+                        1 => "bgtlr",
+                        2 => "beqlr",
+                        3 => "bsolr",
+                        _ => unreachable!(),
+                    };
+                    return Some((mnemonic, format_bclr_cr(bi)));
                 }
                 16 => {
                     if bi == 0 {
@@ -629,7 +513,7 @@ pub fn simplified_mnemonic(
                     }
                 }
                 20 => {
-                    if bi & 0b11 == 0 {
+                    if bi == 0 {
                         return Some(("blr", operands));
                     }
                 }
@@ -641,74 +525,24 @@ pub fn simplified_mnemonic(
 
             match bo {
                 4 => {
-                    if bi == 0 {
-                        return Some(("bgectr", operands));
-                    }
-
-                    if bi & 0b11 == 0 {
-                        operands = format!("cr{}", bi & 0b11);
-
-                        return Some(("bgectr", operands));
-                    }
-
-                    if bi & 0b11 == 1 {
-                        if bi != 1 {
-                            operands = format!("cr{bi}");
-                        }
-
-                        return Some(("blectr", operands));
-                    }
-
-                    if bi & 0b11 == 2 {
-                        if bi != 2 {
-                            operands = format!("cr{bi}");
-                        }
-
-                        return Some(("bnectr", operands));
-                    }
-
-                    if bi & 0b11 == 3 {
-                        if bi != 3 {
-                            operands = format!("cr{bi}");
-                        }
-
-                        return Some(("bnsctr", operands));
-                    }
+                    let mnemonic = match bi & 0b11 {
+                        0 => "bgectr",
+                        1 => "blectr",
+                        2 => "bnectr",
+                        3 => "bnsctr",
+                        _ => unreachable!(),
+                    };
+                    return Some((mnemonic, format_bclr_cr(bi)));
                 }
                 12 => {
-                    if bi == 0 {
-                        return Some(("bltctr", operands));
-                    }
-
-                    if bi & 0b11 == 0 {
-                        operands = format!("cr{}", bi & 0b11);
-
-                        return Some(("bltctr", operands));
-                    }
-
-                    if bi & 0b11 == 1 {
-                        if bi != 1 {
-                            operands = format!("cr{bi}");
-                        }
-
-                        return Some(("bgtctr", operands));
-                    }
-
-                    if bi & 0b11 == 2 {
-                        if bi != 2 {
-                            operands = format!("cr{bi}");
-                        }
-
-                        return Some(("beqctr", operands));
-                    }
-
-                    if bi & 0b11 == 3 {
-                        if bi != 3 {
-                            operands = format!("cr{bi}");
-                        }
-
-                        return Some(("bsoctr", operands));
-                    }
+                    let mnemonic = match bi & 0b11 {
+                        0 => "bltctr",
+                        1 => "bgtctr",
+                        2 => "beqctr",
+                        3 => "bsoctr",
+                        _ => unreachable!(),
+                    };
+                    return Some((mnemonic, format_bclr_cr(bi)));
                 }
                 20 => {
                     if bi == 0 {
@@ -785,9 +619,9 @@ pub fn simplified_mnemonic(
         }
         Opcode::Cmpi => {
             if instr.crfd() != 0 {
-                operands = format!("cr{},r{},{}", instr.crfd(), instr.a(), instr.uimm());
+                operands = format!("cr{},r{},{}", instr.crfd(), instr.a(), instr.simm());
             } else {
-                operands = format!("r{},{}", instr.a(), instr.uimm());
+                operands = format!("r{},{}", instr.a(), instr.simm());
             }
             if instr.l() {
                 return Some(("cmpdi", operands));
@@ -920,6 +754,24 @@ pub fn simplified_mnemonic(
     None
 }
 
+fn format_bc_cr_target(bi: u32, target: u32) -> String {
+    let crf = bi >> 2;
+    if crf == 0 {
+        format!("{target:#x}")
+    } else {
+        format!("cr{crf},{target:#x}")
+    }
+}
+
+fn format_bclr_cr(bi: u32) -> String {
+    let crf = bi >> 2;
+    if crf == 0 {
+        String::new()
+    } else {
+        format!("cr{crf}")
+    }
+}
+
 pub fn suffix(instr: Instruction, opcode: Opcode) -> &'static str {
     match opcode {
         Opcode::Bx | Opcode::Bcx => match (instr.aa(), instr.lk()) {
@@ -930,14 +782,13 @@ pub fn suffix(instr: Instruction, opcode: Opcode) -> &'static str {
         },
         Opcode::Bclrx | Opcode::Bcctrx => {
             if instr.lk() {
-                ""
-            } else {
                 "l"
+            } else {
+                ""
             }
         }
         Opcode::Subfcx
         | Opcode::Addcx
-        | Opcode::Mulhwux
         | Opcode::Subfx
         | Opcode::Negx
         | Opcode::Subfex
@@ -963,11 +814,14 @@ pub fn suffix(instr: Instruction, opcode: Opcode) -> &'static str {
         | Opcode::Norx
         | Opcode::Xorx
         | Opcode::Orx
+        | Opcode::Slwx
         | Opcode::Srwx
         | Opcode::Srawx
         | Opcode::Srawix
         | Opcode::Extshx
         | Opcode::Extsbx
+        | Opcode::Mulhwx
+        | Opcode::Mulhwux
         | Opcode::Fdivsx
         | Opcode::Fsubsx
         | Opcode::Faddsx
@@ -1118,7 +972,7 @@ pub fn operands(instr: Instruction, opcode: Opcode, addr: u32) -> String {
             format!("r{},{}(r{})", instr.d(), instr.simm(), instr.a())
         }
         Opcode::Lhau => {
-            format!("r{},{}(r{})", instr.d(), instr.uimm(), instr.a())
+            format!("r{},{}(r{})", instr.d(), instr.simm(), instr.a())
         }
         Opcode::Stw
         | Opcode::Stwu
@@ -1138,7 +992,7 @@ pub fn operands(instr: Instruction, opcode: Opcode, addr: u32) -> String {
         Opcode::PsqL | Opcode::PsqLu => format!(
             "f{},{}(r{}),{},{}",
             instr.d(),
-            instr.uimm_1(),
+            sign_ext_12(instr.uimm_1()),
             instr.a(),
             instr.w(),
             instr.i()
@@ -1154,7 +1008,7 @@ pub fn operands(instr: Instruction, opcode: Opcode, addr: u32) -> String {
         Opcode::PsqSt | Opcode::PsqStu => format!(
             "f{},{}(r{}),{},{}",
             instr.s(),
-            instr.uimm_1(),
+            sign_ext_12(instr.uimm_1()),
             instr.a(),
             instr.w(),
             instr.i()
