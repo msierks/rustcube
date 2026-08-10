@@ -17,9 +17,12 @@ const SAMPLE_RATE_DIVIDEND: u64 = 54_000_000 * 2;
 const AIS_48KHZ_DIVISOR: u64 = 1124 * 2;
 const AIS_32KHZ_DIVISOR: u64 = AIS_48KHZ_DIVISOR * 3 / 2;
 
+// Note: YAGCD has this backwards
+// 0 -> 32 kHz
+// 1 -> 48 kHz
 const CYCLES_PER_SAMPLE: [u32; 2] = [
-    (CPU_CLOCK * AIS_48KHZ_DIVISOR / SAMPLE_RATE_DIVIDEND) as u32, // 48 kHz
     (CPU_CLOCK * AIS_32KHZ_DIVISOR / SAMPLE_RATE_DIVIDEND) as u32, // 32 kHz
+    (CPU_CLOCK * AIS_48KHZ_DIVISOR / SAMPLE_RATE_DIVIDEND) as u32, // 48 kHz
 ];
 
 #[derive(Debug)]
