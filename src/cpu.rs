@@ -218,98 +218,54 @@ impl Cpu {
 
     fn check_exceptions(&mut self) {
         if self.state.exceptions & EXCEPTION_SYSTEM_RESET != 0 {
-            if self.msr.ip() {
-                self.cia = 0x100 | 0xFFF0_0000
-            } else {
-                self.cia = 0x100
-            }
-
+            self.cia = self.exception_vector(0x100);
             self.state.exceptions &= !EXCEPTION_SYSTEM_RESET;
-
             info!("EXCEPTION_SYSTEM_RESET");
         } else if self.state.exceptions & EXCEPTION_PROGRAM != 0 {
             let srr0 = self.program_exception_srr0;
             let cause_bits = self.program_exception_srr1;
             self.program_exception_srr1 = 0;
-
-            self.spr[SPR_SRR0] = srr0;
-            self.spr[SPR_SRR1] = (self.msr.0 & 0x87C0_FFFF) | cause_bits;
-            self.msr.set_le(self.msr.ile());
-
-            self.msr.0 &= !0x04_EF36;
-            if self.msr.ip() {
-                self.cia = 0x700 | 0xFFF0_0000;
-            } else {
-                self.cia = 0x700;
-            }
-
-            self.nia = self.cia;
-
-            self.state.exceptions &= !EXCEPTION_PROGRAM;
-
+            self.take_exception(0x700, srr0, cause_bits, EXCEPTION_PROGRAM);
             info!("EXCEPTION_PROGRAM");
         } else if self.state.exceptions & EXCEPTION_SYSTEM_CALL != 0 {
-            self.spr[SPR_SRR0] = self.nia;
-            self.spr[SPR_SRR1] = self.msr.0 & 0x87C0_FFFF;
-            self.msr.set_le(self.msr.le());
-            self.msr.0 &= !0x04_EF36;
-
-            if self.msr.ip() {
-                self.cia = 0xC00 | 0xFFF0_0000;
-            } else {
-                self.cia = 0xC00;
-            }
-
-            self.nia = self.cia;
-
-            self.state.exceptions &= !EXCEPTION_SYSTEM_CALL;
-
+            self.take_exception(0xC00, self.nia, 0, EXCEPTION_SYSTEM_CALL);
             info!("EXCEPTION_SYSTEM_CALL (PC={:#x})", self.cia);
         } else if self.state.exceptions & EXCEPTION_FPU_UNAVAILABLE != 0 {
-            self.spr[SPR_SRR0] = self.nia;
-            self.spr[SPR_SRR1] = self.msr.0 & 0x87C0_FFFF;
-            self.msr.set_le(self.msr.le());
-
-            self.msr.0 &= !0x04_EF36;
-            if self.msr.ip() {
-                self.cia = 0x800 | 0xFFF0_0000;
-            } else {
-                self.cia = 0x800;
-            }
-
-            self.nia = self.cia;
-
-            self.state.exceptions &= !EXCEPTION_FPU_UNAVAILABLE;
-
+            self.take_exception(0x800, self.nia, 0, EXCEPTION_FPU_UNAVAILABLE);
             info!("EXCEPTION_FPU_UNAVAILABLE");
         } else if self.state.exceptions & EXCEPTION_EXTERNAL_INT != 0 {
-            if !self.msr.ee() {
+            if !self.take_ee_exception(0x500, EXCEPTION_EXTERNAL_INT) {
                 return;
             }
-
-            self.spr[SPR_SRR0] = self.nia;
-            self.spr[SPR_SRR1] = self.msr.0 & 0x87C0_FFFF;
-            self.msr.set_le(self.msr.le());
-            self.msr.0 &= !0x04_EF36;
-
-            if self.msr.ip() {
-                self.cia = 0x500 | 0xFFF0_0000;
-            } else {
-                self.cia = 0x500;
-            }
-
-            self.nia = self.cia;
-
-            self.state.exceptions &= !EXCEPTION_EXTERNAL_INT;
-
             info!("EXCEPTION_EXTERNAL_INT");
         } else if self.state.exceptions & EXCEPTION_PERFORMANCE_MONITOR != 0 {
             unimplemented!("EXCEPTION_PERFORMANCE_MONITOR");
         } else if self.state.exceptions & EXCEPTION_DECREMENTER != 0 {
-            unimplemented!("EXCEPTION_DECREMENTER");
+            if !self.take_ee_exception(0x900, EXCEPTION_DECREMENTER) {
+                return;
+            }
+            info!("EXCEPTION_DECREMENTER -> {:#x}", self.cia);
         } else if self.state.exceptions & EXCEPTION_THERMAL_MANAGEMENT != 0 {
             unimplemented!("EXCEPTION_THERMAL_MANAGEMENT");
         }
+    }
+
+    fn take_exception(&mut self, vector: u32, srr0: u32, srr1_extra: u32, clear: u32) {
+        self.spr[SPR_SRR0] = srr0;
+        self.spr[SPR_SRR1] = (self.msr.0 & 0x87C0_FFFF) | srr1_extra;
+        self.msr.set_le(self.msr.ile());
+        self.msr.0 &= !0x04_EF36;
+        self.cia = self.exception_vector(vector);
+        self.nia = self.cia;
+        self.state.exceptions &= !clear;
+    }
+
+    fn take_ee_exception(&mut self, vector: u32, clear: u32) -> bool {
+        if !self.msr.ee() {
+            return false;
+        }
+        self.take_exception(vector, self.nia, 0, clear);
+        true
     }
 
     pub fn translate_instr_address(&mut self, ea: u32, memory: &mut Memory) -> u32 {
@@ -409,7 +365,21 @@ impl Cpu {
     }
 
     pub fn tick(&mut self, cycles: u32) {
+        if self.state.timers.tick_decrementer(cycles) {
+            // Hardware leaves DEC with MSB set; Dolphin latches 0xFFFFFFFF on the event.
+            self.state.timers.set_decrementer(0xFFFF_FFFF);
+            self.spr[SPR_DEC] = 0xFFFF_FFFF;
+            self.state.exceptions |= EXCEPTION_DECREMENTER;
+        }
         self.state.timers.tick(cycles);
+    }
+
+    fn exception_vector(&self, vector: u32) -> u32 {
+        if self.msr.ip() {
+            vector | 0xFFF0_0000
+        } else {
+            vector
+        }
     }
 }
 

@@ -22,8 +22,12 @@ impl Cpu {
         unimplemented!("op_crnor");
     }
 
-    pub fn op_cror(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_cror");
+    pub fn op_cror(&mut self, instr: Instruction, _: &mut Bus) {
+        let d = self.cr.get_bit(instr.a()) | self.cr.get_bit(instr.b());
+
+        self.cr.set_bit(instr.d(), d);
+
+        self.tick(1);
     }
 
     pub fn op_crorc(&mut self, _instr: Instruction, _: &mut Bus) {

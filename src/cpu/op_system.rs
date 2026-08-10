@@ -1,6 +1,6 @@
 use super::{
-    instruction::Instruction, mmu::SegmentRegister, registers::*, Cpu, EXCEPTION_PROGRAM,
-    EXCEPTION_SYSTEM_CALL,
+    instruction::Instruction, mmu::SegmentRegister, registers::*, Cpu, EXCEPTION_DECREMENTER,
+    EXCEPTION_PROGRAM, EXCEPTION_SYSTEM_CALL,
 };
 use crate::bus::Bus;
 
@@ -32,7 +32,11 @@ impl Cpu {
         match i {
             SPR_XER => self.gpr[instr.s()] = self.xer.into(),
             SPR_WPAR => self.gpr[instr.s()] &= !1,
-            SPR_DEC => unimplemented!(),
+            SPR_DEC => {
+                let dec = self.state.timers.get_decrementer();
+                self.spr[SPR_DEC] = dec;
+                self.gpr[instr.s()] = dec;
+            }
             SPR_TBL => {
                 self.gpr[instr.s()] = self.state.timers.get_timebase() as u32;
             }
@@ -130,7 +134,14 @@ impl Cpu {
                         self.immu.sdr1 = super::mmu::SDR1(v);
                         self.dmmu.sdr1 = super::mmu::SDR1(v);
                     }
-                    SPR_DEC => unimplemented!("Software Triggered Decrementer"),
+                    SPR_DEC => {
+                        let old_dec = self.state.timers.get_decrementer();
+                        self.state.timers.set_decrementer(v);
+                        // Software write that sets MSB (0 -> 1) raises a decrementer exception.
+                        if (old_dec >> 31) == 0 && (v >> 31) != 0 {
+                            self.state.exceptions |= EXCEPTION_DECREMENTER;
+                        }
+                    }
                     SPR_HID2 => self.hid2 = v.into(),
                     SPR_TBL => self.state.timers.set_timebase_lower(v),
                     SPR_TBU => self.state.timers.set_timebase_upper(v),
