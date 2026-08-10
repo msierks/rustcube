@@ -1,5 +1,6 @@
 use super::{
-    instruction::Instruction, registers::*, Cpu, EXCEPTION_PROGRAM, EXCEPTION_SYSTEM_CALL,
+    instruction::Instruction, mmu::SegmentRegister, registers::*, Cpu, EXCEPTION_PROGRAM,
+    EXCEPTION_SYSTEM_CALL,
 };
 use crate::bus::Bus;
 
@@ -16,12 +17,11 @@ impl Cpu {
 
     pub fn op_mfmsr(&mut self, instr: Instruction, _: &mut Bus) {
         if self.msr.pr() {
-            panic!("privelege level");
+            self.generate_program_exception(ProgramException::PrivilegedInstruction);
+            return;
         }
 
         self.gpr[instr.d()] = self.msr.0;
-
-        // TODO: check privilege level
 
         self.tick(1);
     }
@@ -52,10 +52,20 @@ impl Cpu {
     }
 
     pub fn op_mfsr(&mut self, _instr: Instruction, _: &mut Bus) {
+        if self.msr.pr() {
+            self.generate_program_exception(ProgramException::PrivilegedInstruction);
+            return;
+        }
+
         unimplemented!("op_mfsr");
     }
 
     pub fn op_mfsrin(&mut self, _instr: Instruction, _: &mut Bus) {
+        if self.msr.pr() {
+            self.generate_program_exception(ProgramException::PrivilegedInstruction);
+            return;
+        }
+
         unimplemented!("op_mfsrin");
     }
 
@@ -74,13 +84,12 @@ impl Cpu {
     }
 
     pub fn op_mtmsr(&mut self, instr: Instruction, _: &mut Bus) {
-        self.msr = self.gpr[instr.s()].into();
-
         if self.msr.pr() {
-            panic!("privelege level");
+            self.generate_program_exception(ProgramException::PrivilegedInstruction);
+            return;
         }
 
-        // TODO: check privilege level
+        self.msr = self.gpr[instr.s()].into();
 
         self.tick(1);
     }
@@ -101,22 +110,26 @@ impl Cpu {
                 }
 
                 match i {
-                    SPR_IBAT0U => self.mmu.write_ibatu(0, v),
-                    SPR_IBAT0L => self.mmu.write_ibatl(0, v),
-                    SPR_IBAT1U => self.mmu.write_ibatu(1, v),
-                    SPR_IBAT1L => self.mmu.write_ibatl(1, v),
-                    SPR_IBAT2U => self.mmu.write_ibatu(2, v),
-                    SPR_IBAT2L => self.mmu.write_ibatl(2, v),
-                    SPR_IBAT3U => self.mmu.write_ibatu(3, v),
-                    SPR_IBAT3L => self.mmu.write_ibatl(3, v),
-                    SPR_DBAT0U => self.mmu.write_dbatu(0, v),
-                    SPR_DBAT0L => self.mmu.write_dbatl(0, v),
-                    SPR_DBAT1U => self.mmu.write_dbatu(1, v),
-                    SPR_DBAT1L => self.mmu.write_dbatl(1, v),
-                    SPR_DBAT2U => self.mmu.write_dbatu(2, v),
-                    SPR_DBAT2L => self.mmu.write_dbatl(2, v),
-                    SPR_DBAT3U => self.mmu.write_dbatu(3, v),
-                    SPR_DBAT3L => self.mmu.write_dbatl(3, v),
+                    SPR_IBAT0U => self.immu.write_batu(0, v),
+                    SPR_IBAT0L => self.immu.write_batl(0, v),
+                    SPR_IBAT1U => self.immu.write_batu(1, v),
+                    SPR_IBAT1L => self.immu.write_batl(1, v),
+                    SPR_IBAT2U => self.immu.write_batu(2, v),
+                    SPR_IBAT2L => self.immu.write_batl(2, v),
+                    SPR_IBAT3U => self.immu.write_batu(3, v),
+                    SPR_IBAT3L => self.immu.write_batl(3, v),
+                    SPR_DBAT0U => self.dmmu.write_batu(0, v),
+                    SPR_DBAT0L => self.dmmu.write_batl(0, v),
+                    SPR_DBAT1U => self.dmmu.write_batu(1, v),
+                    SPR_DBAT1L => self.dmmu.write_batl(1, v),
+                    SPR_DBAT2U => self.dmmu.write_batu(2, v),
+                    SPR_DBAT2L => self.dmmu.write_batl(2, v),
+                    SPR_DBAT3U => self.dmmu.write_batu(3, v),
+                    SPR_DBAT3L => self.dmmu.write_batl(3, v),
+                    SPR_SDR1 => {
+                        self.immu.sdr1 = super::mmu::SDR1(v);
+                        self.dmmu.sdr1 = super::mmu::SDR1(v);
+                    }
                     SPR_DEC => unimplemented!("Software Triggered Decrementer"),
                     SPR_HID2 => self.hid2 = v.into(),
                     SPR_TBL => self.state.timers.set_timebase_lower(v),
@@ -135,23 +148,40 @@ impl Cpu {
     }
 
     pub fn op_mtsr(&mut self, instr: Instruction, _: &mut Bus) {
-        self.sr[instr.sr()] = self.gpr[instr.s()];
+        if self.msr.pr() {
+            self.generate_program_exception(ProgramException::PrivilegedInstruction);
+            return;
+        }
 
-        // TODO: check privilege level -> supervisor level instruction
+        self.sr[instr.sr()] = self.gpr[instr.s()];
+        self.immu.sr[instr.sr()] = SegmentRegister(self.gpr[instr.s()]);
+        self.dmmu.sr[instr.sr()] = SegmentRegister(self.gpr[instr.s()]);
 
         self.tick(2);
     }
 
     pub fn op_mtsrin(&mut self, instr: Instruction, _: &mut Bus) {
+        if self.msr.pr() {
+            self.generate_program_exception(ProgramException::PrivilegedInstruction);
+            return;
+        }
+
         let v = self.gpr[instr.s()];
         let i = (self.gpr[instr.b()] >> 28) as usize;
 
         self.sr[i] = v;
+        self.immu.sr[i] = SegmentRegister(v);
+        self.dmmu.sr[i] = SegmentRegister(v);
 
         self.tick(2);
     }
 
     pub fn op_rfi(&mut self, _instr: Instruction, _: &mut Bus) {
+        if self.msr.pr() {
+            self.generate_program_exception(ProgramException::PrivilegedInstruction);
+            return;
+        }
+
         let mask = 0x87C0_FF73;
 
         self.msr.0 = (self.msr.0 & !mask) | (self.spr[SPR_SRR1] & mask);
@@ -176,6 +206,11 @@ impl Cpu {
     }
 
     pub fn op_tlbsync(&mut self, _instr: Instruction, _: &mut Bus) {
+        if self.msr.pr() {
+            self.generate_program_exception(ProgramException::PrivilegedInstruction);
+            return;
+        }
+
         unimplemented!("op_tlbsync");
     }
 }

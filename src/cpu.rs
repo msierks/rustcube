@@ -19,7 +19,7 @@ use std::cmp::Ordering;
 
 use self::{
     instruction::Instruction,
-    mmu::{translate_address, Mmu},
+    mmu::{EffectiveAddress, Mmu, SegmentRegister},
     optable::*,
     registers::*,
     timers::{Timers, BUS_CLOCK, CPU_CLOCK},
@@ -84,8 +84,10 @@ pub(crate) struct Cpu {
     program_exception_srr1: u32,
     /// Effective address of the instruction that caused the pending program exception.
     program_exception_srr0: u32,
-    /// Memory Management Unit
-    mmu: Mmu,
+    /// Instruction Memory Management Unit (IMMU)
+    immu: Mmu,
+    /// Data Memory Management Unit (DMMU)
+    dmmu: Mmu,
     /// Cpu State
     pub(crate) state: CpuState,
 }
@@ -110,7 +112,8 @@ impl Default for Cpu {
             hid2: Default::default(),
             program_exception_srr1: 0,
             program_exception_srr0: 0,
-            mmu: Default::default(),
+            immu: Default::default(),
+            dmmu: Default::default(),
             state: Default::default(),
         };
 
@@ -124,10 +127,10 @@ impl Cpu {
     pub fn emulate_bs2(&mut self, bus: &mut Bus) {
         self.msr = 0x0000_2030.into();
 
-        // FIXME: populate SPR's accoprdingly
-
         for i in 0..16 {
             self.sr[i] = 0x8000_0000;
+            self.immu.sr[i] = SegmentRegister(0x8000_0000);
+            self.dmmu.sr[i] = SegmentRegister(0x8000_0000);
         }
 
         self.spr[SPR_IBAT0U] = 0x8000_1FFF;
@@ -141,16 +144,16 @@ impl Cpu {
         self.spr[SPR_DBAT3U] = 0xFFF0_001F;
         self.spr[SPR_DBAT3L] = 0xFFF0_0001;
 
-        self.mmu.write_ibatu(0, 0x8000_1FFF);
-        self.mmu.write_ibatl(0, 0x0000_0002);
-        self.mmu.write_ibatu(3, 0xFFF0_001F);
-        self.mmu.write_ibatl(3, 0xfff0_0001);
-        self.mmu.write_dbatu(0, 0x8000_1FFF);
-        self.mmu.write_dbatl(0, 0x0000_0002);
-        self.mmu.write_dbatu(1, 0xC000_1FFF);
-        self.mmu.write_dbatl(1, 0x0000_002A);
-        self.mmu.write_dbatu(3, 0xFFF0_001F);
-        self.mmu.write_dbatl(3, 0xFFF0_0001);
+        self.immu.write_batu(0, 0x8000_1FFF);
+        self.immu.write_batl(0, 0x0000_0002);
+        self.immu.write_batu(3, 0xFFF0_001F);
+        self.immu.write_batl(3, 0xFFF0_0001);
+        self.dmmu.write_batu(0, 0x8000_1FFF);
+        self.dmmu.write_batl(0, 0x0000_0002);
+        self.dmmu.write_batu(1, 0xC000_1FFF);
+        self.dmmu.write_batl(1, 0x0000_002A);
+        self.dmmu.write_batu(3, 0xFFF0_001F);
+        self.dmmu.write_batl(3, 0xFFF0_0001);
 
         self.gpr[1] = 0x8156_6550;
         self.gpr[2] = 0x8146_5CC0;
@@ -184,7 +187,7 @@ impl Cpu {
     }
 
     pub fn step(&mut self, bus: &mut Bus) {
-        let addr = self.translate_instr_address(self.cia);
+        let addr = self.translate_instr_address(self.cia, &mut bus.memory);
 
         let instr = Instruction(bus.read::<u32>(&mut self.state, addr));
 
@@ -309,18 +312,26 @@ impl Cpu {
         }
     }
 
-    pub fn translate_instr_address(&self, ea: u32) -> u32 {
+    pub fn translate_instr_address(&mut self, ea: u32, memory: &mut Memory) -> u32 {
         if self.msr.ir() {
-            translate_address(&self.mmu.ibat, self.msr, ea)
+            self.immu
+                .translate_address(EffectiveAddress(ea), self.msr, memory)
+                .unwrap_or_else(|| {
+                    panic!("ISI: unmapped instr ea={ea:#010x} pc={:#010x}", self.cia)
+                })
         } else {
             // real addressing mode
             ea
         }
     }
 
-    pub fn translate_data_address(&self, ea: u32) -> u32 {
+    pub fn translate_data_address(&mut self, ea: u32, memory: &mut Memory) -> u32 {
         if self.msr.dr() {
-            translate_address(&self.mmu.dbat, self.msr, ea)
+            self.dmmu
+                .translate_address(mmu::EffectiveAddress(ea), self.msr, memory)
+                .unwrap_or_else(|| {
+                    panic!("DSI: unmapped instr ea={ea:#010x} pc={:#010x}", self.cia)
+                })
         } else {
             // real addressing mode
             ea
@@ -333,7 +344,7 @@ impl Cpu {
         Memory: ReadWrite<T>,
         Bootrom: ReadWrite<T>,
     {
-        let addr = self.translate_data_address(ea);
+        let addr = self.translate_data_address(ea, &mut bus.memory);
 
         bus.read(&mut self.state, addr)
     }
@@ -344,48 +355,16 @@ impl Cpu {
         Memory: ReadWrite<T>,
         Bootrom: ReadWrite<T>,
     {
-        let addr = self.translate_data_address(ea);
+        let addr = self.translate_data_address(ea, &mut bus.memory);
 
         bus.write(&mut self.state, addr, val);
     }
 
     pub fn write_bytes(&mut self, bus: &mut Bus, ea: u32, data: &[u8]) {
-        let addr = self.translate_data_address(ea);
+        let addr = self.translate_data_address(ea, &mut bus.memory);
 
         bus.write_bytes(&mut self.state, addr, data);
     }
-
-    //pub fn set_pc(&mut self, pc: u32) {
-    //    self.cia = pc;
-    //}
-
-    //pub fn pc(&self) -> u32 {
-    //    self.cia
-    //}
-
-    //pub fn gpr(&self) -> &[u32; NUM_GPR] {
-    //    &self.gpr
-    //}
-
-    //pub fn mut_gpr(&mut self) -> &mut [u32; NUM_GPR] {
-    //    &mut self.gpr
-    //}
-
-    //pub fn fpr(&self) -> &[Fpr; NUM_FPR] {
-    //    &self.fpr
-    //}
-
-    //pub fn spr(&self) -> &[u32; NUM_SPR] {
-    //    &self.spr
-    //}
-
-    //pub fn mut_spr(&mut self) -> &mut [u32; NUM_SPR] {
-    //    &mut self.spr
-    //}
-
-    //pub fn lr(&self) -> u32 {
-    //    self.spr[SPR_LR]
-    //}
 
     fn set_xer_so(&mut self, value: bool) {
         self.xer.set_overflow(value);

@@ -48,6 +48,11 @@ impl Cpu {
     }
 
     pub fn op_dcbi(&mut self, _instr: Instruction, _: &mut Bus) {
+        if self.msr.pr() {
+            self.generate_program_exception(ProgramException::PrivilegedInstruction);
+            return;
+        }
+
         // don't do anything
 
         self.tick(3);
@@ -611,8 +616,17 @@ impl Cpu {
         self.tick(2);
     }
 
-    pub fn op_tlbie(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_tlbie");
+    pub fn op_tlbie(&mut self, instr: Instruction, _: &mut Bus) {
+        if self.msr.pr() {
+            self.generate_program_exception(ProgramException::PrivilegedInstruction);
+            return;
+        }
+
+        let ea = self.gpr[instr.b()];
+        self.immu.invalidate_tlb_entry(ea);
+        self.dmmu.invalidate_tlb_entry(ea);
+
+        self.tick(1);
     }
 }
 
