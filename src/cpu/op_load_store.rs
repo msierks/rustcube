@@ -75,10 +75,17 @@ impl Cpu {
         self.tick(3);
     }
 
-    // Ignore this for the time being
-    pub fn op_dcbz_l(&mut self, _instr: Instruction, _: &mut Bus) {
+    pub fn op_dcbz_l(&mut self, instr: Instruction, bus: &mut Bus) {
+        // Illegal when locked cache is disabled (HID2[LCE] = 0).
+        if !self.hid2.lce() {
+            self.generate_program_exception(ProgramException::IllegalInstruction);
+            return;
+        }
+
+        let ea = self.get_ea_x(instr) & !0x1F;
+        self.write_bytes(bus, ea, &[0u8; 32]);
+
         self.tick(3);
-        unimplemented!();
     }
 
     pub fn op_eciwx(&mut self, _instr: Instruction, _: &mut Bus) {
@@ -644,5 +651,42 @@ mod tests {
         let instr = Instruction::new_dcbf(ra, rb);
 
         cpu.op_dcbf(instr, &mut bus);
+    }
+
+    #[test]
+    fn op_dcbz_l() {
+        let mut cpu = Cpu::default();
+        let mut bus = Bus::default();
+
+        let (ra, rb) = (4, 3);
+        let instr = Instruction::new_dcbz_l(ra, rb);
+        cpu.gpr[ra] = 0x0000_1000;
+        cpu.gpr[rb] = 0x10; // ea = 0x1010 -> aligned to 0x1000
+
+        // HID2[LCE] = 0 -> illegal instruction
+        cpu.state.exceptions = 0;
+        cpu.op_dcbz_l(instr, &mut bus);
+        assert_eq!(cpu.state.exceptions, super::super::EXCEPTION_PROGRAM);
+        assert_eq!(
+            cpu.program_exception_srr1,
+            ProgramException::IllegalInstruction.srr1_bits()
+        );
+
+        // HID2[LCE] = 1 -> zero 32-byte cache line
+        cpu.hid2 = (1 << 28).into();
+        cpu.state.exceptions = 0;
+        cpu.program_exception_srr1 = 0;
+        for i in 0..8 {
+            cpu.write::<u32>(&mut bus, 0x0000_1000 + i * 4, 0xDEAD_BEEF);
+        }
+        // Neighboring line marker
+        cpu.write::<u32>(&mut bus, 0x0000_1020, 0xCAFE_BABE);
+
+        cpu.op_dcbz_l(instr, &mut bus);
+        assert_eq!(cpu.state.exceptions, 0);
+        for i in 0..8 {
+            assert_eq!(cpu.read::<u32>(&mut bus, 0x0000_1000 + i * 4), 0);
+        }
+        assert_eq!(cpu.read::<u32>(&mut bus, 0x0000_1020), 0xCAFE_BABE);
     }
 }

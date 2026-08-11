@@ -1,4 +1,4 @@
-use super::{float::Nan, instruction::Instruction, Cpu};
+use super::{float::Nan, instruction::Instruction, Cpu, EXCEPTION_FPU_UNAVAILABLE};
 use crate::bus::Bus;
 
 impl Cpu {
@@ -144,8 +144,23 @@ impl Cpu {
         unimplemented!("op_fmaddsx");
     }
 
-    pub fn op_fmaddx(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_fmaddx");
+    pub fn op_fmaddx(&mut self, instr: Instruction, _: &mut Bus) {
+        if !self.msr.fp() {
+            self.state.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+            return;
+        }
+
+        let fra = self.fpr[instr.a()].ps0_as_f64();
+        let frb = self.fpr[instr.b()].ps0_as_f64();
+        let frc = self.fpr[instr.c()].ps0_as_f64();
+
+        let result = fra.mul_add(frc, frb);
+
+        self.fpr[instr.d()].set_ps0_f64(result);
+
+        if instr.rc() {
+            self.update_cr1();
+        }
     }
 
     // FIXME: Verify paired single functionality with HID2[PSE] value
@@ -173,8 +188,23 @@ impl Cpu {
         unimplemented!("op_fmsubsx");
     }
 
-    pub fn op_fmsubx(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_fmsubx");
+    pub fn op_fmsubx(&mut self, instr: Instruction, _: &mut Bus) {
+        if !self.msr.fp() {
+            self.state.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+            return;
+        }
+
+        let fra = self.fpr[instr.a()].ps0_as_f64();
+        let frb = self.fpr[instr.b()].ps0_as_f64();
+        let frc = self.fpr[instr.c()].ps0_as_f64();
+
+        let result = fra.mul_add(frc, -frb);
+
+        self.fpr[instr.d()].set_ps0_f64(result);
+
+        if instr.rc() {
+            self.update_cr1();
+        }
     }
 
     pub fn op_fmulsx(&mut self, instr: Instruction, _: &mut Bus) {
@@ -629,6 +659,40 @@ impl Cpu {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    pub fn op_fmaddx() {
+        let mut cpu = Cpu::default();
+        let mut bus = Bus::default();
+        cpu.msr.set_fp(true);
+
+        let (frd, fra, frc, frb) = (6, 4, 5, 7);
+        let instr = Instruction::new_fmaddx(frd, fra, frc, frb);
+
+        cpu.fpr[fra].set_ps0_f64(2.0);
+        cpu.fpr[frc].set_ps0_f64(3.0);
+        cpu.fpr[frb].set_ps0_f64(4.0);
+        cpu.op_fmaddx(instr, &mut bus);
+
+        assert_eq!(cpu.fpr[frd].ps0_as_f64(), 10.0);
+    }
+
+    #[test]
+    fn op_fmsubx() {
+        let mut cpu = Cpu::default();
+        let mut bus = Bus::default();
+        cpu.msr.set_fp(true);
+
+        let (frd, fra, frc, frb) = (6, 4, 5, 7);
+        let instr = Instruction::new_fmsubx(frd, fra, frc, frb);
+
+        cpu.fpr[fra].set_ps0_f64(2.0);
+        cpu.fpr[frc].set_ps0_f64(3.0);
+        cpu.fpr[frb].set_ps0_f64(4.0);
+        cpu.op_fmsubx(instr, &mut bus);
+
+        assert_eq!(cpu.fpr[frd].ps0_as_f64(), 2.0);
+    }
 
     #[test]
     fn op_fnegx() {

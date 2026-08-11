@@ -219,7 +219,7 @@ bitfield! {
     pub se, _ : 10;        // Single-step strace enable
     pub fe0, _ : 11;       // IEEE floating-point exception mode 0
     pub me, _ : 12;        // Machine check enable
-    pub fp, _ : 13;        // Floating-point available
+    pub fp, set_fp : 13;   // Floating-point available
     pub pr, _ : 14;        // Privilege level
     pub ee, _ : 15;        // External interrupt enable
     pub ile, _ : 16;       // Exception little-endian mode

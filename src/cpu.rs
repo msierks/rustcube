@@ -2,6 +2,7 @@
 pub(crate) mod disassembler;
 mod float;
 pub(crate) mod instruction;
+pub(crate) mod l1_cache;
 pub(crate) mod mmu;
 mod op_branch;
 mod op_condition;
@@ -19,6 +20,7 @@ use std::cmp::Ordering;
 
 use self::{
     instruction::Instruction,
+    l1_cache::L1Cache,
     mmu::{EffectiveAddress, Mmu, SegmentRegister},
     optable::*,
     registers::*,
@@ -298,6 +300,7 @@ impl Cpu {
     where
         Mmio: ReadWrite<T>,
         Memory: ReadWrite<T>,
+        L1Cache: ReadWrite<T>,
         Bootrom: ReadWrite<T>,
     {
         let addr = self.translate_data_address(ea, &mut bus.memory);
@@ -309,7 +312,7 @@ impl Cpu {
     where
         Mmio: ReadWrite<T>,
         Memory: ReadWrite<T>,
-        Bootrom: ReadWrite<T>,
+        L1Cache: ReadWrite<T>,
     {
         let addr = self.translate_data_address(ea, &mut bus.memory);
 
@@ -366,7 +369,6 @@ impl Cpu {
 
     pub fn tick(&mut self, cycles: u32) {
         if self.state.timers.tick_decrementer(cycles) {
-            // Hardware leaves DEC with MSB set; Dolphin latches 0xFFFFFFFF on the event.
             self.state.timers.set_decrementer(0xFFFF_FFFF);
             self.spr[SPR_DEC] = 0xFFFF_FFFF;
             self.state.exceptions |= EXCEPTION_DECREMENTER;

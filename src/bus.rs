@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    cpu::CpuState,
+    cpu::{l1_cache::L1Cache, CpuState},
     dsp::DspInterface,
     hw::{
         ai::AudioInterface,
@@ -27,6 +27,7 @@ pub trait ReadWrite<T> {
 pub struct Bus {
     pub(crate) bootrom: Bootrom,
     pub(crate) memory: Memory,
+    pub(crate) l1_cache: L1Cache,
     pub(crate) mmio: Mmio,
     pub(crate) ai: AudioInterface,
     pub(crate) cp: CommandProcessor,
@@ -62,6 +63,7 @@ impl Default for Bus {
         Bus {
             bootrom,
             memory: Default::default(),
+            l1_cache: Default::default(),
             mmio,
             ai: Default::default(),
             cp: Default::default(),
@@ -82,10 +84,13 @@ impl Bus {
     where
         Mmio: ReadWrite<T>,
         Memory: ReadWrite<T>,
+        L1Cache: ReadWrite<T>,
         Bootrom: ReadWrite<T>,
     {
         if addr < MEMORY_SIZE {
             Memory::read(self, cpu_state, addr)
+        } else if L1Cache::contains(addr) {
+            L1Cache::read(self, cpu_state, addr)
         } else if addr < Bootrom::BASE_ADDR {
             Mmio::read(self, cpu_state, addr)
         } else {
@@ -97,9 +102,12 @@ impl Bus {
     where
         Mmio: ReadWrite<T>,
         Memory: ReadWrite<T>,
+        L1Cache: ReadWrite<T>,
     {
         if addr < MEMORY_SIZE {
             Memory::write(self, cpu_state, addr, val)
+        } else if L1Cache::contains(addr) {
+            L1Cache::write(self, cpu_state, addr, val)
         } else if addr < Bootrom::BASE_ADDR {
             Mmio::write(self, cpu_state, addr, val)
         } else {
@@ -110,6 +118,8 @@ impl Bus {
     pub fn write_bytes(&mut self, _: &mut CpuState, addr: u32, data: &[u8]) {
         if addr < MEMORY_SIZE {
             self.memory.write_bytes(addr, data);
+        } else if L1Cache::contains(addr) {
+            self.l1_cache.write_bytes(addr, data);
         } else {
             panic!("Unhandled Physical Address: {:#010x}", addr);
         }
