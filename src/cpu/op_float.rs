@@ -2,8 +2,17 @@ use super::{float::Nan, instruction::Instruction, Cpu, EXCEPTION_FPU_UNAVAILABLE
 use crate::bus::Bus;
 
 impl Cpu {
-    pub fn op_fabsx(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_fabsx");
+    pub fn op_fabsx(&mut self, instr: Instruction, _: &mut Bus) {
+        if !self.msr.fp() {
+            self.state.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+            return;
+        }
+
+        self.fpr[instr.d()].set_ps0_f64(self.fpr[instr.b()].ps0_as_f64().abs());
+
+        if instr.rc() {
+            self.update_cr1();
+        }
     }
 
     pub fn op_faddsx(&mut self, instr: Instruction, _: &mut Bus) {
@@ -140,8 +149,27 @@ impl Cpu {
         unimplemented!("op_fdivx");
     }
 
-    pub fn op_fmaddsx(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_fmaddsx");
+    pub fn op_fmaddsx(&mut self, instr: Instruction, _: &mut Bus) {
+        if !self.msr.fp() {
+            self.state.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+            return;
+        }
+
+        let fra = self.fpr[instr.a()].ps0_as_f64();
+        let frb = self.fpr[instr.b()].ps0_as_f64();
+        let frc = self.fpr[instr.c()].ps0_as_f64();
+
+        let result = fra.mul_add(frc, frb);
+
+        self.fpr[instr.d()].set_ps0_f64(result);
+
+        if self.hid2.pse() {
+            self.fpr[instr.d()].set_ps1_f64(result);
+        }
+
+        if instr.rc() {
+            self.update_cr1();
+        }
     }
 
     pub fn op_fmaddx(&mut self, instr: Instruction, _: &mut Bus) {
@@ -244,8 +272,19 @@ impl Cpu {
         }
     }
 
-    pub fn op_fnabsx(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_fnabsx");
+    pub fn op_fnabsx(&mut self, instr: Instruction, _: &mut Bus) {
+        if !self.msr.fp() {
+            self.state.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+            return;
+        }
+
+        let result = self.fpr[instr.b()].ps0() | 0x8000_0000_0000_0000;
+
+        self.fpr[instr.d()].set_ps0(result);
+
+        if instr.rc() {
+            self.update_cr1();
+        }
     }
 
     pub fn op_fnegx(&mut self, instr: Instruction, _: &mut Bus) {
@@ -410,12 +449,50 @@ impl Cpu {
         self.tick(1);
     }
 
-    pub fn op_ps_madds0x(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_ps_madds0x");
+    pub fn op_ps_madds0x(&mut self, instr: Instruction, _: &mut Bus) {
+        if !self.msr.fp() {
+            self.state.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+            return;
+        }
+
+        let frc = self.fpr[instr.c()].ps0_as_f64();
+
+        let fra0 = self.fpr[instr.a()].ps0_as_f64();
+        let frb0 = self.fpr[instr.b()].ps0_as_f64();
+        self.fpr[instr.d()].set_ps0_f64(fra0.mul_add(frc, frb0));
+
+        let fra1 = self.fpr[instr.a()].ps1_as_f64();
+        let frb1 = self.fpr[instr.b()].ps1_as_f64();
+        self.fpr[instr.d()].set_ps1_f64(fra1.mul_add(frc, frb1));
+
+        if instr.rc() {
+            self.update_cr1();
+        }
+
+        self.tick(1);
     }
 
-    pub fn op_ps_madds1x(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_ps_madds1x");
+    pub fn op_ps_madds1x(&mut self, instr: Instruction, _: &mut Bus) {
+        if !self.msr.fp() {
+            self.state.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+            return;
+        }
+
+        let frc = self.fpr[instr.c()].ps1_as_f64();
+
+        let fra0 = self.fpr[instr.a()].ps0_as_f64();
+        let frb0 = self.fpr[instr.b()].ps0_as_f64();
+        self.fpr[instr.d()].set_ps0_f64(fra0.mul_add(frc, frb0));
+
+        let fra1 = self.fpr[instr.a()].ps1_as_f64();
+        let frb1 = self.fpr[instr.b()].ps1_as_f64();
+        self.fpr[instr.d()].set_ps1_f64(fra1.mul_add(frc, frb1));
+
+        if instr.rc() {
+            self.update_cr1();
+        }
+
+        self.tick(1);
     }
 
     pub fn op_ps_merge00x(&mut self, instr: Instruction, _: &mut Bus) {
@@ -504,8 +581,29 @@ impl Cpu {
         self.tick(1);
     }
 
-    pub fn op_ps_msubx(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_ps_msubx");
+    pub fn op_ps_msubx(&mut self, instr: Instruction, _: &mut Bus) {
+        if !self.msr.fp() {
+            self.state.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+            return;
+        }
+
+        let fra = self.fpr[instr.a()].ps0_as_f64();
+        let frb = self.fpr[instr.b()].ps0_as_f64();
+        let frc = self.fpr[instr.c()].ps0_as_f64();
+
+        self.fpr[instr.d()].set_ps0_f64(fra.mul_add(frc, -frb));
+
+        let fra = self.fpr[instr.a()].ps1_as_f64();
+        let frb = self.fpr[instr.b()].ps1_as_f64();
+        let frc = self.fpr[instr.c()].ps1_as_f64();
+
+        self.fpr[instr.d()].set_ps1_f64(fra.mul_add(frc, -frb));
+
+        if instr.rc() {
+            self.update_cr1();
+        }
+
+        self.tick(1);
     }
 
     pub fn op_ps_mulx(&mut self, instr: Instruction, _: &mut Bus) {
@@ -523,8 +621,25 @@ impl Cpu {
         self.tick(2);
     }
 
-    pub fn op_ps_muls0x(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_ps_muls0x");
+    pub fn op_ps_muls0x(&mut self, instr: Instruction, _: &mut Bus) {
+        if !self.msr.fp() {
+            self.state.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+            return;
+        }
+
+        let frc = self.fpr[instr.c()].ps0_as_f64();
+
+        let fra0 = self.fpr[instr.a()].ps0_as_f64();
+        self.fpr[instr.d()].set_ps0_f64(fra0 * frc);
+
+        let fra1 = self.fpr[instr.a()].ps1_as_f64();
+        self.fpr[instr.d()].set_ps1_f64(fra1 * frc);
+
+        if instr.rc() {
+            self.update_cr1();
+        }
+
+        self.tick(1);
     }
 
     pub fn op_ps_muls1x(&mut self, _instr: Instruction, _: &mut Bus) {
@@ -559,8 +674,27 @@ impl Cpu {
         unimplemented!("op_selx");
     }
 
-    pub fn op_ps_subx(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_ps_subx");
+    pub fn op_ps_subx(&mut self, instr: Instruction, _: &mut Bus) {
+        if !self.msr.fp() {
+            self.state.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+            return;
+        }
+
+        let fra = self.fpr[instr.a()].ps0_as_f64();
+        let frb = self.fpr[instr.b()].ps0_as_f64();
+
+        self.fpr[instr.d()].set_ps0_f64(fra - frb);
+
+        let fra = self.fpr[instr.a()].ps1_as_f64();
+        let frb = self.fpr[instr.b()].ps1_as_f64();
+
+        self.fpr[instr.d()].set_ps1_f64(fra - frb);
+
+        if instr.rc() {
+            self.update_cr1();
+        }
+
+        self.tick(1);
     }
 
     pub fn op_ps_sum0x(&mut self, _instr: Instruction, _: &mut Bus) {
@@ -661,6 +795,38 @@ mod tests {
     use super::*;
 
     #[test]
+    pub fn op_fabsx() {
+        let mut cpu = Cpu::default();
+        let mut bus = Bus::default();
+        cpu.msr.set_fp(true);
+
+        let (frd, frb) = (6, 4);
+        let instr = Instruction::new_fabsx(frd, frb);
+
+        cpu.fpr[frb].set_ps0_f64(-123.45);
+        cpu.op_fabsx(instr, &mut bus);
+
+        assert_eq!(cpu.fpr[frd].ps0_as_f64(), 123.45);
+    }
+
+    #[test]
+    fn op_fmaddsx() {
+        let mut cpu = Cpu::default();
+        let mut bus = Bus::default();
+        cpu.msr.set_fp(true);
+
+        let (frd, fra, frc, frb) = (6, 4, 5, 7);
+        let instr = Instruction::new_fmaddsx(frd, fra, frc, frb);
+
+        cpu.fpr[fra].set_ps0_f64(2.0);
+        cpu.fpr[frc].set_ps0_f64(3.0);
+        cpu.fpr[frb].set_ps0_f64(4.0);
+        cpu.op_fmaddsx(instr, &mut bus);
+
+        assert_eq!(cpu.fpr[frd].ps0_as_f64(), 10.0);
+    }
+
+    #[test]
     pub fn op_fmaddx() {
         let mut cpu = Cpu::default();
         let mut bus = Bus::default();
@@ -695,6 +861,26 @@ mod tests {
     }
 
     #[test]
+    pub fn op_fnabsx() {
+        let mut cpu = Cpu::default();
+        let mut bus = Bus::default();
+        cpu.msr.set_fp(true);
+
+        let (frd, frb) = (6, 4);
+        let instr = Instruction::new_fnabsx(frd, frb);
+
+        cpu.fpr[frb].set_ps0_f64(77.1234);
+        cpu.op_fnabsx(instr, &mut bus);
+
+        assert_eq!(cpu.fpr[frd].ps0_as_f64(), -77.1234);
+
+        cpu.fpr[frb].set_ps0_f64(-10.5);
+        cpu.op_fnabsx(instr, &mut bus);
+
+        assert_eq!(cpu.fpr[frd].ps0_as_f64(), -10.5);
+    }
+
+    #[test]
     fn op_fnegx() {
         let mut cpu = Cpu::default();
         let mut bus = Bus::default();
@@ -709,5 +895,106 @@ mod tests {
         cpu.fpr[frb].set_ps0_f64(-2.5);
         cpu.op_fnegx(instr, &mut bus);
         assert_eq!(cpu.fpr[frd].ps0_as_f64(), 2.5);
+    }
+
+    #[test]
+    pub fn op_ps_madds0x() {
+        let mut cpu = Cpu::default();
+        let mut bus = Bus::default();
+        cpu.msr.set_fp(true);
+
+        let (frd, fra, frc, frb) = (6, 4, 5, 7);
+        let instr = Instruction::new_ps_madds0x(frd, fra, frc, frb);
+
+        cpu.fpr[fra].set_ps0_f64(2.0);
+        cpu.fpr[fra].set_ps1_f64(3.0);
+        cpu.fpr[frc].set_ps0_f64(4.0);
+        cpu.fpr[frc].set_ps1_f64(99.0); // unused; both lanes use c.ps0
+        cpu.fpr[frb].set_ps0_f64(1.0);
+        cpu.fpr[frb].set_ps1_f64(5.0);
+        cpu.op_ps_madds0x(instr, &mut bus);
+
+        assert_eq!(cpu.fpr[frd].ps0_as_f64(), 9.0); // 2*4+1
+        assert_eq!(cpu.fpr[frd].ps1_as_f64(), 17.0); // 3*4+5
+    }
+
+    #[test]
+    pub fn op_ps_madds1x() {
+        let mut cpu = Cpu::default();
+        let mut bus = Bus::default();
+        cpu.msr.set_fp(true);
+
+        let (frd, fra, frc, frb) = (6, 4, 5, 7);
+        let instr = Instruction::new_ps_madds1x(frd, fra, frc, frb);
+
+        cpu.fpr[fra].set_ps0_f64(2.0);
+        cpu.fpr[fra].set_ps1_f64(3.0);
+        cpu.fpr[frc].set_ps0_f64(99.0); // unused; both lanes use c.ps1
+        cpu.fpr[frc].set_ps1_f64(4.0);
+        cpu.fpr[frb].set_ps0_f64(1.0);
+        cpu.fpr[frb].set_ps1_f64(5.0);
+        cpu.op_ps_madds1x(instr, &mut bus);
+
+        assert_eq!(cpu.fpr[frd].ps0_as_f64(), 9.0); // 2*4+1
+        assert_eq!(cpu.fpr[frd].ps1_as_f64(), 17.0); // 3*4+5
+    }
+
+    #[test]
+    pub fn op_ps_msubx() {
+        let mut cpu = Cpu::default();
+        let mut bus = Bus::default();
+        cpu.msr.set_fp(true);
+
+        let (frd, fra, frc, frb) = (6, 4, 5, 7);
+        let instr = Instruction::new_ps_msubx(frd, fra, frc, frb);
+
+        cpu.fpr[fra].set_ps0_f64(2.0);
+        cpu.fpr[fra].set_ps1_f64(3.0);
+        cpu.fpr[frc].set_ps0_f64(4.0);
+        cpu.fpr[frc].set_ps1_f64(5.0);
+        cpu.fpr[frb].set_ps0_f64(1.0);
+        cpu.fpr[frb].set_ps1_f64(2.0);
+        cpu.op_ps_msubx(instr, &mut bus);
+
+        assert_eq!(cpu.fpr[frd].ps0_as_f64(), 7.0); // 2*4-1
+        assert_eq!(cpu.fpr[frd].ps1_as_f64(), 13.0); // 3*5-2
+    }
+
+    #[test]
+    pub fn op_ps_muls0x() {
+        let mut cpu = Cpu::default();
+        let mut bus = Bus::default();
+        cpu.msr.set_fp(true);
+
+        let (frd, fra, frc) = (6, 4, 5);
+        let instr = Instruction::new_ps_muls0x(frd, fra, frc);
+
+        cpu.fpr[fra].set_ps0_f64(2.0);
+        cpu.fpr[fra].set_ps1_f64(3.0);
+        cpu.fpr[frc].set_ps0_f64(4.0);
+        cpu.fpr[frc].set_ps1_f64(99.0); // unused; both lanes use c.ps0
+        cpu.op_ps_muls0x(instr, &mut bus);
+
+        assert_eq!(cpu.fpr[frd].ps0_as_f64(), 8.0);
+        assert_eq!(cpu.fpr[frd].ps1_as_f64(), 12.0);
+    }
+
+    #[test]
+    pub fn op_ps_subx() {
+        let mut cpu = Cpu::default();
+        let mut bus = Bus::default();
+        cpu.msr.set_fp(true);
+
+        let (frd, fra, frb) = (6, 4, 5);
+        let instr = Instruction::new_ps_subx(frd, fra, frb);
+
+        cpu.fpr[fra].set_ps0_f64(10.0);
+        cpu.fpr[fra].set_ps1_f64(5.0);
+        cpu.fpr[frb].set_ps0_f64(3.0);
+        cpu.fpr[frb].set_ps1_f64(2.0);
+        cpu.op_ps_subx(instr, &mut bus);
+
+        assert_eq!(cpu.fpr[frd].ps0_as_f64(), 7.0);
+        assert_eq!(cpu.fpr[frd].ps1_as_f64(), 3.0);
     }
 }
