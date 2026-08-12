@@ -173,6 +173,12 @@ impl Disc {
 
         Ok(())
     }
+
+    pub fn read_at(&mut self, offset: u64, buf: &mut [u8]) -> Result<(), Error> {
+        self.file.seek(SeekFrom::Start(offset))?;
+        self.file.read_exact(buf)?;
+        Ok(())
+    }
 }
 
 fn run_function(cpu: &mut Cpu, bus: &mut Bus, address: u32) {
