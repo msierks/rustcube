@@ -145,7 +145,7 @@ bitfield! {
     pub ze, _ : 4;               // IEEE floating-point zero divide exception enable
     pub ue, _ : 5;               // IEEE floating-point underflow exception enable
     pub oe, _ : 6;               // IEEE floating-point overflow exception enable
-    pub ve, _ : 7;               // Floating-point invalid operation exception enable
+    pub ve, set_ve : 7;          // Floating-point invalid operation exception enable
     pub vxcvi, _ : 8;            // Floating-point invalid operation exception for invalid integer convert
     pub vxsqrt, set_vxsqrt : 9;  // Floating-point invalid operation exception for invalid square root
     pub vxsoft, _ : 10;          // Floating-point invalid operation exceptions for woftware request
@@ -193,7 +193,7 @@ bitfield! {
     pub dcherr, _ : 23;
     pub dmaql, _ : 27, 24;
     pub lce, _ : 28;
-    pub pse, _ : 29;
+    pub pse, set_pse : 29;
     pub wpe, _ : 30;
     pub lsqe, _ : 31;
 }

@@ -163,8 +163,14 @@ impl Cpu {
         self.tick(1);
     }
 
-    pub fn op_andis_rc(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_andis_rc");
+    pub fn op_andis_rc(&mut self, instr: Instruction, _: &mut Bus) {
+        let ra = self.gpr[instr.s()] & (instr.uimm() << 16);
+
+        self.gpr[instr.a()] = ra;
+
+        self.update_cr0(ra);
+
+        self.tick(1);
     }
 
     pub fn op_andx(&mut self, instr: Instruction, _: &mut Bus) {

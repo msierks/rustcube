@@ -1,10 +1,9 @@
-use super::{float::Nan, instruction::Instruction, Cpu, EXCEPTION_FPU_UNAVAILABLE};
+use super::{float::Nan, instruction::Instruction, Cpu};
 use crate::bus::Bus;
 
 impl Cpu {
     pub fn op_fabsx(&mut self, instr: Instruction, _: &mut Bus) {
-        if !self.msr.fp() {
-            self.state.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+        if !self.ensure_fp() {
             return;
         }
 
@@ -38,8 +37,47 @@ impl Cpu {
         self.tick(1);
     }
 
-    pub fn op_faddx(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_faddx");
+    pub fn op_faddx(&mut self, instr: Instruction, _: &mut Bus) {
+        if !self.ensure_fp() {
+            return;
+        }
+
+        let fra = self.fpr[instr.a()].ps0_as_f64();
+        let frb = self.fpr[instr.b()].ps0_as_f64();
+
+        let result = fra + frb;
+
+        self.fpr[instr.d()].set_ps0_f64(result);
+
+        if instr.rc() {
+            self.update_cr1();
+        }
+
+        self.tick(1);
+    }
+
+    fn float_compare_ordered(&mut self, crfd: usize, fa: f64, fb: f64) {
+        let c = if fa.is_nan() || fb.is_nan() {
+            if fa.is_snan() || fb.is_snan() {
+                self.fpscr.set_vxsnan(true);
+                if !self.fpscr.ve() {
+                    self.fpscr.set_vxvc(true);
+                }
+            } else {
+                // QNaN: invalid compare (VXVC), not VXSNAN
+                self.fpscr.set_vxvc(true);
+            }
+            0x1 // unordered
+        } else if fa < fb {
+            0x8 // <
+        } else if fa > fb {
+            0x4 // >
+        } else {
+            0x2 // =
+        };
+
+        self.fpscr.set_fpcc(c);
+        self.cr.set_field(crfd, c);
     }
 
     pub fn op_fcmpo(&mut self, instr: Instruction, _: &mut Bus) {
@@ -49,28 +87,7 @@ impl Cpu {
 
         let fra = self.fpr[instr.a()].ps0_as_f64();
         let frb = self.fpr[instr.b()].ps0_as_f64();
-
-        let c = if fra.is_nan() || frb.is_nan() {
-            if fra.is_snan() || frb.is_snan() {
-                self.fpscr.set_vxsnan(true);
-                if !self.fpscr.ve() {
-                    self.fpscr.set_vxvc(true);
-                }
-            } else {
-                self.fpscr.set_vxsnan(true);
-            }
-            0b1 // ?
-        } else if fra < frb {
-            0x8 // <
-        } else if fra > frb {
-            0x4 // >
-        } else {
-            0x2 // =
-        };
-
-        self.fpscr.set_fpcc(c);
-
-        self.cr.set_field(instr.crfd(), c);
+        self.float_compare_ordered(instr.crfd(), fra, frb);
 
         self.tick(1);
     }
@@ -87,7 +104,7 @@ impl Cpu {
             if fra.is_snan() || frb.is_snan() {
                 self.fpscr.set_vxsnan(true);
             }
-            0b1 // ?
+            0x1 // ?
         } else if fra < frb {
             0x8 // <
         } else if fra > frb {
@@ -123,13 +140,28 @@ impl Cpu {
     }
 
     pub fn op_fdivsx(&mut self, instr: Instruction, _: &mut Bus) {
+        if !self.ensure_fp() {
+            return;
+        }
+
         let fra = self.fpr[instr.a()].ps0_as_f64();
         let frb = self.fpr[instr.b()].ps0_as_f64();
 
-        let result = fra / frb;
+        if fra.is_snan() || frb.is_snan() {
+            self.fpscr.set_vxsnan(true);
+            if self.fpscr.ve() {
+                if instr.rc() {
+                    self.update_cr1();
+                }
+                self.tick(17);
+                return;
+            }
+        }
 
-        if frb.is_nan() {
-            panic!();
+        let mut result = fra / frb;
+        if result.is_snan() {
+            // Deliver a quiet NaN when VE is disabled.
+            result = f64::from_bits(result.to_bits() | 0x0008_0000_0000_0000);
         }
 
         self.fpr[instr.d()].set_ps0_f64(result);
@@ -145,13 +177,42 @@ impl Cpu {
         self.tick(17);
     }
 
-    pub fn op_fdivx(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_fdivx");
+    pub fn op_fdivx(&mut self, instr: Instruction, _: &mut Bus) {
+        if !self.ensure_fp() {
+            return;
+        }
+
+        let fra = self.fpr[instr.a()].ps0_as_f64();
+        let frb = self.fpr[instr.b()].ps0_as_f64();
+
+        if fra.is_snan() || frb.is_snan() {
+            self.fpscr.set_vxsnan(true);
+            if self.fpscr.ve() {
+                if instr.rc() {
+                    self.update_cr1();
+                }
+                self.tick(17);
+                return;
+            }
+        }
+
+        let mut result = fra / frb;
+        if result.is_snan() {
+            // Deliver a quiet NaN when VE is disabled.
+            result = f64::from_bits(result.to_bits() | 0x0008_0000_0000_0000);
+        }
+
+        self.fpr[instr.d()].set_ps0_f64(result);
+
+        if instr.rc() {
+            self.update_cr1();
+        }
+
+        self.tick(17);
     }
 
     pub fn op_fmaddsx(&mut self, instr: Instruction, _: &mut Bus) {
-        if !self.msr.fp() {
-            self.state.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+        if !self.ensure_fp() {
             return;
         }
 
@@ -173,8 +234,7 @@ impl Cpu {
     }
 
     pub fn op_fmaddx(&mut self, instr: Instruction, _: &mut Bus) {
-        if !self.msr.fp() {
-            self.state.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+        if !self.ensure_fp() {
             return;
         }
 
@@ -217,8 +277,7 @@ impl Cpu {
     }
 
     pub fn op_fmsubx(&mut self, instr: Instruction, _: &mut Bus) {
-        if !self.msr.fp() {
-            self.state.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+        if !self.ensure_fp() {
             return;
         }
 
@@ -273,8 +332,7 @@ impl Cpu {
     }
 
     pub fn op_fnabsx(&mut self, instr: Instruction, _: &mut Bus) {
-        if !self.msr.fp() {
-            self.state.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+        if !self.ensure_fp() {
             return;
         }
 
@@ -301,8 +359,26 @@ impl Cpu {
         unimplemented!("op_fnmaddx");
     }
 
-    pub fn op_fnmsubsx(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_fnsubsx");
+    pub fn op_fnmsubsx(&mut self, instr: Instruction, _: &mut Bus) {
+        if !self.ensure_fp() {
+            return;
+        }
+
+        let fra = self.fpr[instr.a()].ps0_as_f64();
+        let frb = self.fpr[instr.b()].ps0_as_f64();
+        let frc = self.fpr[instr.c()].ps0_as_f64();
+
+        let result = -fra.mul_add(frc, -frb);
+
+        self.fpr[instr.d()].set_ps0_f64(result);
+
+        if self.hid2.pse() {
+            self.fpr[instr.d()].set_ps1_f64(result);
+        }
+
+        if instr.rc() {
+            self.update_cr1();
+        }
     }
 
     pub fn op_fnmsubx(&mut self, instr: Instruction, _: &mut Bus) {
@@ -325,8 +401,29 @@ impl Cpu {
         self.tick(2);
     }
 
-    pub fn op_fresx(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_fresx");
+    pub fn op_fresx(&mut self, instr: Instruction, _: &mut Bus) {
+        if !self.ensure_fp() {
+            return;
+        }
+
+        let frb = self.fpr[instr.b()].ps0_as_f64();
+        let result = 1.0 / frb;
+
+        if frb == 0.0 {
+            self.fpscr.set_zx(true);
+        }
+
+        self.fpr[instr.d()].set_ps0_f64(result);
+
+        if self.hid2.pse() {
+            self.fpr[instr.d()].set_ps1_f64(result);
+        }
+
+        if instr.rc() {
+            self.update_cr1();
+        }
+
+        self.tick(2);
     }
 
     pub fn op_frspx(&mut self, instr: Instruction, _: &mut Bus) {
@@ -409,12 +506,28 @@ impl Cpu {
         self.tick(1);
     }
 
-    pub fn op_ps_cmpo0(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_ps_cmpo0");
+    pub fn op_ps_cmpo0(&mut self, instr: Instruction, _: &mut Bus) {
+        if !self.ensure_ps() {
+            return;
+        }
+
+        let fra = self.fpr[instr.a()].ps0_as_f64();
+        let frb = self.fpr[instr.b()].ps0_as_f64();
+        self.float_compare_ordered(instr.crfd(), fra, frb);
+
+        self.tick(1);
     }
 
-    pub fn op_ps_cmpo1(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_ps_cmpo1");
+    pub fn op_ps_cmpo1(&mut self, instr: Instruction, _: &mut Bus) {
+        if !self.ensure_ps() {
+            return;
+        }
+
+        let fra = self.fpr[instr.a()].ps1_as_f64();
+        let frb = self.fpr[instr.b()].ps1_as_f64();
+        self.float_compare_ordered(instr.crfd(), fra, frb);
+
+        self.tick(1);
     }
 
     pub fn op_ps_cmpu0(&mut self, _instr: Instruction, _: &mut Bus) {
@@ -430,6 +543,10 @@ impl Cpu {
     }
 
     pub fn op_ps_maddx(&mut self, instr: Instruction, _: &mut Bus) {
+        if !self.ensure_fp() {
+            return;
+        }
+
         let fra = self.fpr[instr.a()].ps0_as_f64();
         let frb = self.fpr[instr.b()].ps0_as_f64();
         let frc = self.fpr[instr.c()].ps0_as_f64();
@@ -450,8 +567,7 @@ impl Cpu {
     }
 
     pub fn op_ps_madds0x(&mut self, instr: Instruction, _: &mut Bus) {
-        if !self.msr.fp() {
-            self.state.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+        if !self.ensure_fp() {
             return;
         }
 
@@ -473,8 +589,7 @@ impl Cpu {
     }
 
     pub fn op_ps_madds1x(&mut self, instr: Instruction, _: &mut Bus) {
-        if !self.msr.fp() {
-            self.state.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+        if !self.ensure_fp() {
             return;
         }
 
@@ -582,8 +697,7 @@ impl Cpu {
     }
 
     pub fn op_ps_msubx(&mut self, instr: Instruction, _: &mut Bus) {
-        if !self.msr.fp() {
-            self.state.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+        if !self.ensure_fp() {
             return;
         }
 
@@ -607,6 +721,10 @@ impl Cpu {
     }
 
     pub fn op_ps_mulx(&mut self, instr: Instruction, _: &mut Bus) {
+        if !self.ensure_fp() {
+            return;
+        }
+
         let fra = self.fpr[instr.a()].ps0_as_f64();
         let frc = self.fpr[instr.c()].ps0_as_f64();
 
@@ -622,8 +740,7 @@ impl Cpu {
     }
 
     pub fn op_ps_muls0x(&mut self, instr: Instruction, _: &mut Bus) {
-        if !self.msr.fp() {
-            self.state.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+        if !self.ensure_fp() {
             return;
         }
 
@@ -650,16 +767,71 @@ impl Cpu {
         unimplemented!("op_ps_nabsx");
     }
 
-    pub fn op_ps_negx(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_ps_negx");
+    pub fn op_ps_negx(&mut self, instr: Instruction, _: &mut Bus) {
+        if !self.ensure_fp() {
+            return;
+        }
+
+        let frb = &self.fpr[instr.b()];
+        let ps0 = frb.ps0() ^ (1_u64 << 63);
+        let ps1 = frb.ps1() ^ (1_u64 << 63);
+
+        self.fpr[instr.d()].set_ps0(ps0);
+        self.fpr[instr.d()].set_ps1(ps1);
+
+        if instr.rc() {
+            self.update_cr1();
+        }
+
+        self.tick(1);
     }
 
-    pub fn op_ps_nmaddx(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_ps_nmaddx");
+    pub fn op_ps_nmaddx(&mut self, instr: Instruction, _: &mut Bus) {
+        if !self.ensure_fp() {
+            return;
+        }
+
+        let fra = self.fpr[instr.a()].ps0_as_f64();
+        let frb = self.fpr[instr.b()].ps0_as_f64();
+        let frc = self.fpr[instr.c()].ps0_as_f64();
+
+        self.fpr[instr.d()].set_ps0_f64(-fra.mul_add(frc, frb));
+
+        let fra = self.fpr[instr.a()].ps1_as_f64();
+        let frb = self.fpr[instr.b()].ps1_as_f64();
+        let frc = self.fpr[instr.c()].ps1_as_f64();
+
+        self.fpr[instr.d()].set_ps1_f64(-fra.mul_add(frc, frb));
+
+        if instr.rc() {
+            self.update_cr1();
+        }
+
+        self.tick(1);
     }
 
-    pub fn op_ps_nmsubx(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_ps_nmsubx");
+    pub fn op_ps_nmsubx(&mut self, instr: Instruction, _: &mut Bus) {
+        if !self.ensure_fp() {
+            return;
+        }
+
+        let fra = self.fpr[instr.a()].ps0_as_f64();
+        let frb = self.fpr[instr.b()].ps0_as_f64();
+        let frc = self.fpr[instr.c()].ps0_as_f64();
+
+        self.fpr[instr.d()].set_ps0_f64(-fra.mul_add(frc, -frb));
+
+        let fra = self.fpr[instr.a()].ps1_as_f64();
+        let frb = self.fpr[instr.b()].ps1_as_f64();
+        let frc = self.fpr[instr.c()].ps1_as_f64();
+
+        self.fpr[instr.d()].set_ps1_f64(-fra.mul_add(frc, -frb));
+
+        if instr.rc() {
+            self.update_cr1();
+        }
+
+        self.tick(1);
     }
 
     pub fn op_ps_resx(&mut self, _instr: Instruction, _: &mut Bus) {
@@ -675,8 +847,7 @@ impl Cpu {
     }
 
     pub fn op_ps_subx(&mut self, instr: Instruction, _: &mut Bus) {
-        if !self.msr.fp() {
-            self.state.exceptions |= EXCEPTION_FPU_UNAVAILABLE;
+        if !self.ensure_fp() {
             return;
         }
 
@@ -697,8 +868,22 @@ impl Cpu {
         self.tick(1);
     }
 
-    pub fn op_ps_sum0x(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_ps_sum0x");
+    pub fn op_ps_sum0x(&mut self, instr: Instruction, _: &mut Bus) {
+        if !self.ensure_fp() {
+            return;
+        }
+
+        let ps0 = self.fpr[instr.a()].ps0_as_f64() + self.fpr[instr.b()].ps1_as_f64();
+        let ps1 = self.fpr[instr.c()].ps1_as_f64();
+
+        self.fpr[instr.d()].set_ps0_f64(ps0);
+        self.fpr[instr.d()].set_ps1_f64(ps1);
+
+        if instr.rc() {
+            self.update_cr1();
+        }
+
+        self.tick(1);
     }
 
     pub fn op_ps_sum1x(&mut self, _instr: Instruction, _: &mut Bus) {
@@ -827,6 +1012,106 @@ mod tests {
     }
 
     #[test]
+    fn op_fnmsubsx() {
+        let mut cpu = Cpu::default();
+        let mut bus = Bus::default();
+        cpu.msr.set_fp(true);
+
+        let (frd, fra, frc, frb) = (6, 4, 5, 7);
+        let instr = Instruction::new_fnmsubsx(frd, fra, frc, frb);
+
+        cpu.fpr[fra].set_ps0_f64(2.0);
+        cpu.fpr[frc].set_ps0_f64(3.0);
+        cpu.fpr[frb].set_ps0_f64(1.0);
+        cpu.op_fnmsubsx(instr, &mut bus);
+
+        assert_eq!(cpu.fpr[frd].ps0_as_f64(), -5.0); // -(2*3-1)
+    }
+
+    #[test]
+    pub fn op_faddx() {
+        let mut cpu = Cpu::default();
+        let mut bus = Bus::default();
+        cpu.msr.set_fp(true);
+
+        let (frd, fra, frb) = (6, 4, 5);
+        let instr = Instruction::new_faddx(frd, fra, frb);
+
+        cpu.fpr[fra].set_ps0_f64(1.5);
+        cpu.fpr[frb].set_ps0_f64(2.5);
+        cpu.op_faddx(instr, &mut bus);
+
+        assert_eq!(cpu.fpr[frd].ps0_as_f64(), 4.0);
+    }
+
+    #[test]
+    pub fn op_fdivx() {
+        let mut cpu = Cpu::default();
+        let mut bus = Bus::default();
+        cpu.msr.set_fp(true);
+
+        let (frd, fra, frb) = (6, 4, 5);
+        let instr = Instruction::new_fdivx(frd, fra, frb);
+
+        cpu.fpr[fra].set_ps0_f64(20.0);
+        cpu.fpr[frb].set_ps0_f64(2.0);
+        cpu.op_fdivx(instr, &mut bus);
+
+        assert_eq!(cpu.fpr[frd].ps0_as_f64(), 10.0);
+
+        // QNaN divisor: propagate NaN, no VXSNAN
+        cpu.fpr[frd].set_ps0_f64(1.0);
+        cpu.fpr[fra].set_ps0_f64(1.0);
+        cpu.fpr[frb].set_ps0(0x7FF8_0000_0000_0001);
+        cpu.op_fdivx(instr, &mut bus);
+        assert!(cpu.fpr[frd].ps0_as_f64().is_nan());
+        assert!(cpu.fpr[frd].ps0_as_f64().is_qnan());
+        assert!(!cpu.fpscr.vxsnan());
+
+        // SNaN divisor, VE clear: set VXSNAN and write QNaN
+        cpu.fpscr.set_vxsnan(false);
+        cpu.fpr[frd].set_ps0_f64(1.0);
+        cpu.fpr[frb].set_ps0(0x7FF0_0000_0000_0001);
+        cpu.op_fdivx(instr, &mut bus);
+        assert!(cpu.fpscr.vxsnan());
+        assert!(cpu.fpr[frd].ps0_as_f64().is_qnan());
+
+        // SNaN divisor, VE set: set VXSNAN, do not update frD
+        cpu.fpscr.set_ve(true);
+        cpu.fpscr.set_vxsnan(false);
+        cpu.fpr[frd].set_ps0_f64(42.0);
+        cpu.fpr[frb].set_ps0(0x7FF0_0000_0000_0001);
+        cpu.op_fdivx(instr, &mut bus);
+        assert!(cpu.fpscr.vxsnan());
+        assert_eq!(cpu.fpr[frd].ps0_as_f64(), 42.0);
+    }
+
+    #[test]
+    pub fn op_fdivsx() {
+        let mut cpu = Cpu::default();
+        let mut bus = Bus::default();
+        cpu.msr.set_fp(true);
+        cpu.hid2.set_pse(true);
+
+        let (frd, fra, frb) = (6, 4, 5);
+        let instr = Instruction::new_fdivsx(frd, fra, frb);
+
+        cpu.fpr[fra].set_ps0_f64(20.0);
+        cpu.fpr[frb].set_ps0_f64(2.0);
+        cpu.op_fdivsx(instr, &mut bus);
+        assert_eq!(cpu.fpr[frd].ps0_as_f64(), 10.0);
+        assert_eq!(cpu.fpr[frd].ps1_as_f64(), 10.0);
+
+        cpu.fpscr.set_vxsnan(false);
+        cpu.fpr[fra].set_ps0_f64(1.0);
+        cpu.fpr[frb].set_ps0(0x7FF0_0000_0000_0001);
+        cpu.op_fdivsx(instr, &mut bus);
+        assert!(cpu.fpscr.vxsnan());
+        assert!(cpu.fpr[frd].ps0_as_f64().is_qnan());
+        assert!(cpu.fpr[frd].ps1_as_f64().is_qnan());
+    }
+
+    #[test]
     pub fn op_fmaddx() {
         let mut cpu = Cpu::default();
         let mut bus = Bus::default();
@@ -898,6 +1183,122 @@ mod tests {
     }
 
     #[test]
+    fn op_ps_negx() {
+        let mut cpu = Cpu::default();
+        let mut bus = Bus::default();
+        cpu.msr.set_fp(true);
+
+        let (frd, frb) = (3, 4);
+        let instr = Instruction::new_ps_negx(frd, frb);
+
+        cpu.fpr[frb].set_ps0_f64(1.0);
+        cpu.fpr[frb].set_ps1_f64(-2.5);
+        cpu.op_ps_negx(instr, &mut bus);
+
+        assert_eq!(cpu.fpr[frd].ps0_as_f64(), -1.0);
+        assert_eq!(cpu.fpr[frd].ps1_as_f64(), 2.5);
+    }
+
+    #[test]
+    fn op_fresx() {
+        let mut cpu = Cpu::default();
+        let mut bus = Bus::default();
+        cpu.msr.set_fp(true);
+
+        let (frd, frb) = (6, 4);
+        let instr = Instruction::new_fresx(frd, frb);
+
+        cpu.fpr[frb].set_ps0_f64(4.0);
+        cpu.op_fresx(instr, &mut bus);
+        assert_eq!(cpu.fpr[frd].ps0_as_f64(), 0.25);
+
+        cpu.fpr[frb].set_ps0_f64(-2.0);
+        cpu.op_fresx(instr, &mut bus);
+        assert_eq!(cpu.fpr[frd].ps0_as_f64(), -0.5);
+
+        cpu.fpr[frb].set_ps0_f64(0.0);
+        cpu.op_fresx(instr, &mut bus);
+        assert!(cpu.fpr[frd].ps0_as_f64().is_infinite());
+        assert!(cpu.fpscr.zx());
+    }
+
+    #[test]
+    fn op_ps_cmpo0() {
+        let mut cpu = Cpu::default();
+        let mut bus = Bus::default();
+        cpu.msr.set_fp(true);
+        cpu.hid2 = (1 << 29).into(); // HID2[PSE]
+
+        let (crfd, fra, frb) = (2, 4, 5);
+        let instr = Instruction::new_ps_cmpo0(crfd, fra, frb);
+
+        // PS0 less-than
+        // PS1 must not affect the compare
+        cpu.fpr[fra].set_ps0_f64(1.0);
+        cpu.fpr[fra].set_ps1_f64(100.0);
+        cpu.fpr[frb].set_ps0_f64(2.0);
+        cpu.fpr[frb].set_ps1_f64(-100.0);
+        cpu.op_ps_cmpo0(instr, &mut bus);
+        assert_eq!(cpu.fpscr.fpcc(), 0x8);
+        assert_eq!((cpu.cr.as_u32() >> ((7 - crfd) * 4)) & 0xF, 0x8);
+
+        cpu.fpr[fra].set_ps0_f64(3.0);
+        cpu.fpr[frb].set_ps0_f64(1.0);
+        cpu.op_ps_cmpo0(instr, &mut bus);
+        assert_eq!(cpu.fpscr.fpcc(), 0x4);
+
+        cpu.fpr[fra].set_ps0_f64(5.0);
+        cpu.fpr[frb].set_ps0_f64(5.0);
+        cpu.op_ps_cmpo0(instr, &mut bus);
+        assert_eq!(cpu.fpscr.fpcc(), 0x2);
+
+        cpu.fpr[fra].set_ps0_f64(f64::NAN);
+        cpu.fpr[frb].set_ps0_f64(1.0);
+        cpu.op_ps_cmpo0(instr, &mut bus);
+        assert_eq!(cpu.fpscr.fpcc(), 0x1);
+        assert!(cpu.fpscr.vxvc());
+        assert!(!cpu.fpscr.vxsnan());
+    }
+
+    #[test]
+    fn op_ps_cmpo1() {
+        let mut cpu = Cpu::default();
+        let mut bus = Bus::default();
+        cpu.msr.set_fp(true);
+        cpu.hid2 = (1 << 29).into(); // HID2[PSE]
+
+        let (crfd, fra, frb) = (3, 4, 5);
+        let instr = Instruction::new_ps_cmpo1(crfd, fra, frb);
+
+        // PS1 less-than
+        // PS0 must not affect the compare
+        cpu.fpr[fra].set_ps0_f64(100.0);
+        cpu.fpr[fra].set_ps1_f64(1.0);
+        cpu.fpr[frb].set_ps0_f64(-100.0);
+        cpu.fpr[frb].set_ps1_f64(2.0);
+        cpu.op_ps_cmpo1(instr, &mut bus);
+        assert_eq!(cpu.fpscr.fpcc(), 0x8);
+        assert_eq!((cpu.cr.as_u32() >> ((7 - crfd) * 4)) & 0xF, 0x8);
+
+        cpu.fpr[fra].set_ps1_f64(3.0);
+        cpu.fpr[frb].set_ps1_f64(1.0);
+        cpu.op_ps_cmpo1(instr, &mut bus);
+        assert_eq!(cpu.fpscr.fpcc(), 0x4);
+
+        cpu.fpr[fra].set_ps1_f64(5.0);
+        cpu.fpr[frb].set_ps1_f64(5.0);
+        cpu.op_ps_cmpo1(instr, &mut bus);
+        assert_eq!(cpu.fpscr.fpcc(), 0x2);
+
+        cpu.fpr[fra].set_ps1_f64(f64::NAN);
+        cpu.fpr[frb].set_ps1_f64(1.0);
+        cpu.op_ps_cmpo1(instr, &mut bus);
+        assert_eq!(cpu.fpscr.fpcc(), 0x1);
+        assert!(cpu.fpscr.vxvc());
+        assert!(!cpu.fpscr.vxsnan());
+    }
+
+    #[test]
     pub fn op_ps_madds0x() {
         let mut cpu = Cpu::default();
         let mut bus = Bus::default();
@@ -909,7 +1310,7 @@ mod tests {
         cpu.fpr[fra].set_ps0_f64(2.0);
         cpu.fpr[fra].set_ps1_f64(3.0);
         cpu.fpr[frc].set_ps0_f64(4.0);
-        cpu.fpr[frc].set_ps1_f64(99.0); // unused; both lanes use c.ps0
+        cpu.fpr[frc].set_ps1_f64(99.0); // unused, both lanes use c.ps0
         cpu.fpr[frb].set_ps0_f64(1.0);
         cpu.fpr[frb].set_ps1_f64(5.0);
         cpu.op_ps_madds0x(instr, &mut bus);
@@ -929,7 +1330,7 @@ mod tests {
 
         cpu.fpr[fra].set_ps0_f64(2.0);
         cpu.fpr[fra].set_ps1_f64(3.0);
-        cpu.fpr[frc].set_ps0_f64(99.0); // unused; both lanes use c.ps1
+        cpu.fpr[frc].set_ps0_f64(99.0); // unused, both lanes use c.ps1
         cpu.fpr[frc].set_ps1_f64(4.0);
         cpu.fpr[frb].set_ps0_f64(1.0);
         cpu.fpr[frb].set_ps1_f64(5.0);
@@ -961,6 +1362,69 @@ mod tests {
     }
 
     #[test]
+    pub fn op_ps_nmsubx() {
+        let mut cpu = Cpu::default();
+        let mut bus = Bus::default();
+        cpu.msr.set_fp(true);
+
+        let (frd, fra, frc, frb) = (6, 4, 5, 7);
+        let instr = Instruction::new_ps_nmsubx(frd, fra, frc, frb);
+
+        cpu.fpr[fra].set_ps0_f64(2.0);
+        cpu.fpr[fra].set_ps1_f64(3.0);
+        cpu.fpr[frc].set_ps0_f64(4.0);
+        cpu.fpr[frc].set_ps1_f64(5.0);
+        cpu.fpr[frb].set_ps0_f64(1.0);
+        cpu.fpr[frb].set_ps1_f64(2.0);
+        cpu.op_ps_nmsubx(instr, &mut bus);
+
+        assert_eq!(cpu.fpr[frd].ps0_as_f64(), -7.0); // -(2*4-1)
+        assert_eq!(cpu.fpr[frd].ps1_as_f64(), -13.0); // -(3*5-2)
+    }
+
+    #[test]
+    pub fn op_ps_nmaddx() {
+        let mut cpu = Cpu::default();
+        let mut bus = Bus::default();
+        cpu.msr.set_fp(true);
+
+        let (frd, fra, frc, frb) = (6, 4, 5, 7);
+        let instr = Instruction::new_ps_nmaddx(frd, fra, frc, frb);
+
+        cpu.fpr[fra].set_ps0_f64(2.0);
+        cpu.fpr[fra].set_ps1_f64(3.0);
+        cpu.fpr[frc].set_ps0_f64(4.0);
+        cpu.fpr[frc].set_ps1_f64(5.0);
+        cpu.fpr[frb].set_ps0_f64(1.0);
+        cpu.fpr[frb].set_ps1_f64(2.0);
+        cpu.op_ps_nmaddx(instr, &mut bus);
+
+        assert_eq!(cpu.fpr[frd].ps0_as_f64(), -9.0); // -(2*4+1)
+        assert_eq!(cpu.fpr[frd].ps1_as_f64(), -17.0); // -(3*5+2)
+    }
+
+    #[test]
+    pub fn op_ps_sum0x() {
+        let mut cpu = Cpu::default();
+        let mut bus = Bus::default();
+        cpu.msr.set_fp(true);
+
+        let (frd, fra, frc, frb) = (6, 4, 5, 7);
+        let instr = Instruction::new_ps_sum0x(frd, fra, frc, frb);
+
+        cpu.fpr[fra].set_ps0_f64(2.0);
+        cpu.fpr[fra].set_ps1_f64(99.0); // unused
+        cpu.fpr[frb].set_ps0_f64(88.0); // unused
+        cpu.fpr[frb].set_ps1_f64(3.0);
+        cpu.fpr[frc].set_ps0_f64(77.0); // unused
+        cpu.fpr[frc].set_ps1_f64(7.0);
+        cpu.op_ps_sum0x(instr, &mut bus);
+
+        assert_eq!(cpu.fpr[frd].ps0_as_f64(), 5.0); // A.ps0 + B.ps1
+        assert_eq!(cpu.fpr[frd].ps1_as_f64(), 7.0); // C.ps1
+    }
+
+    #[test]
     pub fn op_ps_muls0x() {
         let mut cpu = Cpu::default();
         let mut bus = Bus::default();
@@ -972,7 +1436,7 @@ mod tests {
         cpu.fpr[fra].set_ps0_f64(2.0);
         cpu.fpr[fra].set_ps1_f64(3.0);
         cpu.fpr[frc].set_ps0_f64(4.0);
-        cpu.fpr[frc].set_ps1_f64(99.0); // unused; both lanes use c.ps0
+        cpu.fpr[frc].set_ps1_f64(99.0); // unused, both lanes use c.ps0
         cpu.op_ps_muls0x(instr, &mut bus);
 
         assert_eq!(cpu.fpr[frd].ps0_as_f64(), 8.0);
