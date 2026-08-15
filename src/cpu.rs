@@ -127,7 +127,7 @@ impl Default for Cpu {
 
 impl Cpu {
     pub fn emulate_bs2(&mut self, bus: &mut Bus) {
-        self.msr = 0x0000_2030.into();
+        self.msr = 0x0000_2032.into(); // FP | IR | DR | RI
 
         for i in 0..16 {
             self.sr[i] = 0x8000_0000;
@@ -184,7 +184,9 @@ impl Cpu {
 
         // Exception handlers
         self.write::<u32>(bus, 0x8000_0300, OP_RFI); // DSI
+        self.write::<u32>(bus, 0x8000_0500, OP_RFI); // External interrupt
         self.write::<u32>(bus, 0x8000_0800, OP_RFI); // FPU unavailable
+        self.write::<u32>(bus, 0x8000_0900, OP_RFI); // Decrementer
         self.write::<u32>(bus, 0x8000_0C00, OP_RFI); // System call
     }
 
