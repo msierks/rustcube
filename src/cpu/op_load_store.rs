@@ -299,8 +299,20 @@ impl Cpu {
         unimplemented!("op_lswx");
     }
 
-    pub fn op_lwarx(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_lwarx");
+    pub fn op_lwarx(&mut self, instr: Instruction, bus: &mut Bus) {
+        let ea = self.get_ea_x(instr);
+
+        if ea & 0b11 != 0 {
+            panic!("lwarx: unaligned address {ea:#x}");
+        }
+
+        if let Some(val) = self.read::<u32>(bus, ea) {
+            self.gpr[instr.d()] = val;
+            self.reserve = true;
+            self.reserve_address = ea;
+        }
+
+        self.tick(2);
     }
 
     pub fn op_lwbrx(&mut self, _instr: Instruction, _: &mut Bus) {
@@ -657,8 +669,26 @@ impl Cpu {
         unimplemented!("op_stwbrx");
     }
 
-    pub fn op_stwcx_rc(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_stwcx_rc");
+    pub fn op_stwcx_rc(&mut self, instr: Instruction, bus: &mut Bus) {
+        let ea = self.get_ea_x(instr);
+
+        if ea & 0b11 != 0 {
+            panic!("stwcx.: unaligned address {ea:#x}");
+        }
+
+        let so = self.xer.summary_overflow() as u32;
+
+        if self.reserve && ea == self.reserve_address {
+            if self.write::<u32>(bus, ea, self.gpr[instr.s()]) {
+                self.reserve = false;
+                self.cr.set_field(0, 0x2 | so);
+            }
+        } else {
+            self.reserve = false;
+            self.cr.set_field(0, so);
+        }
+
+        self.tick(2);
     }
 
     pub fn op_stwu(&mut self, instr: Instruction, bus: &mut Bus) {

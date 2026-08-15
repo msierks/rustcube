@@ -105,6 +105,10 @@ pub(crate) struct Cpu {
     dmmu: Mmu,
     /// Cpu State
     pub(crate) state: CpuState,
+    /// Reservation bit for lwarx/stwcx
+    reserve: bool,
+    /// Reservation address for lwarx/stwcx
+    reserve_address: u32,
 }
 
 impl Default for Cpu {
@@ -130,6 +134,8 @@ impl Default for Cpu {
             immu: Default::default(),
             dmmu: Default::default(),
             state: Default::default(),
+            reserve: false,
+            reserve_address: 0,
         };
 
         cpu.check_exceptions();
