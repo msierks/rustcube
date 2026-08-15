@@ -30,6 +30,8 @@ impl Cpu {
         let i = instr.spr();
 
         match i {
+            SPR_LR => self.gpr[instr.s()] = self.lr,
+            SPR_CTR => self.gpr[instr.s()] = self.ctr,
             SPR_XER => self.gpr[instr.s()] = self.xer.into(),
             SPR_WPAR => self.gpr[instr.s()] &= !1,
             SPR_DEC => {
@@ -102,11 +104,16 @@ impl Cpu {
         let i = instr.spr();
         let v = self.gpr[instr.s()];
 
-        self.spr[i] = v;
-
         match i {
-            SPR_XER => self.xer = v.into(),
+            SPR_LR => self.lr = v,
+            SPR_CTR => self.ctr = v,
+            SPR_XER => {
+                self.spr[i] = v;
+                self.xer = v.into();
+            }
             _ => {
+                self.spr[i] = v;
+
                 if self.msr.pr() {
                     // TODO: properly handle this case
                     self.state.exceptions |= EXCEPTION_PROGRAM;
@@ -259,7 +266,7 @@ mod tests {
         let (rd, spr) = (6, SPR_LR as u32); // FIXME: make spr a usize
         let instr = Instruction::new_mfspr(rd, spr);
 
-        cpu.spr[SPR_LR] = 0xDEAD_BEEF;
+        cpu.lr = 0xDEAD_BEEF;
         cpu.op_mfspr(instr, &mut bus);
 
         assert_eq!(cpu.gpr[rd], 0xDEAD_BEEF);

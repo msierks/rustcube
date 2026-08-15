@@ -8,7 +8,7 @@ use byteorder::{BigEndian, ByteOrder};
 
 use crate::{
     bus::Bus,
-    cpu::{registers::SPR_LR, Cpu},
+    cpu::Cpu,
 };
 
 const DISC_MAGIC: u32 = 0xC2339F3D;
@@ -182,7 +182,7 @@ impl Disc {
 }
 
 fn run_function(cpu: &mut Cpu, bus: &mut Bus, address: u32) {
-    cpu.spr[SPR_LR] = 0;
+    cpu.lr = 0;
     cpu.cia = address;
 
     while cpu.cia != 0 {

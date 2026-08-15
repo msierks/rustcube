@@ -93,57 +93,62 @@ pub(crate) struct Cpu {
     nia: u32,
     /// General-Purpose Registers
     pub(crate) gpr: [u32; NUM_GPR],
-    /// Floating-Point Registers
-    fpr: [Fpr; NUM_FPR],
-    /// Special-Purpose Registers
-    pub(crate) spr: [u32; NUM_SPR],
+    /// Link Register
+    pub(crate) lr: u32,
+    /// Count Register
+    pub(crate) ctr: u32,
     /// Condition Register
     cr: ConditionRegister,
-    /// Floating-Point Status and Control Register
-    fpscr: FloatingPointStatusControlRegister,
     /// Integer Exception Register
     xer: Xer,
     /// Machine State Register
     pub(crate) msr: MachineStateRegister,
-    /// Segment Registers
-    sr: [u32; NUM_SR],
-    /// Hardware Implementation-Dependent Register 1
-    hid2: HardwareImplementationDependentRegister2,
-    /// Instruction Memory Management Unit (IMMU)
-    immu: Mmu,
-    /// Data Memory Management Unit (DMMU)
-    dmmu: Mmu,
     /// Cpu State
     pub(crate) state: CpuState,
     /// Reservation bit for lwarx/stwcx
     reserve: bool,
     /// Reservation address for lwarx/stwcx
     reserve_address: u32,
+    /// Floating-Point Status and Control Register
+    fpscr: FloatingPointStatusControlRegister,
+    /// Hardware Implementation-Dependent Register 1
+    hid2: HardwareImplementationDependentRegister2,
+    /// Segment Registers
+    sr: [u32; NUM_SR],
+    /// Floating-Point Registers
+    fpr: Box<[Fpr]>,
+    /// Special-Purpose Registers
+    pub(crate) spr: Box<[u32]>,
+    /// Instruction Memory Management Unit (IMMU)
+    immu: Mmu,
+    /// Data Memory Management Unit (DMMU)
+    dmmu: Mmu,
 }
 
 impl Default for Cpu {
     fn default() -> Self {
-        let mut spr = [0; NUM_SPR];
-
+        let mut spr = vec![0u32; NUM_SPR].into_boxed_slice();
         spr[SPR_PVR] = PROCESSOR_VERSION;
 
         let mut cpu = Cpu {
             cia: 0,
             nia: 0,
             gpr: Default::default(),
-            fpr: Default::default(),
-            spr,
+            lr: 0,
+            ctr: 0,
             cr: Default::default(),
-            fpscr: Default::default(),
             xer: Default::default(),
             msr: 0x40.into(),
-            sr: [0; NUM_SR],
-            hid2: Default::default(),
-            immu: Default::default(),
-            dmmu: Default::default(),
             state: Default::default(),
             reserve: false,
             reserve_address: 0,
+            fpscr: Default::default(),
+            hid2: Default::default(),
+            sr: [0; NUM_SR],
+            fpr: vec![Fpr::default(); NUM_FPR].into_boxed_slice(),
+            spr,
+            immu: Default::default(),
+            dmmu: Default::default(),
         };
 
         cpu.check_exceptions();

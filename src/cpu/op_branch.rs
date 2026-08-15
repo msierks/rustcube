@@ -1,4 +1,4 @@
-use super::{instruction::Instruction, utils::*, Cpu, SPR_CTR, SPR_LR};
+use super::{instruction::Instruction, utils::*, Cpu};
 use crate::bus::Bus;
 
 const BO_DONT_DECREMENT: u8 = 0x4;
@@ -14,7 +14,7 @@ impl Cpu {
         }
 
         if instr.lk() {
-            self.spr[SPR_LR] = self.cia.wrapping_add(4);
+            self.lr = self.cia.wrapping_add(4);
         }
 
         self.tick(1);
@@ -24,10 +24,10 @@ impl Cpu {
         let bo = instr.bo();
 
         if bo & BO_DONT_DECREMENT == 0 {
-            self.spr[SPR_CTR] = self.spr[SPR_CTR].wrapping_sub(1);
+            self.ctr = self.ctr.wrapping_sub(1);
         }
 
-        let ctr_ok = (bo >> 2) & 1 != 0 || (((self.spr[SPR_CTR] != 0) as u8 ^ (bo >> 1)) & 1) != 0;
+        let ctr_ok = (bo >> 2) & 1 != 0 || (((self.ctr != 0) as u8 ^ (bo >> 1)) & 1) != 0;
         let cond_ok = (bo >> 4) & 1 != 0 || (self.cr.get_bit(instr.bi()) == (bo >> 3) & 1);
 
         if ctr_ok && cond_ok {
@@ -40,7 +40,7 @@ impl Cpu {
             }
 
             if instr.lk() {
-                self.spr[SPR_LR] = self.cia.wrapping_add(4);
+                self.lr = self.cia.wrapping_add(4);
             }
         }
 
@@ -57,10 +57,10 @@ impl Cpu {
         let cond_ok = ((bo >> 4) | (self.cr.get_bit(instr.bi()) == ((bo >> 3) & 1)) as u8) & 1;
 
         if cond_ok != 0 {
-            self.nia = self.spr[SPR_CTR] & (!3);
+            self.nia = self.ctr & (!3);
 
             if instr.lk() {
-                self.spr[SPR_LR] = self.cia.wrapping_add(4);
+                self.lr = self.cia.wrapping_add(4);
             }
         }
 
@@ -71,17 +71,17 @@ impl Cpu {
         let bo = instr.bo();
 
         if bo & BO_DONT_DECREMENT == 0 {
-            self.spr[SPR_CTR] = self.spr[SPR_CTR].wrapping_sub(1);
+            self.ctr = self.ctr.wrapping_sub(1);
         }
 
-        let ctr_ok = ((bo >> 2) | ((self.spr[SPR_CTR] != 0) as u8 ^ (bo >> 1))) & 1;
+        let ctr_ok = ((bo >> 2) | ((self.ctr != 0) as u8 ^ (bo >> 1))) & 1;
         let cond_ok = ((bo >> 4) | (self.cr.get_bit(instr.bi()) == ((bo >> 3) & 1)) as u8) & 1;
 
         if ctr_ok != 0 && cond_ok != 0 {
-            self.nia = self.spr[SPR_LR] & (!3);
+            self.nia = self.lr & (!3);
 
             if instr.lk() {
-                self.spr[SPR_LR] = self.cia.wrapping_add(4);
+                self.lr = self.cia.wrapping_add(4);
             }
         }
 
@@ -111,7 +111,7 @@ mod tests {
         cpu.op_mtspr(instr, &mut bus);
 
         // check counter register is set to 0x3
-        assert_eq!(cpu.spr[SPR_CTR], 0x0000_0003);
+        assert_eq!(cpu.ctr, 0x0000_0003);
 
         // addic. 9,8,0x1
         let (rd, ra, simm) = (9, 8, 0x1);
@@ -136,7 +136,7 @@ mod tests {
 
         cpu.op_bcx(instr, &mut bus);
 
-        assert_eq!(cpu.spr[SPR_CTR], 0x2);
-        assert_eq!(cpu.spr[SPR_LR], 0xFFF0_0104);
+        assert_eq!(cpu.ctr, 0x2);
+        assert_eq!(cpu.lr, 0xFFF0_0104);
     }
 }
