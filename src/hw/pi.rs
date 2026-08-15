@@ -1,16 +1,23 @@
 use crate::{
     bus::Bus,
     cpu::CpuState,
-    hw::mmio::{Mmio, MmioDevice},
+    hw::{
+        gp_fifo::BURST_SIZE,
+        mmio::{Mmio, MmioDevice},
+    },
 };
+
+const FIFO_PTR_MASK: u32 = 0xFFFF_FFE0;
+const FIFO_WRAP: u32 = 0x2000_0000;
+const FIFO_ADDR_MASK: u32 = 0x03FF_FFE0;
 
 const PI_INTERRUPT_CAUSE: u32 = 0x00;
 const PI_INTERRUPT_MASK: u32 = 0x04;
 const PI_FIFO_BASE_START: u32 = 0x0C;
 const PI_FIFO_BASE_END: u32 = 0x10;
 const PI_FIFO_WRITE_POINTER: u32 = 0x14;
-//const PI_FIFO_RESET: u32 = 0x18;
-const PI_CONFIG: u32 = 0x24;
+const PI_FIFO_RESET: u32 = 0x18;
+const PI_RESET: u32 = 0x24;
 const PI_REVISION: u32 = 0x2C;
 const PI_UNKNOWN: u32 = 0x30;
 
@@ -40,7 +47,7 @@ pub struct ProcessorInterface {
     fifo_start: u32,
     fifo_end: u32,
     fifo_write_pointer: u32,
-    config: u32,
+    reset: ResetRegister,
     revision: u32,
     unknown: u32,
 }
@@ -53,7 +60,7 @@ impl Default for ProcessorInterface {
             fifo_start: 0,
             fifo_end: 0,
             fifo_write_pointer: 0,
-            config: 0,
+            reset: Default::default(),
             revision: FLIPPER_REV,
             unknown: 0,
         }
@@ -80,20 +87,44 @@ impl MmioDevice for ProcessorInterface {
                 Self::update_interrupts(bus, cpu_state);
             },
         );
-        mmio.register_write_u32(Self::BASE_ADDR + PI_FIFO_BASE_START, |bus, _, _, val| {
-            bus.pi.fifo_start = val & 0xFFFF_FFE0;
-        });
-        mmio.register_write_u32(Self::BASE_ADDR + PI_FIFO_BASE_END, |bus, _, _, val| {
-            bus.pi.fifo_end = val;
-        });
-        mmio.register_write_u32(Self::BASE_ADDR + PI_FIFO_WRITE_POINTER, |bus, _, _, val| {
-            bus.pi.fifo_write_pointer = val;
+        mmio.register_u32(
+            Self::BASE_ADDR + PI_FIFO_BASE_START,
+            |bus, _, _| bus.pi.fifo_start,
+            |bus, _, _, val| {
+                bus.pi.fifo_start = val & FIFO_PTR_MASK;
+            },
+        );
+        mmio.register_u32(
+            Self::BASE_ADDR + PI_FIFO_BASE_END,
+            |bus, _, _| bus.pi.fifo_end,
+            |bus, _, _, val| {
+                bus.pi.fifo_end = val & FIFO_PTR_MASK;
+            },
+        );
+        mmio.register_u32(
+            Self::BASE_ADDR + PI_FIFO_WRITE_POINTER,
+            |bus, _, _| bus.pi.fifo_write_pointer,
+            |bus, _, _, val| {
+                bus.pi.fifo_write_pointer = val & FIFO_PTR_MASK;
+            },
+        );
+        mmio.register_write_u32(Self::BASE_ADDR + PI_FIFO_RESET, |bus, _, _, val| {
+            if val & 1 != 0 {
+                bus.gp_fifo.reset();
+            }
         });
         mmio.register_u32(
-            Self::BASE_ADDR + PI_CONFIG,
-            |bus, _, _| bus.pi.config,
+            Self::BASE_ADDR + PI_RESET,
+            |bus, _, _| bus.pi.reset.into(),
             |bus, _, _, val| {
-                bus.pi.config = val;
+                bus.pi.reset = val.into();
+                info!("PI_RESET_CODE {val:#010x}");
+                if !bus.pi.reset.dvd() {
+                    bus.di.reset_drive(true);
+                }
+                if !bus.pi.reset.system() {
+                    warn!("PI system reset ignored");
+                }
             },
         );
         mmio.register_read_u32(Self::BASE_ADDR + PI_REVISION, |bus, _, _| bus.pi.revision);
@@ -104,20 +135,19 @@ impl MmioDevice for ProcessorInterface {
 }
 
 impl ProcessorInterface {
-    pub fn fifo_start(&self) -> u32 {
-        self.fifo_start
+    pub fn fifo_write_address(&self) -> u32 {
+        self.fifo_write_pointer & FIFO_ADDR_MASK
     }
 
-    pub fn fifo_end(&self) -> u32 {
-        self.fifo_end
-    }
-
-    pub fn fifo_write_pointer(&self) -> u32 {
-        self.fifo_write_pointer
-    }
-
-    pub fn set_fifo_write_pointer(&mut self, val: u32) {
-        self.fifo_write_pointer = val;
+    pub fn advance_fifo_write_pointer(&mut self) {
+        let addr = self.fifo_write_pointer & FIFO_ADDR_MASK;
+        let end = self.fifo_end & FIFO_ADDR_MASK;
+        let wrap = self.fifo_write_pointer & FIFO_WRAP;
+        if addr == end {
+            self.fifo_write_pointer = (self.fifo_start & FIFO_ADDR_MASK) | FIFO_WRAP;
+        } else {
+            self.fifo_write_pointer = addr.wrapping_add(BURST_SIZE as u32) | wrap;
+        }
     }
 
     pub fn update_interrupts(bus: &mut Bus, cpu_state: &mut CpuState) {
@@ -130,7 +160,7 @@ impl ProcessorInterface {
 
     pub fn clear_interrupt(bus: &mut Bus, cpu_state: &mut CpuState, cause: u32) {
         if bus.pi.interrupt_cause & cause != 0 {
-            info!("Interrupt {} (clear)", Self::interrupt_name(cause));
+            debug!("Interrupt {} (clear)", Self::interrupt_name(cause));
         }
 
         bus.pi.interrupt_cause &= !cause;
@@ -140,7 +170,7 @@ impl ProcessorInterface {
 
     pub fn set_interrupt(bus: &mut Bus, cpu_state: &mut CpuState, cause: u32) {
         if bus.pi.interrupt_cause & cause == 0 {
-            info!("Interrupt {} (set)", Self::interrupt_name(cause));
+            debug!("Interrupt {} (set)", Self::interrupt_name(cause));
         }
 
         bus.pi.interrupt_cause |= cause;
@@ -167,5 +197,25 @@ impl ProcessorInterface {
             PI_INTERRUPT_RSWST => "PI_INTERRUPT_RSWST",
             _ => "UNKNOWN",
         }
+    }
+}
+
+bitfield! {
+    #[derive(Copy, Clone, Default, Debug)]
+    pub struct ResetRegister(u32);
+    pub system, _ : 0;
+    pub memory, _ : 1;
+    pub dvd, _ : 2;
+}
+
+impl From<u32> for ResetRegister {
+    fn from(v: u32) -> Self {
+        ResetRegister(v)
+    }
+}
+
+impl From<ResetRegister> for u32 {
+    fn from(s: ResetRegister) -> u32 {
+        s.0
     }
 }

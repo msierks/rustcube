@@ -60,22 +60,20 @@ impl MmioDevice for GpFifo {
 }
 
 impl GpFifo {
+    pub fn reset(&mut self) {
+        self.pos = 0;
+    }
+
     fn check_burst(bus: &mut Bus, cpu_state: &mut CpuState) {
         if bus.gp_fifo.pos >= BURST_SIZE {
             let mut processed = 0;
 
             while bus.gp_fifo.pos >= BURST_SIZE {
                 bus.memory.write_bytes(
-                    bus.pi.fifo_write_pointer(),
+                    bus.pi.fifo_write_address(),
                     &bus.gp_fifo.buff[processed..processed + BURST_SIZE],
                 );
-
-                if bus.pi.fifo_write_pointer() == bus.pi.fifo_end() {
-                    bus.pi.set_fifo_write_pointer(bus.pi.fifo_start());
-                } else {
-                    bus.pi
-                        .set_fifo_write_pointer(bus.pi.fifo_write_pointer() + BURST_SIZE as u32);
-                }
+                bus.pi.advance_fifo_write_pointer();
 
                 processed += BURST_SIZE;
                 bus.gp_fifo.pos -= BURST_SIZE;

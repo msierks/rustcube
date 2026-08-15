@@ -165,6 +165,10 @@ impl DvdInterface {
         self.disc = disc;
     }
 
+    pub fn reset_drive(&mut self, _spinup: bool) {
+        debug!("DI reset drive");
+    }
+
     fn write_dma(bus: &mut Bus, addr: u32, data: &[u8]) {
         bus.memory.write_bytes(addr, data);
     }
