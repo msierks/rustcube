@@ -18,8 +18,12 @@ impl Cpu {
         unimplemented!("op_crnand");
     }
 
-    pub fn op_crnor(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_crnor");
+    pub fn op_crnor(&mut self, instr: Instruction, _: &mut Bus) {
+        let d = !(self.cr.get_bit(instr.a()) | self.cr.get_bit(instr.b())) & 1;
+
+        self.cr.set_bit(instr.d(), d);
+
+        self.tick(1);
     }
 
     pub fn op_cror(&mut self, instr: Instruction, _: &mut Bus) {
@@ -42,8 +46,11 @@ impl Cpu {
         self.tick(1);
     }
 
-    pub fn op_mcrf(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_mcrf");
+    pub fn op_mcrf(&mut self, instr: Instruction, _: &mut Bus) {
+        let cr_f = self.cr.get_field(instr.crfs());
+        self.cr.set_field(instr.crfd(), cr_f);
+
+        self.tick(1);
     }
 
     pub fn op_mcrxr(&mut self, _instr: Instruction, _: &mut Bus) {

@@ -75,6 +75,10 @@ impl ConditionRegister {
         self.0 = (self.0 & (!(0xF0000000 >> (field * 4)))) | (value << ((7 - field) * 4));
     }
 
+    pub fn get_field(&self, field: usize) -> u32 {
+        (self.0 >> ((7 - field) * 4)) & 0xF
+    }
+
     pub fn get_bit(&self, bit: usize) -> u8 {
         ((self.0 >> (31 - bit)) & 1) as u8
     }
