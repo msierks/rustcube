@@ -6,10 +6,7 @@ use std::{
 
 use byteorder::{BigEndian, ByteOrder};
 
-use crate::{
-    bus::Bus,
-    cpu::Cpu,
-};
+use crate::{bus::Bus, cpu::Cpu};
 
 const DISC_MAGIC: u32 = 0xC2339F3D;
 const APL_INIT_OFFSET: u32 = 0x4; // AplInit
