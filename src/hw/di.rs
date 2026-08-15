@@ -16,18 +16,19 @@ const DI_DICMDBUF2: u32 = 0x10;
 const DI_DIMAR: u32 = 0x14;
 const DI_DILENGTH: u32 = 0x18;
 const DI_DICR: u32 = 0x1C;
+const DI_DIIMMBUF: u32 = 0x20;
 const DI_DICFG: u32 = 0x24;
 
 const DI_CMD_INQUIRY: u8 = 0x12; // Obtain drive ID information
 const DI_CMD_READ: u8 = 0xA8; // Obtain data from disk
 const DI_CMD_SEEK: u8 = 0xAB; // Move optical head to position on disk
-const _DI_CMD_REQUEST_ERROR: u8 = 0xE0; // Transfer error and status information from drive to
-                                        // host in 4 byte long format
-const _DI_CMD_AUDIO_STREAMING: u8 = 0xE1; // Transfer audion streaming information to drive
-const _DI_CMD_REQUEST_AUDIO_STATUS: u8 = 0xE2; // Transfer audion streaming information from
-                                               // drive to host including error info
-const _DI_CMD_STOP_MOTOR: u8 = 0xE3; // Request drive to stop its motor
+const _DI_CMD_REQUEST_ERROR: u8 = 0xE0; // Transfer error and status information from drive to host in 4 byte long format
+const _DI_CMD_AUDIO_STREAMING: u8 = 0xE1; // Transfer audio streaming information to drive
+const _DI_CMD_REQUEST_AUDIO_STATUS: u8 = 0xE2; // Transfer audion streaming information from drive to host including error info
+const DI_CMD_STOP_MOTOR: u8 = 0xE3; // Request drive to stop its motor
 const _DI_CMD_AUDIO_BUFFER_CONFIGURATION: u8 = 0xE4; // Configure the audio buffer in drive
+const DI_CMD_DEBUG: u8 = 0xFE;
+const DI_CMD_DEBUG_UNLOCK: u8 = 0xFF;
 
 /// Typical retail drive inquiry response (32 bytes).
 const INQUIRY_RESPONSE: [u8; 0x20] = [
@@ -50,6 +51,7 @@ pub struct DvdInterface {
     dma_address: u32,
     dma_transfer_length: u32,
     control: ControlRegister,
+    immediate: u32,
     config: u32,
     disc: Option<Disc>,
 }
@@ -143,6 +145,13 @@ impl MmioDevice for DvdInterface {
                 bus.di.control.set_tstart(false);
             },
         );
+        mmio.register_u32(
+            Self::BASE_ADDR + DI_DIIMMBUF,
+            |bus, _, _| bus.di.immediate,
+            |bus, _, _, val| {
+                bus.di.immediate = val;
+            },
+        );
         mmio.register_read_u32(Self::BASE_ADDR + DI_DICFG, |bus, _, _| bus.di.config);
     }
 }
@@ -166,6 +175,9 @@ impl DvdInterface {
             DI_CMD_INQUIRY => Self::do_inquiry(bus),
             DI_CMD_READ => Self::do_read(bus),
             DI_CMD_SEEK => (),
+            DI_CMD_STOP_MOTOR => (),
+            DI_CMD_DEBUG => (),
+            DI_CMD_DEBUG_UNLOCK => (),
             _ => warn!("Unrecognized DI command {:#x}", bus.di.command_buff[0]),
         }
         Self::finish_transfer(bus, cpu_state);
