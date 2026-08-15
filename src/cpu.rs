@@ -42,7 +42,7 @@ const NUM_SR: usize = 16;
 
 const EXCEPTION_SYSTEM_RESET: u32 = 0x1;
 //const EXCEPTION_MACHINE_CHECK: u32 = 0x2;
-//const EXCEPTION_DSI: u32 = 0x4;
+const EXCEPTION_DSI: u32 = 0x4;
 //const EXCEPTION_ISI: u32 = 0x8;
 const EXCEPTION_EXTERNAL_INT: u32 = 0x10;
 //const EXCEPTION_ALIGNMENT: u32 = 0x20;
@@ -58,6 +58,19 @@ const EXCEPTION_THERMAL_MANAGEMENT: u32 = 0x4000; // Gekko Only
 
 const OP_RFI: u32 = 0x4C00_0064;
 const PROCESSOR_VERSION: u32 = 0x0008_3214;
+
+/// DSISR bit 1: page fault / translation not found.
+const DSISR_PAGE_FAULT: u32 = 0x4000_0000;
+/// DSISR bit 4: blocked by a page or DBAT PP bits
+const _DSISR_PROTECTION: u32 = 0x0800_0000;
+/// DSISR bit 5: lwarx/stwcx to write-through
+const _DSISR_BAD_ACCESS: u32 = 0x0400_0000;
+/// DSISR bit 6: Set for stores, clear for loads.
+const DSISR_STORE: u32 = 0x0200_0000;
+/// DSISR bit 9: Data address breakpoint match
+const _DSISR_DABR: u32 = 0x0040_00000;
+/// DSISR bit 11: eciwx and ecowx and EAR[E] = 0
+const _DSISR_ECIWX_ECOWX: u32 = 0x0010_0000;
 
 pub(crate) struct Cpu {
     /// Current Instruction Address
@@ -220,6 +233,17 @@ impl Cpu {
         self.program_exception_srr1 |= cause.srr1_bits();
     }
 
+    /// Record a DSI for an unmapped/failed data translation.
+    fn generate_dsi_exception(&mut self, ea: u32, store: bool) {
+        if self.state.exceptions & EXCEPTION_DSI != 0 {
+            return;
+        }
+
+        self.spr[SPR_DAR] = ea;
+        self.spr[SPR_DSISR] = DSISR_PAGE_FAULT | if store { DSISR_STORE } else { 0 };
+        self.state.exceptions |= EXCEPTION_DSI;
+    }
+
     fn check_exceptions(&mut self) {
         if self.state.exceptions & EXCEPTION_SYSTEM_RESET != 0 {
             self.cia = self.exception_vector(0x100);
@@ -285,46 +309,63 @@ impl Cpu {
         }
     }
 
-    pub fn translate_data_address(&mut self, ea: u32, memory: &mut Memory) -> u32 {
+    pub fn translate_data_address(
+        &mut self,
+        ea: u32,
+        memory: &mut Memory,
+        store: bool,
+    ) -> Option<u32> {
         if self.msr.dr() {
-            self.dmmu
+            match self
+                .dmmu
                 .translate_address(mmu::EffectiveAddress(ea), self.msr, memory)
-                .unwrap_or_else(|| {
-                    panic!("DSI: unmapped instr ea={ea:#010x} pc={:#010x}", self.cia)
-                })
+            {
+                Some(pa) => Some(pa),
+                None => {
+                    self.generate_dsi_exception(ea, store);
+                    None
+                }
+            }
         } else {
             // real addressing mode
-            ea
+            Some(ea)
         }
     }
 
-    pub fn read<T>(&mut self, bus: &mut Bus, ea: u32) -> T
+    pub fn read<T>(&mut self, bus: &mut Bus, ea: u32) -> Option<T>
     where
         Mmio: ReadWrite<T>,
         Memory: ReadWrite<T>,
         L1Cache: ReadWrite<T>,
         Bootrom: ReadWrite<T>,
     {
-        let addr = self.translate_data_address(ea, &mut bus.memory);
-
-        bus.read(&mut self.state, addr)
+        self.translate_data_address(ea, &mut bus.memory, false)
+            .map(|addr| bus.read(&mut self.state, addr))
     }
 
-    pub fn write<T>(&mut self, bus: &mut Bus, ea: u32, val: T)
+    pub fn write<T>(&mut self, bus: &mut Bus, ea: u32, val: T) -> bool
     where
         Mmio: ReadWrite<T>,
         Memory: ReadWrite<T>,
         L1Cache: ReadWrite<T>,
     {
-        let addr = self.translate_data_address(ea, &mut bus.memory);
-
-        bus.write(&mut self.state, addr, val);
+        match self.translate_data_address(ea, &mut bus.memory, true) {
+            Some(addr) => {
+                bus.write(&mut self.state, addr, val);
+                true
+            }
+            None => false,
+        }
     }
 
-    pub fn write_bytes(&mut self, bus: &mut Bus, ea: u32, data: &[u8]) {
-        let addr = self.translate_data_address(ea, &mut bus.memory);
-
-        bus.write_bytes(&mut self.state, addr, data);
+    pub fn write_bytes(&mut self, bus: &mut Bus, ea: u32, data: &[u8]) -> bool {
+        match self.translate_data_address(ea, &mut bus.memory, true) {
+            Some(addr) => {
+                bus.write_bytes(&mut self.state, addr, data);
+                true
+            }
+            None => false,
+        }
     }
 
     fn set_xer_so(&mut self, value: bool) {

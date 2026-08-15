@@ -41,6 +41,10 @@ impl Cpu {
         }
     }
 
+    fn get_ea_psq_u(&self, instr: Instruction) -> u32 {
+        self.gpr[instr.a()].wrapping_add(sign_ext_12(instr.uimm_1()) as u32)
+    }
+
     pub fn op_dcbf(&mut self, _instr: Instruction, _: &mut Bus) {
         // don't do anything
 
@@ -105,7 +109,9 @@ impl Cpu {
     pub fn op_lbz(&mut self, instr: Instruction, bus: &mut Bus) {
         let ea = self.get_ea(instr);
 
-        self.gpr[instr.d()] = u32::from(self.read::<u8>(bus, ea));
+        if let Some(val) = self.read::<u8>(bus, ea) {
+            self.gpr[instr.d()] = u32::from(val);
+        }
 
         self.tick(2);
     }
@@ -117,8 +123,10 @@ impl Cpu {
 
         let ea = self.gpr[instr.a()].wrapping_add(instr.simm() as u32);
 
-        self.gpr[instr.d()] = u32::from(self.read::<u8>(bus, ea));
-        self.gpr[instr.a()] = ea;
+        if let Some(val) = self.read::<u8>(bus, ea) {
+            self.gpr[instr.d()] = u32::from(val);
+            self.gpr[instr.a()] = ea;
+        }
 
         self.tick(2);
     }
@@ -130,18 +138,23 @@ impl Cpu {
     pub fn op_lbzx(&mut self, instr: Instruction, bus: &mut Bus) {
         let ea = self.get_ea_x(instr);
 
-        self.gpr[instr.d()] = u32::from(self.read::<u8>(bus, ea));
+        if let Some(val) = self.read::<u8>(bus, ea) {
+            self.gpr[instr.d()] = u32::from(val);
+        }
 
         self.tick(2);
     }
 
     pub fn op_lfd(&mut self, instr: Instruction, bus: &mut Bus) {
+        if !self.ensure_fp() {
+            return;
+        }
+
         let ea = self.get_ea(instr);
 
-        // FIXME: check for DSI exception ???
-        let val = self.read::<u64>(bus, ea);
-
-        self.fpr[instr.d()].set_ps0(val);
+        if let Some(val) = self.read::<u64>(bus, ea) {
+            self.fpr[instr.d()].set_ps0(val);
+        }
 
         self.tick(2);
     }
@@ -159,31 +172,38 @@ impl Cpu {
     }
 
     pub fn op_lfs(&mut self, instr: Instruction, bus: &mut Bus) {
+        if !self.ensure_fp() {
+            return;
+        }
+
         let ea = self.get_ea(instr);
 
-        let val = convert_to_double(self.read::<u32>(bus, ea));
-
-        self.fpr[instr.d()].set_ps0(val);
-
-        if self.hid2.pse() {
-            self.fpr[instr.d()].set_ps1(val);
+        if let Some(raw) = self.read::<u32>(bus, ea) {
+            let val = convert_to_double(raw);
+            self.fpr[instr.d()].set_ps0(val);
+            if self.hid2.pse() {
+                self.fpr[instr.d()].set_ps1(val);
+            }
         }
 
         self.tick(2);
     }
 
     pub fn op_lfsu(&mut self, instr: Instruction, bus: &mut Bus) {
-        let ea = self.get_ea_u(instr);
-
-        let val = convert_to_double(self.read::<u32>(bus, ea));
-
-        self.fpr[instr.d()].set_ps0(val);
-
-        if self.hid2.pse() {
-            self.fpr[instr.d()].set_ps1(val);
+        if !self.ensure_fp() {
+            return;
         }
 
-        self.gpr[instr.a()] = ea;
+        let ea = self.get_ea_u(instr);
+
+        if let Some(raw) = self.read::<u32>(bus, ea) {
+            let val = convert_to_double(raw);
+            self.fpr[instr.d()].set_ps0(val);
+            if self.hid2.pse() {
+                self.fpr[instr.d()].set_ps1(val);
+            }
+            self.gpr[instr.a()] = ea;
+        }
     }
 
     pub fn op_lfsux(&mut self, _instr: Instruction, _: &mut Bus) {
@@ -197,7 +217,9 @@ impl Cpu {
     pub fn op_lha(&mut self, instr: Instruction, bus: &mut Bus) {
         let ea = self.get_ea(instr);
 
-        self.gpr[instr.d()] = ((self.read::<u16>(bus, ea) as i16) as i32) as u32;
+        if let Some(val) = self.read::<u16>(bus, ea) {
+            self.gpr[instr.d()] = i32::from(val as i16) as u32;
+        }
 
         self.tick(2);
     }
@@ -221,7 +243,9 @@ impl Cpu {
     pub fn op_lhz(&mut self, instr: Instruction, bus: &mut Bus) {
         let ea = self.get_ea(instr);
 
-        self.gpr[instr.d()] = u32::from(self.read::<u16>(bus, ea));
+        if let Some(val) = self.read::<u16>(bus, ea) {
+            self.gpr[instr.d()] = u32::from(val);
+        }
 
         self.tick(2);
     }
@@ -229,8 +253,10 @@ impl Cpu {
     pub fn op_lhzu(&mut self, instr: Instruction, bus: &mut Bus) {
         let ea = self.get_ea_u(instr);
 
-        self.gpr[instr.d()] = u32::from(self.read::<u16>(bus, ea));
-        self.gpr[instr.a()] = ea;
+        if let Some(val) = self.read::<u16>(bus, ea) {
+            self.gpr[instr.d()] = u32::from(val);
+            self.gpr[instr.a()] = ea;
+        }
 
         self.tick(2);
     }
@@ -242,7 +268,9 @@ impl Cpu {
     pub fn op_lhzx(&mut self, instr: Instruction, bus: &mut Bus) {
         let ea = self.get_ea_x(instr);
 
-        self.gpr[instr.d()] = self.read::<u16>(bus, ea) as u32;
+        if let Some(val) = self.read::<u16>(bus, ea) {
+            self.gpr[instr.d()] = u32::from(val);
+        }
     }
 
     pub fn op_lmw(&mut self, instr: Instruction, bus: &mut Bus) {
@@ -251,7 +279,10 @@ impl Cpu {
         let n = (32 - r) as u32;
 
         while r < 32 {
-            self.gpr[r] = self.read::<u32>(bus, ea);
+            match self.read::<u32>(bus, ea) {
+                Some(val) => self.gpr[r] = val,
+                None => break,
+            }
 
             r += 1;
             ea += 4;
@@ -279,7 +310,9 @@ impl Cpu {
     pub fn op_lwz(&mut self, instr: Instruction, bus: &mut Bus) {
         let ea = self.get_ea(instr);
 
-        self.gpr[instr.d()] = self.read::<u32>(bus, ea);
+        if let Some(val) = self.read::<u32>(bus, ea) {
+            self.gpr[instr.d()] = val;
+        }
 
         self.tick(2);
     }
@@ -287,8 +320,10 @@ impl Cpu {
     pub fn op_lwzu(&mut self, instr: Instruction, bus: &mut Bus) {
         let ea = self.get_ea_u(instr);
 
-        self.gpr[instr.d()] = self.read::<u32>(bus, ea);
-        self.gpr[instr.a()] = ea;
+        if let Some(val) = self.read::<u32>(bus, ea) {
+            self.gpr[instr.d()] = val;
+            self.gpr[instr.a()] = ea;
+        }
 
         self.tick(2);
     }
@@ -300,7 +335,9 @@ impl Cpu {
     pub fn op_lwzx(&mut self, instr: Instruction, bus: &mut Bus) {
         let ea = self.get_ea_x(instr);
 
-        self.gpr[instr.d()] = self.read::<u32>(bus, ea);
+        if let Some(val) = self.read::<u32>(bus, ea) {
+            self.gpr[instr.d()] = val;
+        }
 
         self.tick(2);
     }
@@ -318,36 +355,50 @@ impl Cpu {
 
         if instr.w() {
             let val = match ld_type {
-                QUANTIZE_FLOAT => f64::from_bits(convert_to_double(self.read::<u32>(bus, ea))),
-                QUANTIZE_U8 | QUANTIZE_I8 => {
-                    dequantize(self.read::<u8>(bus, ea) as u32, ld_type, ld_scale) as f64
-                }
-                QUANTIZE_U16 | QUANTIZE_I16 => {
-                    dequantize(self.read::<u16>(bus, ea) as u32, ld_type, ld_scale) as f64
-                }
+                QUANTIZE_FLOAT => self
+                    .read::<u32>(bus, ea)
+                    .map(|v| f64::from_bits(convert_to_double(v))),
+                QUANTIZE_U8 | QUANTIZE_I8 => self
+                    .read::<u8>(bus, ea)
+                    .map(|v| dequantize(u32::from(v), ld_type, ld_scale) as f64),
+                QUANTIZE_U16 | QUANTIZE_I16 => self
+                    .read::<u16>(bus, ea)
+                    .map(|v| dequantize(u32::from(v), ld_type, ld_scale) as f64),
                 _ => panic!("psq_l: invalid type {:}", ld_type),
             };
 
-            self.fpr[instr.d()].set_ps0_f64(val as f64);
-            self.fpr[instr.d()].set_ps1_f64(1.0);
+            if let Some(val) = val {
+                self.fpr[instr.d()].set_ps0_f64(val);
+                self.fpr[instr.d()].set_ps1_f64(1.0);
+            }
         } else {
-            let (val1, val2) = match ld_type {
-                QUANTIZE_FLOAT => (
-                    f32::from_bits(self.read::<u32>(bus, ea)),
-                    f32::from_bits(self.read::<u32>(bus, ea + 4)),
-                ),
-                QUANTIZE_U8 | QUANTIZE_I8 => (
-                    dequantize(self.read::<u8>(bus, ea) as u32, ld_type, ld_scale),
-                    dequantize(self.read::<u8>(bus, ea + 1) as u32, ld_type, ld_scale),
-                ),
-                QUANTIZE_U16 | QUANTIZE_I16 => (
-                    dequantize(self.read::<u16>(bus, ea) as u32, ld_type, ld_scale),
-                    dequantize(self.read::<u16>(bus, ea + 2) as u32, ld_type, ld_scale),
-                ),
+            let pair = match ld_type {
+                QUANTIZE_FLOAT => self.read::<u32>(bus, ea).and_then(|a| {
+                    self.read::<u32>(bus, ea + 4)
+                        .map(|b| (f32::from_bits(a), f32::from_bits(b)))
+                }),
+                QUANTIZE_U8 | QUANTIZE_I8 => self.read::<u8>(bus, ea).and_then(|a| {
+                    self.read::<u8>(bus, ea + 1).map(|b| {
+                        (
+                            dequantize(u32::from(a), ld_type, ld_scale),
+                            dequantize(u32::from(b), ld_type, ld_scale),
+                        )
+                    })
+                }),
+                QUANTIZE_U16 | QUANTIZE_I16 => self.read::<u16>(bus, ea).and_then(|a| {
+                    self.read::<u16>(bus, ea + 2).map(|b| {
+                        (
+                            dequantize(u32::from(a), ld_type, ld_scale),
+                            dequantize(u32::from(b), ld_type, ld_scale),
+                        )
+                    })
+                }),
                 _ => panic!("psq_l: invalid type {:}", ld_type),
             };
-            self.fpr[instr.d()].set_ps0_f64(val1 as f64);
-            self.fpr[instr.d()].set_ps1_f64(val2 as f64);
+            if let Some((val1, val2)) = pair {
+                self.fpr[instr.d()].set_ps0_f64(val1 as f64);
+                self.fpr[instr.d()].set_ps1_f64(val2 as f64);
+            }
         }
 
         self.tick(3);
@@ -371,7 +422,26 @@ impl Cpu {
         }
 
         let ea = self.get_ea_psq(instr);
+        self.store_psq(bus, ea, instr);
 
+        self.tick(2);
+    }
+
+    pub fn op_psq_stu(&mut self, instr: Instruction, bus: &mut Bus) {
+        if !self.ensure_ps() {
+            return;
+        }
+
+        let ea = self.get_ea_psq_u(instr);
+        if self.store_psq(bus, ea, instr) {
+            self.gpr[instr.a()] = ea;
+        }
+
+        self.tick(2);
+    }
+
+    /// Quantized paired-single store at `ea`. Returns false if a write took a DSI.
+    fn store_psq(&mut self, bus: &mut Bus, ea: u32, instr: Instruction) -> bool {
         let gqr = Gqr(self.spr[SPR_GQR0 + instr.i()]);
         let st_type = gqr.st();
         let st_scale = gqr.ss();
@@ -385,36 +455,34 @@ impl Cpu {
             match st_type {
                 QUANTIZE_FLOAT => self.write::<u32>(bus, ea, convert_to_single(ps0)),
                 QUANTIZE_U8 | QUANTIZE_I8 => {
-                    self.write::<u8>(bus, ea, quantize(ps0_f32, st_type, st_scale) as u8);
+                    self.write::<u8>(bus, ea, quantize(ps0_f32, st_type, st_scale) as u8)
                 }
                 QUANTIZE_U16 | QUANTIZE_I16 => {
-                    self.write::<u16>(bus, ea, quantize(ps0_f32, st_type, st_scale) as u16);
+                    self.write::<u16>(bus, ea, quantize(ps0_f32, st_type, st_scale) as u16)
                 }
                 _ => panic!("psq_st: invalid type {:}", st_type),
             }
         } else {
             match st_type {
                 QUANTIZE_FLOAT => {
-                    self.write::<u32>(bus, ea, convert_to_single(ps0));
-                    self.write::<u32>(bus, ea.wrapping_add(4), convert_to_single(ps1));
+                    self.write::<u32>(bus, ea, convert_to_single(ps0))
+                        && self.write::<u32>(bus, ea.wrapping_add(4), convert_to_single(ps1))
                 }
                 QUANTIZE_U8 | QUANTIZE_I8 => {
-                    self.write::<u8>(bus, ea, quantize(ps0_f32, st_type, st_scale) as u8);
-                    self.write::<u8>(bus, ea + 1, quantize(ps1_f32, st_type, st_scale) as u8);
+                    self.write::<u8>(bus, ea, quantize(ps0_f32, st_type, st_scale) as u8)
+                        && self.write::<u8>(bus, ea + 1, quantize(ps1_f32, st_type, st_scale) as u8)
                 }
                 QUANTIZE_U16 | QUANTIZE_I16 => {
-                    self.write::<u16>(bus, ea, quantize(ps0_f32, st_type, st_scale) as u16);
-                    self.write::<u16>(bus, ea + 2, quantize(ps1_f32, st_type, st_scale) as u16);
+                    self.write::<u16>(bus, ea, quantize(ps0_f32, st_type, st_scale) as u16)
+                        && self.write::<u16>(
+                            bus,
+                            ea + 2,
+                            quantize(ps1_f32, st_type, st_scale) as u16,
+                        )
                 }
                 _ => panic!("psq_st: invalid type {:}", st_type),
             }
         }
-
-        self.tick(2);
-    }
-
-    pub fn op_psq_stu(&mut self, _instr: Instruction, _: &mut Bus) {
-        unimplemented!("op_psq_stu");
     }
 
     pub fn op_psq_stux(&mut self, _instr: Instruction, _: &mut Bus) {
@@ -436,9 +504,9 @@ impl Cpu {
     pub fn op_stbu(&mut self, instr: Instruction, bus: &mut Bus) {
         let ea = self.get_ea_u(instr);
 
-        self.write::<u8>(bus, ea, self.gpr[instr.s()] as u8);
-
-        self.gpr[instr.a()] = ea;
+        if self.write::<u8>(bus, ea, self.gpr[instr.s()] as u8) {
+            self.gpr[instr.a()] = ea;
+        }
 
         self.tick(2);
     }
@@ -490,13 +558,17 @@ impl Cpu {
     }
 
     pub fn op_stfsu(&mut self, instr: Instruction, bus: &mut Bus) {
+        if !self.ensure_fp() {
+            return;
+        }
+
         let ea = self.get_ea_u(instr);
 
         let val = self.fpr[instr.s()].ps0();
 
-        self.write::<u32>(bus, ea, convert_to_single(val));
-
-        self.gpr[instr.a()] = ea;
+        if self.write::<u32>(bus, ea, convert_to_single(val)) {
+            self.gpr[instr.a()] = ea;
+        }
 
         self.tick(2);
     }
@@ -528,9 +600,9 @@ impl Cpu {
     pub fn op_sthu(&mut self, instr: Instruction, bus: &mut Bus) {
         let ea = self.get_ea_u(instr);
 
-        self.write::<u16>(bus, ea, self.gpr[instr.s()] as u16);
-
-        self.gpr[instr.a()] = ea;
+        if self.write::<u16>(bus, ea, self.gpr[instr.s()] as u16) {
+            self.gpr[instr.a()] = ea;
+        }
 
         self.tick(2);
     }
@@ -554,7 +626,9 @@ impl Cpu {
         let n = (32 - r) as u32;
 
         while r < 32 {
-            self.write::<u32>(bus, ea, self.gpr[r]);
+            if !self.write::<u32>(bus, ea, self.gpr[r]) {
+                break;
+            }
 
             r += 1;
             ea += 4;
@@ -594,9 +668,9 @@ impl Cpu {
 
         let ea = self.get_ea_u(instr);
 
-        self.write::<u32>(bus, ea, self.gpr[instr.s()]);
-
-        self.gpr[instr.a()] = ea;
+        if self.write::<u32>(bus, ea, self.gpr[instr.s()]) {
+            self.gpr[instr.a()] = ea;
+        }
 
         self.tick(2);
     }
@@ -608,9 +682,9 @@ impl Cpu {
 
         let ea = self.get_ea_ux(instr);
 
-        self.write::<u32>(bus, ea, self.gpr[instr.s()]);
-
-        self.gpr[instr.a()] = ea;
+        if self.write::<u32>(bus, ea, self.gpr[instr.s()]) {
+            self.gpr[instr.a()] = ea;
+        }
 
         self.tick(2);
     }
@@ -685,8 +759,8 @@ mod tests {
         cpu.op_dcbz_l(instr, &mut bus);
         assert_eq!(cpu.state.exceptions, 0);
         for i in 0..8 {
-            assert_eq!(cpu.read::<u32>(&mut bus, 0x0000_1000 + i * 4), 0);
+            assert_eq!(cpu.read::<u32>(&mut bus, 0x0000_1000 + i * 4), Some(0));
         }
-        assert_eq!(cpu.read::<u32>(&mut bus, 0x0000_1020), 0xCAFE_BABE);
+        assert_eq!(cpu.read::<u32>(&mut bus, 0x0000_1020), Some(0xCAFE_BABE));
     }
 }

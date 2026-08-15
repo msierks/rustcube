@@ -116,9 +116,9 @@ impl Disc {
         info!("Call Apploader Entrypoint");
         run_function(cpu, bus, apploader_entrypoint);
 
-        let apl_init = cpu.read::<u32>(bus, base_addr + APL_INIT_OFFSET);
-        let apl_main = cpu.read::<u32>(bus, base_addr + APL_MAIN_OFFSET);
-        let apl_close = cpu.read::<u32>(bus, base_addr + APL_CLOSE_OFFSET);
+        let apl_init = cpu.read::<u32>(bus, base_addr + APL_INIT_OFFSET).unwrap();
+        let apl_main = cpu.read::<u32>(bus, base_addr + APL_MAIN_OFFSET).unwrap();
+        let apl_close = cpu.read::<u32>(bus, base_addr + APL_CLOSE_OFFSET).unwrap();
 
         info!(
             "Apploader: init {:#x} | main {:#x} | close {:#x}",
@@ -140,9 +140,9 @@ impl Disc {
 
         // Execute AplMain
         while cpu.gpr[3] != 0 {
-            let addr = cpu.read::<u32>(bus, base_addr + 0x4);
-            let size = cpu.read::<u32>(bus, base_addr + 0x8) as usize;
-            let offset = cpu.read::<u32>(bus, base_addr + 0xC) as u64;
+            let addr = cpu.read::<u32>(bus, base_addr + 0x4).unwrap();
+            let size = cpu.read::<u32>(bus, base_addr + 0x8).unwrap() as usize;
+            let offset = cpu.read::<u32>(bus, base_addr + 0xC).unwrap() as u64;
 
             if size > 0 {
                 let mut buff = vec![0; size];
