@@ -40,21 +40,35 @@ pub(crate) const NUM_GPR: usize = 32;
 pub(crate) const NUM_SPR: usize = 1023;
 const NUM_SR: usize = 16;
 
-const EXCEPTION_SYSTEM_RESET: u32 = 0x1;
-//const EXCEPTION_MACHINE_CHECK: u32 = 0x2;
-const EXCEPTION_DSI: u32 = 0x4;
-//const EXCEPTION_ISI: u32 = 0x8;
-const EXCEPTION_EXTERNAL_INT: u32 = 0x10;
-//const EXCEPTION_ALIGNMENT: u32 = 0x20;
-const EXCEPTION_PROGRAM: u32 = 0x40;
-const EXCEPTION_FPU_UNAVAILABLE: u32 = 0x80;
-const EXCEPTION_DECREMENTER: u32 = 0x100;
-const EXCEPTION_SYSTEM_CALL: u32 = 0x200;
-//const EXCEPTION_TRACE: u32 = 0x400;
-//const EXCEPTION_FPU_ASSIST: u32 = 0x800;
-const EXCEPTION_PERFORMANCE_MONITOR: u32 = 0x1000; // Gekko Only
+const EXCEPTION_SYSTEM_RESET: u32 = 0x1; // Return address SRR2 is next sequential instruction
+const _EXCEPTION_MACHINE_CHECK: u32 = 0x2; // Return address is SRR2 is caused instruction
+const EXCEPTION_DSI: u32 = 0x4; // Return address SRR0 is caused instruction
+const _EXCEPTION_ISI: u32 = 0x8; // Return address SRR0 is caused instrucionn
+const EXCEPTION_EXTERNAL_INT: u32 = 0x10; // Return address SRR0 is next instruction
+const _EXCEPTION_ALIGNMENT: u32 = 0x20; // Return address SRR0 is caused instruction
+const EXCEPTION_PROGRAM: u32 = 0x40; // Return address SRR0 is caused instruction
+const EXCEPTION_FPU_UNAVAILABLE: u32 = 0x80; // Return address SRR0 is caused instruction
+const EXCEPTION_DECREMENTER: u32 = 0x100; // Return address SRR0 is following instruction
+const EXCEPTION_SYSTEM_CALL: u32 = 0x200; // Return address SRR0 is following instruction
+const _EXCEPTION_TRACE: u32 = 0x400;
+const _EXCEPTION_PERFORMANCE_MONITOR: u32 = 0x1000; // Gekko Only
 const _EXCEPTION_IABR: u32 = 0x2000; // Gekko Only
-const EXCEPTION_THERMAL_MANAGEMENT: u32 = 0x4000; // Gekko Only
+const _EXCEPTION_THERMAL_MANAGEMENT: u32 = 0x4000; // Gekko Only
+
+const VECTOR_OFFSET_SYSTEM_RESET: u32 = 0x0100;
+const _VECTOR_OFFSET_MACHINE_CHECK: u32 = 0x0200;
+const VECTOR_OFFSET_DSI: u32 = 0x0300;
+const _VECTOR_OFFSET_ISI: u32 = 0x0400;
+const VECTOR_OFFSET_EXTERNAL_INT: u32 = 0x0500;
+const _VECTOR_OFFSET_ALIGNMENT: u32 = 0x0600;
+const VECTOR_OFFSET_PROGRAM: u32 = 0x0700;
+const VECTOR_OFFSET_FPU_UNAVAILABLE: u32 = 0x0800;
+const VECTOR_OFFSET_DECREMENTER: u32 = 0x0900;
+const VECTOR_OFFSET_SYSTEM_CALL: u32 = 0x0C00;
+const _VECTOR_OFFSET_TRACE: u32 = 0x0D00;
+const _VECTOR_OFFSET_PERFORMANCE_MONITOR: u32 = 0x0F00;
+const _VECTOR_OFFSET_IABR: u32 = 0x1300;
+const _VECTOR_OFFSET_THERMAL_MANAGEMENT: u32 = 0x1700;
 
 const OP_RFI: u32 = 0x4C00_0064;
 const PROCESSOR_VERSION: u32 = 0x0008_3214;
@@ -95,10 +109,6 @@ pub(crate) struct Cpu {
     sr: [u32; NUM_SR],
     /// Hardware Implementation-Dependent Register 1
     hid2: HardwareImplementationDependentRegister2,
-    /// Pending program-exception SRR1 reason bits (11–14).
-    program_exception_srr1: u32,
-    /// Effective address of the instruction that caused the pending program exception.
-    program_exception_srr0: u32,
     /// Instruction Memory Management Unit (IMMU)
     immu: Mmu,
     /// Data Memory Management Unit (DMMU)
@@ -129,8 +139,6 @@ impl Default for Cpu {
             msr: 0x40.into(),
             sr: [0; NUM_SR],
             hid2: Default::default(),
-            program_exception_srr1: 0,
-            program_exception_srr0: 0,
             immu: Default::default(),
             dmmu: Default::default(),
             state: Default::default(),
@@ -222,21 +230,21 @@ impl Cpu {
             unimplemented!();
         }
 
-        self.cia = self.nia;
-
         if self.state.exceptions != 0 {
             self.check_exceptions();
-            self.cia = self.nia;
         }
+
+        self.cia = self.nia;
     }
 
     /// Record a program exception to be taken after the current instruction.
     fn generate_program_exception(&mut self, cause: ProgramException) {
-        self.state.exceptions |= EXCEPTION_PROGRAM;
-        if self.program_exception_srr1 == 0 {
-            self.program_exception_srr0 = self.cia;
+        if self.state.exceptions & EXCEPTION_PROGRAM == 0 {
+            self.spr[SPR_SRR1] = cause.srr1_bits();
+        } else {
+            self.spr[SPR_SRR1] |= cause.srr1_bits();
         }
-        self.program_exception_srr1 |= cause.srr1_bits();
+        self.state.exceptions |= EXCEPTION_PROGRAM;
     }
 
     /// Record a DSI for an unmapped/failed data translation.
@@ -252,35 +260,50 @@ impl Cpu {
 
     fn check_exceptions(&mut self) {
         if self.state.exceptions & EXCEPTION_SYSTEM_RESET != 0 {
-            self.cia = self.exception_vector(0x100);
+            self.cia = self.exception_vector(VECTOR_OFFSET_SYSTEM_RESET);
+            self.nia = self.cia;
             self.state.exceptions &= !EXCEPTION_SYSTEM_RESET;
-            info!("EXCEPTION_SYSTEM_RESET");
+            debug!("EXCEPTION_SYSTEM_RESET");
         } else if self.state.exceptions & EXCEPTION_PROGRAM != 0 {
-            let srr0 = self.program_exception_srr0;
-            let cause_bits = self.program_exception_srr1;
-            self.program_exception_srr1 = 0;
-            self.take_exception(0x700, srr0, cause_bits, EXCEPTION_PROGRAM);
-            info!("EXCEPTION_PROGRAM");
+            self.take_exception(
+                VECTOR_OFFSET_PROGRAM,
+                self.cia,
+                self.spr[SPR_SRR1],
+                EXCEPTION_PROGRAM,
+            );
+            debug!("EXCEPTION_PROGRAM");
         } else if self.state.exceptions & EXCEPTION_SYSTEM_CALL != 0 {
-            self.take_exception(0xC00, self.nia, 0, EXCEPTION_SYSTEM_CALL);
-            info!("EXCEPTION_SYSTEM_CALL (PC={:#x})", self.cia);
+            self.take_exception(
+                VECTOR_OFFSET_SYSTEM_CALL,
+                self.nia,
+                0,
+                EXCEPTION_SYSTEM_CALL,
+            );
+            debug!("EXCEPTION_SYSTEM_CALL PC={:#x}", self.cia);
         } else if self.state.exceptions & EXCEPTION_FPU_UNAVAILABLE != 0 {
-            self.take_exception(0x800, self.nia, 0, EXCEPTION_FPU_UNAVAILABLE);
-            info!("EXCEPTION_FPU_UNAVAILABLE");
+            self.take_exception(
+                VECTOR_OFFSET_FPU_UNAVAILABLE,
+                self.cia,
+                0,
+                EXCEPTION_FPU_UNAVAILABLE,
+            );
+            debug!("EXCEPTION_FPU_UNAVAILABLE");
+        } else if self.state.exceptions & EXCEPTION_DSI != 0 {
+            self.take_exception(VECTOR_OFFSET_DSI, self.cia, 0, EXCEPTION_DSI);
+            debug!(
+                "EXCEPTION_DSI PC={:#x} DAR={:#x} DSISR={:#x}",
+                self.spr[SPR_SRR0], self.spr[SPR_DAR], self.spr[SPR_DSISR]
+            );
         } else if self.state.exceptions & EXCEPTION_EXTERNAL_INT != 0 {
-            if !self.take_ee_exception(0x500, EXCEPTION_EXTERNAL_INT) {
+            if !self.take_ee_exception(VECTOR_OFFSET_EXTERNAL_INT, 0) {
                 return;
             }
-            info!("EXCEPTION_EXTERNAL_INT");
-        } else if self.state.exceptions & EXCEPTION_PERFORMANCE_MONITOR != 0 {
-            unimplemented!("EXCEPTION_PERFORMANCE_MONITOR");
+            debug!("EXCEPTION_EXTERNAL_INT");
         } else if self.state.exceptions & EXCEPTION_DECREMENTER != 0 {
-            if !self.take_ee_exception(0x900, EXCEPTION_DECREMENTER) {
+            if !self.take_ee_exception(VECTOR_OFFSET_DECREMENTER, EXCEPTION_DECREMENTER) {
                 return;
             }
-            info!("EXCEPTION_DECREMENTER -> {:#x}", self.cia);
-        } else if self.state.exceptions & EXCEPTION_THERMAL_MANAGEMENT != 0 {
-            unimplemented!("EXCEPTION_THERMAL_MANAGEMENT");
+            debug!("EXCEPTION_DECREMENTER PC={:#x}", self.cia);
         }
     }
 
@@ -289,8 +312,7 @@ impl Cpu {
         self.spr[SPR_SRR1] = (self.msr.0 & 0x87C0_FFFF) | srr1_extra;
         self.msr.set_le(self.msr.ile());
         self.msr.0 &= !0x04_EF36;
-        self.cia = self.exception_vector(vector);
-        self.nia = self.cia;
+        self.nia = self.exception_vector(vector);
         self.state.exceptions &= !clear;
     }
 
@@ -410,7 +432,7 @@ impl Cpu {
 
     fn ensure_ps(&mut self) -> bool {
         if !self.hid2.pse() {
-            self.state.exceptions |= EXCEPTION_PROGRAM;
+            self.generate_program_exception(ProgramException::IllegalInstruction);
             return false;
         }
         self.ensure_fp()

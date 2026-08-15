@@ -772,14 +772,14 @@ mod tests {
         cpu.op_dcbz_l(instr, &mut bus);
         assert_eq!(cpu.state.exceptions, super::super::EXCEPTION_PROGRAM);
         assert_eq!(
-            cpu.program_exception_srr1,
+            cpu.spr[SPR_SRR1],
             ProgramException::IllegalInstruction.srr1_bits()
         );
 
         // HID2[LCE] = 1 -> zero 32-byte cache line
         cpu.hid2 = (1 << 28).into();
         cpu.state.exceptions = 0;
-        cpu.program_exception_srr1 = 0;
+        cpu.spr[SPR_SRR1] = 0;
         for i in 0..8 {
             cpu.write::<u32>(&mut bus, 0x0000_1000 + i * 4, 0xDEAD_BEEF);
         }

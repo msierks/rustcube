@@ -1786,16 +1786,13 @@ mod tests {
         cpu.msr.0 = 0x0000_2030;
         cpu.op_twi(instr, &mut bus);
         assert_eq!(cpu.state.exceptions, EXCEPTION_PROGRAM);
-        assert_eq!(cpu.spr[SPR_SRR1], 0);
-        assert_eq!(cpu.program_exception_srr1, trap);
-        assert_eq!(cpu.program_exception_srr0, 0x8000_1234);
+        assert_eq!(cpu.spr[SPR_SRR1], trap);
 
         cpu.check_exceptions();
         assert_eq!(cpu.state.exceptions & EXCEPTION_PROGRAM, 0);
         assert_eq!(cpu.spr[SPR_SRR0], 0x8000_1234);
         assert_eq!(cpu.spr[SPR_SRR1] & trap, trap);
         assert_eq!(cpu.spr[SPR_SRR1] & 0x87C0_FFFF, 0x0000_2030 & 0x87C0_FFFF);
-        assert_eq!(cpu.program_exception_srr1, 0);
 
         let instr = Instruction::new_twi(0x8, a, 0x10);
         cpu.cia = 0x8000_2000;
@@ -1804,14 +1801,14 @@ mod tests {
         cpu.spr[SPR_SRR1] = 0;
         cpu.op_twi(instr, &mut bus);
         assert_eq!(cpu.state.exceptions, EXCEPTION_PROGRAM);
-        assert_eq!(cpu.program_exception_srr1, trap);
+        assert_eq!(cpu.spr[SPR_SRR1], trap);
 
         cpu.gpr[a] = 0x0000_0008;
         cpu.state.exceptions = 0;
-        cpu.program_exception_srr1 = 0;
+        cpu.spr[SPR_SRR1] = 0;
         cpu.op_twi(instr, &mut bus);
         assert_eq!(cpu.state.exceptions, 0);
-        assert_eq!(cpu.program_exception_srr1, 0);
+        assert_eq!(cpu.spr[SPR_SRR1], 0);
 
         let instr = Instruction::new_twi(0x10, a, 0x10);
         cpu.gpr[a] = 0x0000_0020;
