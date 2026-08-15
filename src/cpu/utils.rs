@@ -49,11 +49,7 @@ pub fn convert_to_single(x: u64) -> u32 {
 }
 
 pub fn sign_ext_12(x: u16) -> i32 {
-    if x & 0x800 != 0 {
-        i32::from(x | 0xF000)
-    } else {
-        i32::from(x)
-    }
+    ((x as i32) << 20) >> 20
 }
 
 // Note: A cast from a signed value widens with signed-extension
@@ -63,11 +59,7 @@ pub fn sign_ext_16(x: u16) -> i32 {
 }
 
 pub fn sign_ext_26(x: u32) -> i32 {
-    if x & 0x0200_0000 != 0 {
-        (x | 0xFC00_0000) as i32
-    } else {
-        x as i32
-    }
+    ((x as i32) << 6) >> 6
 }
 
 // TODO: Potential performance improvement by placing all mask combinations in array
@@ -129,5 +121,35 @@ mod tests {
 
             assert_eq!(result, t.1);
         }
+    }
+
+    #[test]
+    fn sign_ext_12() {
+        assert_eq!(super::sign_ext_12(0), 0);
+        assert_eq!(super::sign_ext_12(1), 1);
+        assert_eq!(super::sign_ext_12(0x7FF), 0x0000_07FF_i32);
+        assert_eq!(super::sign_ext_12(0x800), 0xFFFF_F800_u32 as i32);
+        assert_eq!(super::sign_ext_12(0xFFF), 0xFFFF_FFFF_u32 as i32);
+        assert_eq!(super::sign_ext_12(0xFF0), 0xFFFF_FFF0_u32 as i32);
+    }
+
+    #[test]
+    fn sign_ext_16() {
+        assert_eq!(super::sign_ext_16(0), 0);
+        assert_eq!(super::sign_ext_16(1), 1);
+        assert_eq!(super::sign_ext_16(0x7FFF), 0x0000_7FFF_i32);
+        assert_eq!(super::sign_ext_16(0x8000), 0xFFFF_8000_u32 as i32);
+        assert_eq!(super::sign_ext_16(0xFFFF), 0xFFFF_FFFF_u32 as i32);
+        assert_eq!(super::sign_ext_16(0xFFF0), 0xFFFF_FFF0_u32 as i32);
+    }
+
+    #[test]
+    fn sign_ext_26() {
+        assert_eq!(super::sign_ext_26(0), 0);
+        assert_eq!(super::sign_ext_26(1), 1);
+        assert_eq!(super::sign_ext_26(0x01FF_FFFF), 0x01FF_FFFF_i32);
+        assert_eq!(super::sign_ext_26(0x0200_0000), 0xFE00_0000_u32 as i32);
+        assert_eq!(super::sign_ext_26(0x03FF_FFFF), 0xFFFF_FFFF_u32 as i32);
+        assert_eq!(super::sign_ext_26(0x03FF_FFF0), 0xFFFF_FFF0_u32 as i32);
     }
 }
