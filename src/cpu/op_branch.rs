@@ -131,8 +131,8 @@ mod tests {
         assert_eq!(cpu.nia, 0xFFF0_1258);
 
         // bcl 0x8,1,0x456
-        let (bo, bi, bd, lk) = (0x8, 1, 0x456, 1);
-        let instr = Instruction::new_bcx(bo, bi, bd).set_lk(lk);
+        let (bo, bi, bd, lk) = (0x8, 1, 0x456, true);
+        let instr = Instruction::new_bcx(bo, bi, bd).with_lk(lk);
 
         cpu.op_bcx(instr, &mut bus);
 

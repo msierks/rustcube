@@ -894,7 +894,7 @@ mod tests {
         assert_eq!(cpu.gpr[rd], 0x0004_4000);
         assert!(!cpu.xer.carry());
 
-        let instr = instr.set_rc(1);
+        let instr = instr.with_rc(true);
 
         cpu.gpr[ra] = 0x8000_7000;
         cpu.gpr[rb] = 0x7000_8000;
@@ -934,7 +934,7 @@ mod tests {
 
         assert_eq!(cpu.gpr[rd], 0x1000_A000);
 
-        let instr = instr.set_rc(1);
+        let instr = instr.with_rc(true);
 
         cpu.gpr[ra] = 0x7000_3000;
         cpu.gpr[rb] = 0xFFFF_FFFF;
@@ -943,7 +943,7 @@ mod tests {
         assert_eq!(cpu.gpr[rd], 0x7000_2FFF);
         assert_eq!(cpu.cr.get_cr0(), 0x4); // GT
 
-        let instr = instr.set_oe(1);
+        let instr = instr.with_oe(true);
 
         cpu.gpr[ra] = 0x9000_3000;
         cpu.gpr[rb] = 0x7B41_92C0;
@@ -979,7 +979,7 @@ mod tests {
 
         assert_eq!(cpu.gpr[ra], 0x7B40_1200);
 
-        let instr = instr.set_rc(1);
+        let instr = instr.with_rc(true);
 
         cpu.gpr[rs] = 0xFFF2_5730;
         cpu.gpr[rb] = 0xFFFF_EFFF;
@@ -1003,7 +1003,7 @@ mod tests {
 
         assert_eq!(cpu.gpr[ra], 0x0000_0000);
 
-        let instr = instr.set_rc(1);
+        let instr = instr.with_rc(true);
 
         cpu.gpr[rs] = 0xB004_3000;
         cpu.gpr[rb] = 0x7676_7676;
@@ -1115,7 +1115,7 @@ mod tests {
 
         assert_eq!(cpu.gpr[rd], 0x0000_0000);
 
-        let instr = instr.set_rc(1);
+        let instr = instr.with_rc(true);
 
         cpu.gpr[ra] = 0x0000_0002;
         cpu.gpr[rb] = 0x0000_0002;
@@ -1153,7 +1153,7 @@ mod tests {
 
         assert_eq!(cpu.gpr[rd], 0x0000_0000);
 
-        let instr = instr.set_rc(1);
+        let instr = instr.with_rc(true);
 
         cpu.gpr[ra] = 0x0000_0002;
         cpu.gpr[rb] = 0x0000_0002;
@@ -1229,7 +1229,7 @@ mod tests {
 
         assert_eq!(cpu.gpr[rd], 0x0000_0000);
 
-        let instr = instr.set_rc(1);
+        let instr = instr.with_rc(true);
 
         cpu.gpr[ra] = 0x0000_4500;
         cpu.gpr[rb] = 0x8000_7000;
@@ -1267,7 +1267,7 @@ mod tests {
 
         assert_eq!(cpu.gpr[rd], 0x1500_0000);
 
-        let instr = instr.set_rc(1);
+        let instr = instr.with_rc(true);
 
         cpu.gpr[ra] = 0x0000_4500;
         cpu.gpr[rb] = 0x0000_7000;
@@ -1276,7 +1276,7 @@ mod tests {
         assert_eq!(cpu.gpr[rd], 0x1E30_0000);
         assert_eq!(cpu.cr.get_cr0(), 0x4); // GT
 
-        let instr = instr.set_oe(1);
+        let instr = instr.with_oe(true);
 
         cpu.gpr[ra] = 0x0000_4500;
         cpu.gpr[rb] = 0x0007_0000;
@@ -1307,7 +1307,7 @@ mod tests {
 
         assert_eq!(cpu.gpr[rd], 0x6FFF_D000);
 
-        let instr = instr.set_rc(1);
+        let instr = instr.with_rc(true);
 
         cpu.gpr[ra] = 0x789A_789B;
         cpu.op_negx(instr, &mut bus);
@@ -1344,7 +1344,7 @@ mod tests {
 
         assert_eq!(cpu.gpr[ra], 0x0765_8764);
 
-        let instr = instr.set_rc(1);
+        let instr = instr.with_rc(true);
 
         cpu.gpr[rs] = 0xB004_3000;
         cpu.gpr[rb] = 0x789A_789B;
@@ -1368,7 +1368,7 @@ mod tests {
 
         assert_eq!(cpu.gpr[ra], 0xF89A_789B);
 
-        let instr = instr.set_rc(1);
+        let instr = instr.with_rc(true);
 
         cpu.gpr[rs] = 0xB004_3000;
         cpu.gpr[rb] = 0x789A_789B;
@@ -1421,7 +1421,7 @@ mod tests {
         assert_eq!(cpu.gpr[ra], 0x4000_C003);
 
         let (mb, me) = (0, 0x1A);
-        let instr = Instruction::new_rlwimix(ra, rs, sh, mb, me).set_rc(1);
+        let instr = Instruction::new_rlwimix(ra, rs, sh, mb, me).with_rc(true);
 
         cpu.gpr[rs] = 0x789A_789B;
         cpu.gpr[ra] = 0x3000_0003;
@@ -1445,7 +1445,7 @@ mod tests {
 
         assert_eq!(cpu.gpr[ra], 0x4000_C000);
 
-        let instr = instr.set_rc(1);
+        let instr = instr.with_rc(true);
 
         cpu.gpr[rs] = 0xB004_3000;
         cpu.gpr[ra] = 0xFFFF_FFFF;
@@ -1469,7 +1469,7 @@ mod tests {
 
         assert_eq!(cpu.gpr[ra], 0x0000_0000);
 
-        let instr = instr.set_rc(1);
+        let instr = instr.with_rc(true);
 
         cpu.gpr[rb] = 0x0000_0005;
         cpu.gpr[rs] = 0xB004_3000;
@@ -1494,7 +1494,7 @@ mod tests {
         assert_eq!(cpu.gpr[ra], 0xFFFF_FFFF);
         assert!(cpu.xer.carry());
 
-        let instr = instr.set_rc(1);
+        let instr = instr.with_rc(true);
 
         cpu.gpr[rs] = 0xB004_3000;
         cpu.gpr[rb] = 0x0000_0004;
@@ -1526,7 +1526,7 @@ mod tests {
         assert_eq!(cpu.gpr[ra], 0xFB00_4300);
         assert!(cpu.xer.carry());
 
-        let instr = instr.set_rc(1);
+        let instr = instr.with_rc(true);
         cpu.gpr[rs] = 0x8000_0001;
         cpu.op_srawix(instr, &mut bus);
 
@@ -1557,7 +1557,7 @@ mod tests {
 
         assert_eq!(cpu.gpr[ra], 0x0000_0000);
 
-        let instr = instr.set_rc(1);
+        let instr = instr.with_rc(true);
 
         cpu.gpr[rs] = 0xB004_3001;
         cpu.gpr[rb] = 0x0000_0004;
@@ -1581,7 +1581,7 @@ mod tests {
 
         assert_eq!(cpu.gpr[rd], 0x0FFF_C000);
 
-        let instr = instr.set_rc(1);
+        let instr = instr.with_rc(true);
 
         cpu.gpr[ra] = 0x0000_4500;
         cpu.gpr[rb] = 0x8000_7000;
@@ -1590,7 +1590,7 @@ mod tests {
         assert_eq!(cpu.gpr[rd], 0x8000_2B00);
         assert_eq!(cpu.cr.get_cr0(), 0x8); // LT
 
-        let instr = instr.set_oe(1);
+        let instr = instr.with_oe(true);
 
         cpu.gpr[ra] = 0x8000_0000;
         cpu.gpr[rb] = 0x0000_4500;
@@ -1624,7 +1624,7 @@ mod tests {
         assert_eq!(cpu.gpr[rd], 0x0FFF_C000);
         assert!(cpu.xer.carry());
 
-        let instr = instr.set_rc(1);
+        let instr = instr.with_rc(true);
 
         cpu.gpr[ra] = 0x0000_4500;
         cpu.gpr[rb] = 0x8000_7000;
@@ -1634,7 +1634,7 @@ mod tests {
         assert!(cpu.xer.carry());
         assert_eq!(cpu.cr.get_cr0(), 0x8); // LT
 
-        let instr = instr.set_oe(1);
+        let instr = instr.with_oe(true);
 
         cpu.gpr[ra] = 0x8000_0000;
         cpu.gpr[rb] = 0x0000_4500;
@@ -1669,7 +1669,7 @@ mod tests {
         assert_eq!(cpu.gpr[rd], 0xF000_4000);
         assert!(!cpu.xer.carry());
 
-        let instr = instr.set_rc(1);
+        let instr = instr.with_rc(true);
 
         cpu.gpr[ra] = 0x0000_4500;
         cpu.gpr[rb] = 0x8000_7000;
@@ -1680,7 +1680,7 @@ mod tests {
         assert!(cpu.xer.carry());
         assert_eq!(cpu.cr.get_cr0(), 0x8); // LT
 
-        let instr = instr.set_oe(1);
+        let instr = instr.with_oe(true);
 
         cpu.gpr[ra] = 0x8000_0000;
         cpu.gpr[rb] = 0xEFFF_FFFF;
@@ -1831,7 +1831,7 @@ mod tests {
 
         assert_eq!(cpu.gpr[ra], 0xE89A_489B);
 
-        let instr = instr.set_rc(1);
+        let instr = instr.with_rc(true);
 
         cpu.gpr[rs] = 0xB004_3000;
         cpu.gpr[rb] = 0x789A_789B;
