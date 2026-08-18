@@ -14,8 +14,8 @@ bitfield = "0.19"
 byteorder = "1.5"
 encoding_rs = "0.8"
 getopts = "0.2"
-env_logger = "0.8.2"
-minifb = "0.27"
+env_logger = "0.11"
+minifb = "0.28"
 log = { version = "0.4", features= ["std"] }
 
 [profile.dev]
