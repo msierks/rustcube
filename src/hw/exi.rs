@@ -379,10 +379,10 @@ impl DeviceIpl {
             let mut data = mem.borrow_mut();
             // RTC (first 4 bytes of SRAM region)
             data[IPL_SRAM_BASE..IPL_SRAM_BASE + 4].copy_from_slice(&[0x38, 0x62, 0x43, 0x80]);
-            // SRAM settings / flash id (Dolphin SRAM_SIZE 0x44 total with RTC)
-            let sram = [
-                0xFF, 0x6B, // checksum 1
-                0x00, 0x91, // checksum 2
+
+            let mut sram = [
+                0x00, 0x00, // checksum
+                0x00, 0x00, // checksum inverse
                 0x00, 0x00, 0x00, 0x00, // ead 0
                 0x00, 0x00, 0x00, 0x00, // ead 1
                 0x00, 0x00, 0x00, 0x00, // counter bias
@@ -405,6 +405,9 @@ impl DeviceIpl {
                 0x00, 0x00, // flash id checksum
                 0x00, 0x00, // padding
             ];
+
+            Self::gen_sram_checksum(&mut sram);
+
             data[IPL_SRAM_BASE + 4..IPL_SRAM_BASE + 4 + sram.len()].copy_from_slice(&sram);
         }
 
@@ -416,6 +419,20 @@ impl DeviceIpl {
             mem,
             uart_line: Vec::new(),
         }
+    }
+
+    /// Generate sram checksum and checksum inverse
+    fn gen_sram_checksum(sram: &mut [u8; 64]) {
+        let mut checksum: u16 = 0;
+        let mut checksum_inv: u16 = 0;
+        // rtc_bias to flags
+        for chunk in sram[12..20].chunks_exact(2) {
+            let value = u16::from_be_bytes([chunk[0], chunk[1]]);
+            checksum = checksum.wrapping_add(value);
+            checksum_inv = checksum_inv.wrapping_add(!value);
+        }
+        sram[0..2].copy_from_slice(&checksum.to_be_bytes());
+        sram[2..4].copy_from_slice(&checksum_inv.to_be_bytes());
     }
 }
 
